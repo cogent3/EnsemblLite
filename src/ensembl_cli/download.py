@@ -95,7 +95,8 @@ class valid_compara_align:
         return self._valid.search(name) is not None
 
 
-def download_compara(config: Config, debug: bool, verbose: bool):
+def download_aligns(config: Config, debug: bool, verbose: bool):
+    """download whole genome alignments"""
     remote_template = (
         f"{config.remote_path}/release-{config.release}/emf/ensembl-compara/multiple_alignments/"
         + "{}"
