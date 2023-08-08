@@ -85,7 +85,7 @@ def download_species(config: Config, debug: bool, verbose: bool):
     return
 
 
-class valid_compara_file:
+class valid_compara_align:
     """whole genome alignment data"""
 
     def __init__(self) -> None:
@@ -100,7 +100,7 @@ def download_compara(config: Config, debug: bool, verbose: bool):
         f"{config.remote_path}/release-{config.release}/emf/ensembl-compara/multiple_alignments/"
         + "{}"
     )
-    valid_compara = valid_compara_file()
+    valid_compara = valid_compara_align()
     local = config.staging_path / "compara"
     for align_name in config.align_names:
         remote_path = remote_template.format(align_name)
