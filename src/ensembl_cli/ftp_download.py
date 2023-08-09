@@ -54,6 +54,7 @@ def download_data(
     local_dest: os.PathLike,
     remote_paths: Iterable[os.PathLike],
     description,
+    do_checksum: bool,
 ) -> bool:
     tasks = [
         unsynced_copy_to_local(host, path, local_dest / pathlib.Path(path).name)
@@ -71,13 +72,14 @@ def download_data(
             all_checksums[str(path.parent)] = get_signature_data(path)
             all_check_funcs[str(path.parent)] = get_sig_calc_func(path.name)
 
-    for path in saved_paths:
-        if dont_checksum(path):
-            continue
-        key = str(path.parent)
-        expect_sig = all_checksums[key][path.name]
-        calc_sig = all_check_funcs[key]
-        signature = calc_sig(path.read_bytes(), path.stat().st_size)
-        assert signature == expect_sig, path
+    if do_checksum:
+        for path in saved_paths:
+            if dont_checksum(path):
+                continue
+            key = str(path.parent)
+            expect_sig = all_checksums[key][path.name]
+            calc_sig = all_check_funcs[key]
+            signature = calc_sig(path.read_bytes(), path.stat().st_size)
+            assert signature == expect_sig, path
 
     return True

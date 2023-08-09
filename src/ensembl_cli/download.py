@@ -80,6 +80,7 @@ def download_species(config: Config, debug: bool, verbose: bool):
                 local_dest=dest_path,
                 remote_paths=remote_paths,
                 description=f"{db_prefix[:5]}.../{subdir}",
+                do_checksum=True,
             )
 
     return
@@ -123,6 +124,7 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
             local_dest=local_dir,
             remote_paths=remote_paths,
             description=f"compara/{align_name[:5]}...",
+            do_checksum=True,
         )
 
     return
