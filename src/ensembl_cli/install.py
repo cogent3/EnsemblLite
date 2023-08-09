@@ -1,10 +1,15 @@
 import os
 import shutil
+import typing
 
-from cogent3 import load_annotations, load_seq, open_
+from cogent3 import load_annotations, load_seq, make_seq, open_
+from cogent3.util import parallel as PAR
 from rich.progress import track
 from unsync import unsync
 
+from ensembl_cli import maf
+from ensembl_cli.aligndb import AlignDb
+from ensembl_cli.convert import seq_to_gap_coords
 from ensembl_cli.util import Config
 
 
@@ -67,13 +72,51 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         for t in track(tasks, description="Installing genomes...", transient=True)
     ]
 
+    return
+
+
+def seq2gaps(record: dict):
+    seq = make_seq(record.pop("seq"))
+    record["gap_spans"] = seq_to_gap_coords(seq)
+    return record
+
+
+def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
+    records = []
+    for block_id, align in enumerate(maf.parse(path)):
+        converted = []
+        for maf_name, seq in align.items():
+            record = maf_name.to_dict()
+            record["block_id"] = block_id
+            record["source"] = path.name
+            record["seq"] = seq
+            converted.append(seq2gaps(record))
+        records.extend(converted)
+    return records
+
 
 def local_install_compara(config: Config, force_overwrite: bool) -> Config:
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
-    # we create the local installation
-    config.install_path.mkdir(parents=True, exist_ok=True)
+    for align_name in config.align_names:
+        src_dir = config.staging_path / "compara" / align_name
+        dest_dir = config.install_path / "compara"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        # write out to a db with align_name
+        db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
+        records = []
+        paths = list(src_dir.glob(f"{align_name}*maf*"))
+        max_workers = min(len(paths), 10)
+        for result in track(
+            PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
+            transient=True,
+            description="Installing compara...",
+            total=len(paths),
+        ):
+            records.extend(result)
 
-    # create the tasks for each alignment name
-    return config
+        db.add_records(records=records)
+        db.close()
+
+    return
