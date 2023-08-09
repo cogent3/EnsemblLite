@@ -128,3 +128,45 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
         )
 
     return
+
+
+class valid_compara_homology:
+    """homology tsv files"""
+
+    def __init__(self) -> None:
+        self._valid = re.compile("([.]tsv[.]gz|README|MD5SUM)")
+
+    def __call__(self, name: str) -> bool:
+        return self._valid.search(name) is not None
+
+
+def download_homology(config: Config, debug: bool, verbose: bool):
+    """downloads tsv homology files for each genome"""
+    remote_root = (
+        f"{config.remote_path}/release-{config.release}/tsv/ensembl-compara/homologies"
+    )
+    remote_template = f"{remote_root}/" + "{}"
+    local = config.staging_path / "compara" / "homologies"
+
+    for db_name in config.db_names:
+        remote_path = remote_template.format(db_name)
+        remote_paths = list(listdir(config.host, remote_path, valid_compara_homology()))
+        if verbose:
+            print(remote_paths)
+
+        if debug:
+            # we need the checksum files
+            remote_paths = [p for p in remote_paths if not is_signature(p)]
+            remote_paths = remote_paths[:4]
+
+        local_dir = local / db_name
+        local_dir.mkdir(parents=True, exist_ok=True)
+        _remove_tmpdirs(local_dir)
+        download_data(
+            host=config.host,
+            local_dest=local_dir,
+            remote_paths=remote_paths,
+            description=f"homologies/{db_name[:5]}...",
+            do_checksum=False,  # no checksums for species homology files
+        )
+    return

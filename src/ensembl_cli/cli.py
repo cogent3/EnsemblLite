@@ -8,7 +8,12 @@ import click
 import wakepy.keep
 
 from ensembl_cli import __version__
-from ensembl_cli.download import _cfg, download_aligns, download_species
+from ensembl_cli.download import (
+    _cfg,
+    download_aligns,
+    download_homology,
+    download_species,
+)
 from ensembl_cli.util import read_config
 
 
@@ -101,6 +106,7 @@ def download(configpath, debug, verbose):
 
     with wakepy.keep.running():
         download_species(config, debug, verbose)
+        download_homology(config, debug, verbose)
         download_aligns(config, debug, verbose)
 
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
