@@ -5,7 +5,7 @@ from cogent3 import load_annotations, load_seq, open_
 from rich.progress import track
 from unsync import unsync
 
-from ensembl_cli.util import Config, read_config
+from ensembl_cli.util import Config
 
 
 @unsync(cpu_bound=True)
