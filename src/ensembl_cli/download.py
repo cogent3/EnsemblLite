@@ -90,7 +90,7 @@ class valid_compara_align:
     """whole genome alignment data"""
 
     def __init__(self) -> None:
-        self._valid = re.compile("([.]emf[.]gz|README|MD5SUM)")
+        self._valid = re.compile("([.](emf|maf)[.]gz|README|MD5SUM)")
 
     def __call__(self, name: str) -> bool:
         return self._valid.search(name) is not None
@@ -99,7 +99,7 @@ class valid_compara_align:
 def download_aligns(config: Config, debug: bool, verbose: bool):
     """download whole genome alignments"""
     remote_template = (
-        f"{config.remote_path}/release-{config.release}/emf/ensembl-compara/multiple_alignments/"
+        f"{config.remote_path}/release-{config.release}/maf/ensembl-compara/multiple_alignments/"
         + "{}"
     )
     valid_compara = valid_compara_align()
