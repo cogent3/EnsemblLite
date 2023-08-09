@@ -38,7 +38,7 @@ def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike):
     return [_install_one_seq(path, dest_dir) for path in paths]
 
 
-def local_install_genomes(config: Config, force_overwrite: bool) -> Config:
+def local_install_genomes(config: Config, force_overwrite: bool):
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
@@ -62,9 +62,10 @@ def local_install_genomes(config: Config, force_overwrite: bool) -> Config:
         dest_dir = config.install_path / db_name
         tasks.extend(_install_gffdb(src_dir, dest_dir))
     # we do all tasks in one go
-    _ = [t.result() for t in track(tasks, description="Installing...", transient=True)]
-
-    return config
+    _ = [
+        t.result()
+        for t in track(tasks, description="Installing genomes...", transient=True)
+    ]
 
 
 def local_install_compara(config: Config, force_overwrite: bool) -> Config:
