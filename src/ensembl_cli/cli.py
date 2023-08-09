@@ -127,8 +127,8 @@ def install(configpath, force_overwrite, verbose):
         shutil.rmtree(config.install_path, ignore_errors=True)
 
     with wakepy.keep.running():
-        local_install_genomes(config)
-        local_install_compara(config)
+        local_install_genomes(config, force_overwrite=force_overwrite)
+        local_install_compara(config, force_overwrite=force_overwrite)
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 

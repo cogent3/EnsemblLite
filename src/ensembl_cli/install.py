@@ -38,8 +38,7 @@ def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike):
     return [_install_one_seq(path, dest_dir) for path in paths]
 
 
-def local_install_genomes(configpath: os.PathLike, force_overwrite: bool) -> Config:
-    config = read_config(configpath)
+def local_install_genomes(config: Config, force_overwrite: bool) -> Config:
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
@@ -68,8 +67,7 @@ def local_install_genomes(configpath: os.PathLike, force_overwrite: bool) -> Con
     return config
 
 
-def local_install_compara(configpath: os.PathLike, force_overwrite: bool) -> Config:
-    config = read_config(configpath)
+def local_install_compara(config: Config, force_overwrite: bool) -> Config:
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
