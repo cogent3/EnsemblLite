@@ -47,7 +47,7 @@ Options:
 <!-- [[[end]]] -->
 
 <details>
-    <summary> Here's a sample config file I've been using for development </summary>
+    <summary> Click to see a sample config file I've been using for development </summary>
     
 Using this config, it takes approximately 16' to download and about 20' (noting that install is incomplete) on my M2 Macbook Pro. (Note this step uses up to  10 CPU cores.)
 
