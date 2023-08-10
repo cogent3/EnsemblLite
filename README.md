@@ -46,6 +46,41 @@ Options:
 ```
 <!-- [[[end]]] -->
 
+<details>
+    <summary> Here's a sample config file I've been using for development </summary>
+    
+Using this config, it takes approximately 16' to download and about 20' (this far) to install on my M2 Macbook Pro. (Note this step uses up to  10 CPU cores.)
+
+```
+[remote path]
+host=ftp.ensembl.org
+path=pub
+[local path]
+staging_path=~/Desktop/Outbox/ensembl_download
+install_path=~/Desktop/Outbox/ensembl_install
+[release]
+release=110
+[Mouse Lemur]
+db=core
+[Macaque]
+db=core
+[Gibbon]
+db=core
+[Orangutan]
+db=core
+[Bonobo]
+db=core
+[Human]
+db=core
+[Chimp]
+db=core
+[Gorilla]
+db=core
+[compara]
+align_names=10_primates.epo
+```
+</details>
+
 ### Download
 
 The `download` downloads, for the species indicated in the config file:
