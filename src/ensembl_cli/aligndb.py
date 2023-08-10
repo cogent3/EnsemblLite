@@ -45,7 +45,7 @@ class AlignDb(SqliteDbMixin):
         self._db = None
         self._init_tables()
 
-    def add_records(self, records: typing.Iterable[AlignRecordType]):
+    def add_records(self, records: typing.Sequence[AlignRecordType]):
         # bulk insert
         col_order = [
             row[1]

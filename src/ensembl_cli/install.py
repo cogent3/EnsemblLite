@@ -95,7 +95,7 @@ def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
     return records
 
 
-def local_install_compara(config: Config, force_overwrite: bool) -> Config:
+def local_install_compara(config: Config, force_overwrite: bool):
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
