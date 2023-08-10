@@ -3,6 +3,7 @@ import shutil
 import typing
 
 from cogent3 import load_annotations, load_seq, make_seq, open_
+from cogent3.parse.table import FilteringParser
 from cogent3.util import parallel as PAR
 from rich.progress import track
 from unsync import unsync
@@ -10,6 +11,7 @@ from unsync import unsync
 from ensembl_cli import maf
 from ensembl_cli.aligndb import AlignDb
 from ensembl_cli.convert import seq_to_gap_coords
+from ensembl_cli.homologydb import HomologyDb
 from ensembl_cli.util import Config
 
 
@@ -120,3 +122,81 @@ def local_install_compara(config: Config, force_overwrite: bool):
         db.close()
 
     return
+
+
+class LoadHomologies:
+    def __init__(self, allowed_species: set):
+        self._allowed_species = allowed_species
+        # map the Ensembl columns to HomologyDb columns
+
+        self.src_cols = [
+            "homology_type",
+            "species",
+            "gene_stable_id",
+            "protein_stable_id",
+            "homology_species",
+            "homology_gene_stable_id",
+            "homology_protein_stable_id",
+        ]
+        self.dest_col = [
+            "relationship",
+            "species_1",
+            "gene_id_1",
+            "prot_id_1",
+            "species_2",
+            "gene_id_2",
+            "prot_id_2",
+            "source",
+        ]
+        self._reader = FilteringParser(
+            row_condition=self._matching_species, columns=self.src_cols, sep="\t"
+        )
+
+    def _matching_species(self, row):
+        return {row[1], row[4]} <= self._allowed_species
+
+    def __call__(self, dirpath: os.PathLike) -> list:
+        final = None
+        for path in dirpath.glob("*.tsv.gz"):
+            with open_(path) as infile:
+                # we bulk load because it's faster than the default line-by-line
+                # iteration on a file
+                data = infile.read().splitlines()
+
+            rows = list(self._reader(data))
+            header = rows.pop(0)
+            assert list(header) == list(self.src_cols), (header, self.src_cols)
+            rows = [r + [path.name] for r in rows]
+            if final is None:
+                final = rows
+                continue
+
+            final += rows
+
+        return final
+
+
+def local_install_homology(config: Config, force_overwrite: bool):
+    if force_overwrite:
+        shutil.rmtree(config.install_homologies, ignore_errors=True)
+
+    config.install_homologies.mkdir(parents=True, exist_ok=True)
+
+    outpath = config.install_homologies / "homologies.sqlitedb"
+    db = HomologyDb(source=outpath)
+
+    dirnames = [config.staging_homologies / sp for sp in config.db_names]
+    loader = LoadHomologies(allowed_species=set(config.db_names))
+    # On test cases, only 30% speedup from running in parallel due to overhead
+    # of pickling the data, but considerable increase in memory. So, run
+    # in serial to avoid memory issues since it's reasonably fast anyway.
+    for rows in track(
+        map(loader, dirnames),
+        transient=True,
+        description="Installing homologies...",
+        total=len(dirnames),
+    ):
+        db.add_records(rows, loader.dest_col)
+        del rows
+
+    db.close()

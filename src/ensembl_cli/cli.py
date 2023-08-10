@@ -124,6 +124,7 @@ def install(configpath, force_overwrite, verbose):
     from ensembl_cli.install import (
         local_install_compara,
         local_install_genomes,
+        local_install_homology,
     )
 
     if configpath.name == _cfg:
