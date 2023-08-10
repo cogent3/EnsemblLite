@@ -7,6 +7,8 @@ from pprint import pprint
 import click
 import wakepy.keep
 
+from trogon import tui
+
 from ensembl_cli import __version__
 from ensembl_cli.download import (
     _cfg,
@@ -84,6 +86,7 @@ _dbrc_out = click.option(
 _release = click.option("-r", "--release", type=int, help="Ensembl release number")
 
 
+@tui()
 @click.group()
 @click.version_option(__version__)
 def main():
