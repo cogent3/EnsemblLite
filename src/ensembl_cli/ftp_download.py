@@ -73,7 +73,9 @@ def download_data(
             all_check_funcs[str(path.parent)] = get_sig_calc_func(path.name)
 
     if do_checksum:
-        for path in saved_paths:
+        for path in track(
+            saved_paths, description="Validating checksums...", transient=True
+        ):
             if dont_checksum(path):
                 continue
             key = str(path.parent)
