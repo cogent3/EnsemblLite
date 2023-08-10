@@ -49,7 +49,7 @@ Options:
 <details>
     <summary> Click to see a sample config file I've been using for development </summary>
     
-Using this config, it takes approximately 16' to download and about 20' (noting that install is incomplete) on my M2 Macbook Pro. (Note this step uses up to  10 CPU cores.)
+Using this config, it takes approximately 16' to download (over a ~200MB/s WiFi connection) and ~45' to install on my M2 Macbook Pro (note the install is incomplete). (Note this step uses up to  10 CPU cores.)
 
 ```
 [remote path]
@@ -83,7 +83,7 @@ align_names=10_primates.epo
 
 ### Download
 
-The `download` downloads, for the species indicated in the config file:
+Downloads the species indicated in the config file:
 
 - genomes sequences as fasta format 
 - annotations as gff3
@@ -95,7 +95,7 @@ Downloads are written to a local directory, specified in the config file. Downlo
 
 ### Install
 
-The downloaded files are (or will be) transformed into local sqlite3 databases which are written to a location specified in the config file.
+"Installation" involves transforming downloaded files into local sqlite3 databases which are saved to the location specified in the config file.
 
 From the maf alignment files, the "ancestral" sequences are discarded and for every aligned sequence only the gap data is stored (i.e. gap position and length) along with the genomic coordinates. These alignments will be reconstructable by combining this information with the whole genome sequence. (This approach reduces storage requirements ~5-fold).
 
