@@ -142,7 +142,7 @@ def install(configpath, force_overwrite, verbose):
 @main.command()
 @_dbrc_out
 def exportrc(outpath):
-    """exports the rc directory to the nominated path
+    """exports sample config and species table to the nominated path
 
     setting an environment variable ENSEMBLDBRC with this path
     will force its contents to override the default ensembl_cli settings"""
