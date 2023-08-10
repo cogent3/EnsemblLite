@@ -111,7 +111,7 @@ def local_install_compara(config: Config, force_overwrite: bool):
         for result in track(
             PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
             transient=True,
-            description="Installing compara...",
+            description="Installing aligns...",
             total=len(paths),
         ):
             records.extend(result)
