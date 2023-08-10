@@ -90,7 +90,7 @@ _release = click.option("-r", "--release", type=int, help="Ensembl release numbe
 @click.group()
 @click.version_option(__version__)
 def main():
-    """admin tools for an Ensembl MySQL installation"""
+    """admin tools for obtaining and interrogating subsets of https://ensembl.org genomic data"""
     pass
 
 
@@ -99,7 +99,7 @@ def main():
 @_debug
 @_verbose
 def download(configpath, debug, verbose):
-    """download databases from Ensembl using rsync, can be done in parallel"""
+    """download data from Ensembl's ftp site"""
     if configpath.name == _cfg:
         click.secho(
             "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
@@ -120,7 +120,7 @@ def download(configpath, debug, verbose):
 @_force
 @_verbose
 def install(configpath, force_overwrite, verbose):
-    """create the local db's"""
+    """create the local representations of the data"""
     from ensembl_cli.install import (
         local_install_compara,
         local_install_genomes,
@@ -138,6 +138,7 @@ def install(configpath, force_overwrite, verbose):
     with wakepy.keep.running():
         local_install_genomes(config, force_overwrite=force_overwrite)
         local_install_compara(config, force_overwrite=force_overwrite)
+        local_install_homology(config, force_overwrite=force_overwrite)
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
