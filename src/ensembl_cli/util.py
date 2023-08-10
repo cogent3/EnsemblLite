@@ -149,6 +149,22 @@ class Config:
         for species in self.species_dbs:
             yield Species.get_ensembl_db_prefix(species)
 
+    @property
+    def staging_homologies(self):
+        return self.staging_path / "compara" / "homologies"
+
+    @property
+    def install_homologies(self):
+        return self.install_path / "compara" / "homologies"
+
+    @property
+    def staging_aligns(self):
+        return self.staging_path / "compara" / "aligns"
+
+    @property
+    def install_aligns(self):
+        return self.install_path / "compara" / "aligns"
+
 
 def read_config(config_path) -> Config:
     """returns ensembl release, local path, and db specifics from the provided

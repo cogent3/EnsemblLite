@@ -97,11 +97,11 @@ def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
 
 def local_install_compara(config: Config, force_overwrite: bool):
     if force_overwrite:
-        shutil.rmtree(config.install_path, ignore_errors=True)
+        shutil.rmtree(config.install_path / "compara", ignore_errors=True)
 
     for align_name in config.align_names:
-        src_dir = config.staging_path / "compara" / align_name
-        dest_dir = config.install_path / "compara"
+        src_dir = config.staging_aligns / align_name
+        dest_dir = config.install_aligns
         dest_dir.mkdir(parents=True, exist_ok=True)
         # write out to a db with align_name
         db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))

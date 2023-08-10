@@ -103,7 +103,6 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
         + "{}"
     )
     valid_compara = valid_compara_align()
-    local = config.staging_path / "compara"
     for align_name in config.align_names:
         remote_path = remote_template.format(align_name)
         remote_paths = list(listdir(config.host, remote_path, valid_compara))
@@ -116,7 +115,7 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
             remote_paths = [p for p in remote_paths if not is_signature(p)]
             remote_paths = remote_paths[:4] + paths
 
-        local_dir = local / align_name
+        local_dir = config.staging_aligns / align_name
         local_dir.mkdir(parents=True, exist_ok=True)
         _remove_tmpdirs(local_dir)
         download_data(
@@ -146,7 +145,7 @@ def download_homology(config: Config, debug: bool, verbose: bool):
         f"{config.remote_path}/release-{config.release}/tsv/ensembl-compara/homologies"
     )
     remote_template = f"{remote_root}/" + "{}"
-    local = config.staging_path / "compara" / "homologies"
+    local = config.staging_homologies
 
     for db_name in config.db_names:
         remote_path = remote_template.format(db_name)
