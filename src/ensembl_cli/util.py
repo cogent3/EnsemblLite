@@ -146,11 +146,13 @@ class Config:
         return self.install_path / "compara" / "aligns"
 
 
-def load_remote_species_table(host, release):
+def load_remote_species_table(host: str, remote_path: str, release: str):
     """loads the full listing of species from the ensembl ftp server"""
     if not host.endswith("ensembl.org"):
         raise NotImplementedError(f"not supporting {host!r} yet")
-    url = f"https://{host}/pub/release-{release}/species_EnsemblVertebrates.txt"
+    url = (
+        f"https://{host}/{remote_path}/release-{release}/species_EnsemblVertebrates.txt"
+    )
     # this file has trailing \t which must be trimmed
     with open_(url) as infile:
         data = infile.readlines()
@@ -160,18 +162,19 @@ def load_remote_species_table(host, release):
 
 
 def species_from_ensembl_tree(
-    host: str, release: str, tree_fname: str
+    host: str, remote_path: str, release: str, tree_fname: str
 ) -> dict[str, str]:
-    url = f"https://{host}/pub/release-{release}/compara/species_trees/{tree_fname[0]}"
+    url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
     tree = load_tree(url)
     tip_names = tree.get_tip_names()
-    table = load_remote_species_table(host, release)
+    table = load_remote_species_table(host, remote_path, release)
     species_names = dict(table.tolist(["species", "#name"]))
     selected_species = {}
     for tip_name in tip_names:
         name_fields = tip_name.lower().split("_")
-        # either 2 or 3 elements to latin name (I hope!)
-        for j in range(1, len(name_fields) + 1):
+        # produce parts of name starting with highly specific to
+        # more general and look for matches
+        for j in range(len(name_fields) + 1, 1, -1):
             n = "_".join(name_fields[:j])
             if n in species_names:
                 selected_species[species_names[n]] = n
@@ -226,8 +229,9 @@ def read_config(config_path) -> Config:
 
     if tree_names:
         # add all species in the tree to species_dbs
-        sp = species_from_ensembl_tree(host, release, tree_names)
-        species_dbs.update(sp)
+        for tree_name in tree_names:
+            sp = species_from_ensembl_tree(host, remote_path, release, tree_name)
+            species_dbs.update(sp)
 
     return Config(
         host=host,
