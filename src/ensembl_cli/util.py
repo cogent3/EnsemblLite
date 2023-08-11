@@ -16,6 +16,8 @@ from typing import IO, Callable, Iterable, Union
 import numba
 import numpy
 
+from cogent3 import load_tree, make_table, open_
+
 
 def md5sum(data: bytes, *args) -> str:
     """computes MD5SUM
@@ -118,6 +120,7 @@ class Config:
     install_path: os.PathLike
     species_dbs: Iterable[str]
     align_names: Iterable[str]
+    tree_names: Iterable[str]
 
     @property
     def db_names(self) -> Iterable[str]:
@@ -141,6 +144,42 @@ class Config:
     @property
     def install_aligns(self):
         return self.install_path / "compara" / "aligns"
+
+
+def load_remote_species_table(host, release):
+    """loads the full listing of species from the ensembl ftp server"""
+    if not host.endswith("ensembl.org"):
+        raise NotImplementedError(f"not supporting {host!r} yet")
+    url = f"https://{host}/pub/release-{release}/species_EnsemblVertebrates.txt"
+    # this file has trailing \t which must be trimmed
+    with open_(url) as infile:
+        data = infile.readlines()
+
+    data = [l.strip().split("\t") for l in data]
+    return make_table(header=data[0], data=data[1:])
+
+
+def species_from_ensembl_tree(
+    host: str, release: str, tree_fname: str
+) -> dict[str, str]:
+    url = f"https://{host}/pub/release-{release}/compara/species_trees/{tree_fname[0]}"
+    tree = load_tree(url)
+    tip_names = tree.get_tip_names()
+    table = load_remote_species_table(host, release)
+    species_names = dict(table.tolist(["species", "#name"]))
+    selected_species = {}
+    for tip_name in tip_names:
+        name_fields = tip_name.lower().split("_")
+        # either 2 or 3 elements to latin name (I hope!)
+        for j in range(1, len(name_fields) + 1):
+            n = "_".join(name_fields[:j])
+            if n in species_names:
+                selected_species[species_names[n]] = n
+                break
+        else:
+            raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
+
+    return selected_species
 
 
 def read_config(config_path) -> Config:
@@ -167,14 +206,16 @@ def read_config(config_path) -> Config:
     species_dbs = {}
     get_option = parser.get
     align_names = []
+    tree_names = []
     for section in parser.sections():
         if section in ("release", "remote path", "local path"):
             continue
 
         if section == "compara":
-            align_names = [
-                n.strip() for n in get_option(section, "align_names").split(",")
-            ]
+            value = get_option(section, "align_names", fallback=None)
+            align_names = [] if value is None else [n.strip() for n in value.split(",")]
+            value = get_option(section, "tree_names", fallback=None)
+            tree_names = [] if value is None else [n.strip() for n in value.split(",")]
             continue
 
         dbs = [db.strip() for db in get_option(section, "db").split(",")]
@@ -182,6 +223,11 @@ def read_config(config_path) -> Config:
         # handle synonyms
         species = Species.get_species_name(section, level="raise")
         species_dbs[species] = dbs
+
+    if tree_names:
+        # add all species in the tree to species_dbs
+        sp = species_from_ensembl_tree(host, release, tree_names)
+        species_dbs.update(sp)
 
     return Config(
         host=host,
@@ -191,6 +237,7 @@ def read_config(config_path) -> Config:
         install_path=install_path,
         species_dbs=species_dbs,
         align_names=align_names,
+        tree_names=tree_names,
     )
 
 

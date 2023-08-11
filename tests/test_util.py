@@ -1,3 +1,5 @@
+import pathlib
+
 from configparser import ConfigParser
 
 import pytest
@@ -6,6 +8,7 @@ from ensembl_cli.util import (
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
+    read_config,
 )
 
 
@@ -96,3 +99,25 @@ def test_valid_seq(name):
     from ensembl_cli.download import valid_seq_file
 
     assert valid_seq_file(name)
+
+
+@pytest.fixture(scope="function")
+def just_compara_cfg(tmp_config):
+    # no genomes!
+    parser = ConfigParser()
+    parser.read(tmp_config)
+    parser.remove_section("S.cerevisiae")
+    parser.add_section("compara")
+    parser.set("compara", "align_names", value="10_primates.epo")
+    parser.set("compara", "tree_names", value="10_primates_EPO_default.nh")
+    with open(tmp_config, "wt") as out:
+        parser.write(out)
+
+    yield tmp_config
+
+
+def test_just_compara(just_compara_cfg):
+    # get species names from the alignment ref tree
+    cfg = read_config(just_compara_cfg)
+    # 10 primates i the alignments, so we should have 10 db's
+    assert len(cfg.species_dbs) == 10
