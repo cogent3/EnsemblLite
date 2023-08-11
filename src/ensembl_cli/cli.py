@@ -160,5 +160,28 @@ def exportrc(outpath):
     click.secho(f"Contents written to {outpath}", fg="green")
 
 
+@main.command()
+@_cfgpath
+@click.option(
+    "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
+)
+def ortholog1to1(configpath, outpath):
+    """exports all one-to-one ortholog groups in json format"""
+    import json
+
+    from cogent3 import open_
+
+    from ensembl_cli.homologydb import HomologyDb
+
+    config = read_config(configpath)
+    db_path = config.install_homologies / "homologies.sqlitedb"
+    db = HomologyDb(source=db_path)
+    # print(db.get_related(gene_id=gene_id, relationship_type="ortholog_one2one"))
+    related = list(db.get_related_groups("ortholog_one2one"))
+    text = json.dumps(related)
+    with open_(outpath, mode="wt") as out:
+        out.write(text)
+
+
 if __name__ == "__main__":
     main()
