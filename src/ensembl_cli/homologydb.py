@@ -1,4 +1,9 @@
+from __future__ import annotations
 import typing
+
+from typing import Iterable
+
+from rich.progress import track
 
 from ensembl_cli._db_base import SqliteDbMixin
 
@@ -12,6 +17,47 @@ class HomologyRecordType(typing.TypedDict):
     gene_id_2: str
     prot_id_2: str
     relationship: str
+
+
+def grouped_related(
+    data: list[HomologyRecordType],
+) -> typing.Iterable[tuple[tuple[str, str]]]:
+    """determines related groups of genes
+
+    Parameters
+    ----------
+    data
+        list of full records from the HomologyDb
+
+    Returns
+    -------
+    a data structure that can be json serialised
+
+    Notes
+    -----
+    I assume that for a specific relationship type, a gene can only belong
+    to one group.
+    """
+    result = {}
+    for record in track(data, description="Grouping related...", transient=True):
+        pair = [
+            (record["species_1"], record["gene_id_1"]),
+            (record["species_2"], record["gene_id_2"]),
+        ]
+
+        for member in pair:
+            if member in result:
+                # one member, rel has already been encountered
+                # so we get this value and update it with the new pair
+                val = result[member]
+                break
+        else:
+            val = set()
+
+        val.update(pair)
+        for member in pair:
+            result[member] = val
+    return [tuple(v) for v in result.values()]
 
 
 # the homology db stores pairwise relationship information
@@ -58,3 +104,19 @@ class HomologyDb(SqliteDbMixin):
                 gene_id_key = f"gene_id_{num}"
                 result.add((r[species_key], r[gene_id_key]))
         return result
+
+    def get_related_groups(
+        self, relationship_type: str
+    ) -> Iterable[tuple[tuple[str, str]]]:
+        """returns all groups of relationship type"""
+        # get all gene ID's first
+        sql = f"SELECT * from {self.table_name} WHERE relationship=?"
+        results = [
+            HomologyRecordType(iter(zip(r.keys(), r)))
+            for r in self._execute_sql(sql, (relationship_type,)).fetchall()
+        ]
+        return grouped_related(results)
+
+    def get_distinct(self, column: str) -> set[str]:
+        sql = f"SELECT DISTINCT {column} from {self.table_name}"
+        return {r[column] for r in self._execute_sql(sql).fetchall()}
