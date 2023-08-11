@@ -89,29 +89,6 @@ def exec_command(cmnd, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     return out.decode("utf8") if out is not None else None
 
 
-class DisplayString(str):
-    """provides a mechanism for customising the str() and repr() of objects"""
-
-    def __new__(cls, arg, num_words=None, repr_length=None, with_quotes=False):
-        new = str.__new__(cls, str(arg))
-        new.num_words = num_words
-        new.repr_length = repr_length or len(str(arg))
-        new.with_quotes = with_quotes
-        return new
-
-    def __repr__(self):
-        if self.num_words is not None:
-            new = " ".join(self.split()[: self.num_words])
-        elif self.repr_length != len(self):
-            new = self[: self.repr_length]
-        else:
-            new = self
-        if len(self) > len(new):
-            new += "..."
-        new = [new, f"'{new}'"][self.with_quotes]
-        return new
-
-
 class CaseInsensitiveString(str):
     """A case-insensitive string class. Comparisons are also case-insensitive."""
 
