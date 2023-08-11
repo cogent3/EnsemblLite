@@ -40,3 +40,21 @@ class HomologyDb(SqliteDbMixin):
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
         self.db.executemany(sql, records)
+
+    def get_related_to(
+        self, *, gene_id: str, relationship_type: str
+    ) -> set[tuple[str, str]]:
+        """return genes with relationship type to gene_id"""
+        sql = (
+            f"SELECT species_1, gene_id_1, species_2, gene_id_2 from {self.table_name}"
+            f" WHERE relationship = ? AND (gene_id_1=? OR gene_id_2=?)"
+        )
+        result = set()
+        for r in self._execute_sql(
+            sql, (relationship_type, gene_id, gene_id)
+        ).fetchall():
+            for num in (1, 2):
+                species_key = f"species_{num}"
+                gene_id_key = f"gene_id_{num}"
+                result.add((r[species_key], r[gene_id_key]))
+        return result
