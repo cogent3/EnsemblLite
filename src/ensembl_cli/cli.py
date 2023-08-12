@@ -106,6 +106,8 @@ def download(configpath, debug, verbose):
         )
 
     config = read_config(configpath)
+    if verbose:
+        print(config.species_dbs)
 
     with wakepy.keep.running():
         download_species(config, debug, verbose)
@@ -176,7 +178,6 @@ def ortholog1to1(configpath, outpath):
     config = read_config(configpath)
     db_path = config.install_homologies / "homologies.sqlitedb"
     db = HomologyDb(source=db_path)
-    # print(db.get_related(gene_id=gene_id, relationship_type="ortholog_one2one"))
     related = list(db.get_related_groups("ortholog_one2one"))
     text = json.dumps(related)
     with open_(outpath, mode="wt") as out:
