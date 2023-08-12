@@ -106,7 +106,7 @@ def just_compara_cfg(tmp_config):
     # no genomes!
     parser = ConfigParser()
     parser.read(tmp_config)
-    parser.remove_section("S.cerevisiae")
+    parser.remove_section("Saccharomyces cerevisiae")
     parser.add_section("compara")
     parser.set("compara", "align_names", value="10_primates.epo")
     parser.set("compara", "tree_names", value="10_primates_EPO_default.nh")

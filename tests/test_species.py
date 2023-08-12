@@ -1,4 +1,4 @@
-from unittest import TestCase, main
+from unittest import TestCase
 
 from cogent3.util.table import Table
 
@@ -26,9 +26,6 @@ class TestSpeciesNamemaps(TestCase):
         self.assertEqual(
             Species.get_ensembl_db_prefix("Canis lupus familiaris"),
             "canis_lupus_familiaris",
-        )
-        self.assertEqual(
-            Species.get_ensembl_db_prefix("Canis familiaris"), "canis_familiaris"
         )
 
     def test_add_new_species(self):
@@ -67,42 +64,15 @@ class TestSpeciesNamemaps(TestCase):
         self.assertEqual(Species.get_ensembl_db_prefix(species_name), ensembl_pref)
         self.assertEqual(Species.get_ensembl_db_prefix(common_name2), ensembl_pref)
 
-    def test_get_compara_name(self):
-        """should correctly form valid names for assignment onto objects"""
-        self.assertEqual(Species.get_compara_name("pika"), "Pika")
-        self.assertEqual(Species.get_compara_name("C.elegans"), "Celegans")
-        self.assertEqual(Species.get_compara_name("Caenorhabditis elegans"), "Celegans")
-
     def test_lookup_raises(self):
         """setting level  to raise should create exceptions"""
         self.assertRaises(ValueError, Species.get_species_name, "failme", level="raise")
         self.assertRaises(ValueError, Species.get_common_name, "failme", level="raise")
         self.assertRaises(ValueError, Species.get_ensembl_db_prefix, "failme")
 
-    def test_synonyms_work(self):
-        """species with synonyms should allow correct lookups"""
-        self.assertEqual(
-            Species.get_species_name("Canis lupus familiaris"), "Canis familiaris"
-        )
-        self.assertEqual(Species.get_common_name("Canis lupus familiaris"), "Dog")
-
-    def test_get_synonyms(self):
-        """correctly returns synonyms given either a common or latin name"""
-        expect = ["Canis familiaris", "Canis lupus familiaris"]
-        got = Species.get_synonymns("Canis familiaris")
-        self.assertEqual(set(got), set(expect))
-        got = Species.get_synonymns("Canis lupus familiaris")
-        self.assertEqual(set(got), set(expect))
-        got = Species.get_synonymns("dog")
-        self.assertEqual(set(got), set(expect))
-
     def test_to_table(self):
         """returns a table object"""
         table = Species.to_table()
         self.assertIsInstance(table, Table)
         self.assertTrue(table.shape[0] > 20)
-        self.assertEqual(table.shape[1], 5)
-
-
-if __name__ == "__main__":
-    main()
+        self.assertEqual(table.shape[1], 3)

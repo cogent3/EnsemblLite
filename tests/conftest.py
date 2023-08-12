@@ -23,7 +23,7 @@ def tmp_config(tmp_dir):
     # we want a very small test set
     parser = ConfigParser()
     parser.read(get_resource_path("ensembldb_download.cfg"))
-    parser.remove_section("C.elegans")
+    parser.remove_section("Caenorhabditis elegans")
     parser.remove_section("compara")
     parser.set("local path", "staging_path", value=str(tmp_dir / "staging"))
     parser.set("local path", "install_path", value=str(tmp_dir / "install"))
