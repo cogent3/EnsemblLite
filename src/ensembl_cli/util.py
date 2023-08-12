@@ -146,29 +146,14 @@ class Config:
         return self.install_path / "compara" / "aligns"
 
 
-def load_remote_species_table(host: str, remote_path: str, release: str):
-    """loads the full listing of species from the ensembl ftp server"""
-    if not host.endswith("ensembl.org"):
-        raise NotImplementedError(f"not supporting {host!r} yet")
-    url = (
-        f"https://{host}/{remote_path}/release-{release}/species_EnsemblVertebrates.txt"
-    )
-    # this file has trailing \t which must be trimmed
-    with open_(url) as infile:
-        data = infile.readlines()
-
-    data = [l.strip().split("\t") for l in data]
-    return make_table(header=data[0], data=data[1:])
-
-
 def species_from_ensembl_tree(
     host: str, remote_path: str, release: str, tree_fname: str
 ) -> dict[str, str]:
+    from ensembl_cli.species import Species
+
     url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
     tree = load_tree(url)
     tip_names = tree.get_tip_names()
-    table = load_remote_species_table(host, remote_path, release)
-    species_names = dict(table.tolist(["species", "#name"]))
     selected_species = {}
     for tip_name in tip_names:
         name_fields = tip_name.lower().split("_")
@@ -176,8 +161,8 @@ def species_from_ensembl_tree(
         # more general and look for matches
         for j in range(len(name_fields) + 1, 1, -1):
             n = "_".join(name_fields[:j])
-            if n in species_names:
-                selected_species[species_names[n]] = n
+            if n in Species:
+                selected_species[Species.get_common_name(n)] = n
                 break
         else:
             raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
