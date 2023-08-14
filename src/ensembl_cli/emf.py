@@ -17,6 +17,8 @@ def _get_block_seqnames(data) -> dict[str, str]:
             names.append(EmfName(*line.strip().split()[1:]))
         elif line.startswith("DATA"):
             break
+    else:
+        raise RuntimeError("missing DATA block")
 
     # EMF compara alignments store one alignment column per line
     # with the order corresponding to SEQ order

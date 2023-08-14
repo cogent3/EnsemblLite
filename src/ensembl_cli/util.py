@@ -16,7 +16,7 @@ from typing import IO, Callable, Iterable, Union
 import numba
 import numpy
 
-from cogent3 import load_tree, make_table, open_
+from cogent3 import load_tree
 
 
 def md5sum(data: bytes, *args) -> str:
