@@ -38,9 +38,8 @@ def get_dbtype_from_name(name):
         print("Error:")
         print(name, type(name), msg)
         raise
-    dbtype = None
-    dbtype = name[1] if name[0] == "ensembl" else name[-1]
-    return dbtype
+
+    return name[1] if name[0] == "ensembl" else name[-1]
 
 
 def get_db_prefix(name):
