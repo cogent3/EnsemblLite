@@ -16,7 +16,7 @@ from ensembl_cli.util import Config
 
 
 @unsync(cpu_bound=True)
-def _install_one_seq(src, dest_dir):
+def _install_one_seq(src: os.PathLike, dest_dir: os.PathLike) -> bool:
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
     with open_(dest_dir / f"{seq.name}.fa.gz", mode="wt") as outfile:
         outfile.write(seq.to_fasta(block_size=int(1e9)))
@@ -24,7 +24,7 @@ def _install_one_seq(src, dest_dir):
 
 
 @unsync(cpu_bound=True)
-def _install_one_annotations(src, dest):
+def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
 
@@ -32,14 +32,14 @@ def _install_one_annotations(src, dest):
     return True
 
 
-def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike):
+def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / "features.gff3db"
     paths = list(src_dir.glob("*.gff3.gz"))
     return [_install_one_annotations(path, dest) for path in paths]
 
 
-def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike):
+def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
     return [_install_one_seq(path, dest_dir) for path in paths]

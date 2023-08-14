@@ -1,4 +1,5 @@
 import re
+import typing
 
 from dataclasses import dataclass
 
@@ -153,12 +154,13 @@ class MafName:
     start: int
     end: int
     strand: str
-    coord_length: str
+    coord_length: typing.Optional[str, int]
 
     def __post_init__(self):
         # adjust the lengths to be ints and put into python coord
         self.start = int(self.start) - 1
         self.end = int(self.end)
+        self.coord_length = int(self.coord_length) if self.coord_length else None
 
     def __str__(self):
         attrs = "species", "coord_name", "start", "end", "strand"
