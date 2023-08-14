@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import typing
 
@@ -154,7 +156,7 @@ class MafName:
     start: int
     end: int
     strand: str
-    coord_length: typing.Optional[str, int]
+    coord_length: typing.Optional[str | int]
 
     def __post_init__(self):
         # adjust the lengths to be ints and put into python coord
