@@ -16,7 +16,7 @@ from ensembl_cli.util import (
 )
 
 
-_cfg = get_resource_path("ensembldb_download.cfg")
+_cfg = get_resource_path("sample.cfg")
 
 _invalid_seq = re.compile("(dna_(sm|rm)|(toplevel|primary_assembly).fa.gz)")
 
