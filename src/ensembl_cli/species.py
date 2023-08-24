@@ -1,15 +1,16 @@
 import os
 import re
+import typing
 
-from collections import defaultdict
-
-from cogent3 import load_table, open_
+from cogent3 import load_table
 from cogent3.util.table import Table
 
 from .util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 
 _invalid_chars = re.compile("[^a-zA-Z _]")
+
+StrOrNone = typing.Union[str, type(None)]
 
 
 def load_species(species_path):
@@ -45,7 +46,7 @@ class SpeciesNameMap:
     def __repr__(self) -> str:
         return repr(self.to_table())
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         return any(
             item in attr
             for attr in (
@@ -59,7 +60,7 @@ class SpeciesNameMap:
         table = self.to_table()
         return table._repr_html_()
 
-    def get_common_name(self, name: str, level="raise") -> str:
+    def get_common_name(self, name: str, level="raise") -> StrOrNone:
         """returns the common name for the given name (which can be either a
         species name or the ensembl version)"""
         name = CaseInsensitiveString(name)
@@ -80,13 +81,13 @@ class SpeciesNameMap:
             elif level == "warn":
                 print(f"WARN: {msg}")
 
-        return str(common_name)
+        return common_name
 
-    def get_species_name(self, name: str, level="ignore") -> str:
+    def get_species_name(self, name: str, level="ignore") -> StrOrNone:
         """returns the species name for the given common name"""
         name = CaseInsensitiveString(name)
         if name in self._species_common:
-            return str(name)
+            return name
 
         species_name = None
         level = level.lower().strip()
@@ -99,14 +100,14 @@ class SpeciesNameMap:
                 raise ValueError(msg)
             elif level == "warn":
                 print(f"WARN: {msg}")
-        return str(species_name)
 
-    def get_species_names(self):
+        return species_name
+
+    def get_species_names(self) -> typing.Sequence[StrOrNone]:
         """returns the list of species names"""
-        names = sorted(self._species_common.keys())
-        return [str(n) for n in names]
+        return sorted(self._species_common.keys())
 
-    def get_ensembl_db_prefix(self, name):
+    def get_ensembl_db_prefix(self, name) -> str:
         """returns a string of the species name in the format used by
         ensembl"""
         name = CaseInsensitiveString(name)
