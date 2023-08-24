@@ -94,7 +94,7 @@ def main():
     pass
 
 
-@main.command()
+@main.command(no_args_is_help=True)
 @_cfgpath
 @_debug
 @_verbose
@@ -117,7 +117,7 @@ def download(configpath, debug, verbose):
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
 
-@main.command()
+@main.command(no_args_is_help=True)
 @_cfgpath
 @_force
 @_verbose
@@ -146,7 +146,7 @@ def install(configpath, force_overwrite, verbose):
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
 
-@main.command()
+@main.command(no_args_is_help=True)
 @_dbrc_out
 def exportrc(outpath):
     """exports sample config and species table to the nominated path
@@ -162,7 +162,7 @@ def exportrc(outpath):
     click.secho(f"Contents written to {outpath}", fg="green")
 
 
-@main.command()
+@main.command(no_args_is_help=True)
 @_cfgpath
 @click.option(
     "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
