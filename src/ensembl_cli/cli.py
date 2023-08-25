@@ -162,9 +162,14 @@ def exportrc(outpath):
     from ensembl_cli.util import ENSEMBLDBRC
 
     shutil.copytree(ENSEMBLDBRC, outpath)
-    # remove the python module file
-    for fn in pathlib.Path(outpath).glob("__init__.py*"):
-        fn.unlink()
+    # we assume all files starting with alphabetical characters are valid
+    for fn in pathlib.Path(outpath).glob("*"):
+        if not fn.name.isalpha():
+            if fn.is_file():
+                fn.unlink()
+            else:
+                # __pycache__ directory
+                shutil.rmtree(fn)
     click.secho(f"Contents written to {outpath}", fg="green")
 
 
