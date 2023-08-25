@@ -164,7 +164,7 @@ def exportrc(outpath):
     shutil.copytree(ENSEMBLDBRC, outpath)
     # we assume all files starting with alphabetical characters are valid
     for fn in pathlib.Path(outpath).glob("*"):
-        if not fn.name.isalpha():
+        if not fn.stem.isalpha():
             if fn.is_file():
                 fn.unlink()
             else:
