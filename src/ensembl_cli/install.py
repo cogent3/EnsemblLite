@@ -47,26 +47,26 @@ def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
 
 def local_install_genomes(config: Config, force_overwrite: bool):
     if force_overwrite:
-        shutil.rmtree(config.install_path, ignore_errors=True)
+        shutil.rmtree(config.install_genomes, ignore_errors=True)
 
     # we create the local installation
-    config.install_path.mkdir(parents=True, exist_ok=True)
+    config.install_genomes.mkdir(parents=True, exist_ok=True)
     # we create subdirectories for each species
     for db_name in config.db_names:
-        sp_dir = config.install_path / db_name
+        sp_dir = config.install_genomes / db_name
         sp_dir.mkdir(parents=True, exist_ok=True)
 
     # for each species, we identify the download and dest paths for annotations
     tasks = []
     for db_name in config.db_names:
         src_dir = config.staging_path / db_name
-        dest_dir = config.install_path / db_name
+        dest_dir = config.install_genomes / db_name
         tasks.extend(_install_seqs(src_dir, dest_dir))
 
     # we now load the individual gff3 files and write to annotation db's
     for db_name in config.db_names:
         src_dir = config.staging_path / db_name
-        dest_dir = config.install_path / db_name
+        dest_dir = config.install_genomes / db_name
         tasks.extend(_install_gffdb(src_dir, dest_dir))
     # we do all tasks in one go
     _ = [

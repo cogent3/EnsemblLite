@@ -130,6 +130,14 @@ class Config:
             yield Species.get_ensembl_db_prefix(species)
 
     @property
+    def staging_genomes(self):
+        return self.staging_path / "genomes"
+
+    @property
+    def install_genomes(self):
+        return self.install_path / "genomes"
+
+    @property
     def staging_homologies(self):
         return self.staging_path / "compara" / "homologies"
 

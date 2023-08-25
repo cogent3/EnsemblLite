@@ -50,17 +50,17 @@ def download_species(config: Config, debug: bool, verbose: bool):
     if verbose:
         click.secho(f"DOWNLOADING\n  ensembl release={config.release}", fg="green")
         click.secho("\n".join(f"  {d}" for d in config.species_dbs), fg="green")
-        click.secho(f"\nWRITING to output path={config.staging_path}\n", fg="green")
+        click.secho(f"\nWRITING to output path={config.staging_genomes}\n", fg="green")
 
     patterns = dict(fasta=valid_seq_file, gff3=valid_gff3_file(config.release))
     for key in config.species_dbs:
         db_prefix = Species.get_ensembl_db_prefix(key)
-        local_root = config.staging_path / db_prefix
+        local_root = config.staging_genomes / db_prefix
         local_root.mkdir(parents=True, exist_ok=True)
         for subdir in ("fasta", "gff3"):
             path = remote_template.format(subdir, db_prefix)
             path = f"{path}/dna" if subdir == "fasta" else path
-            dest_path = config.staging_path / db_prefix / subdir
+            dest_path = config.staging_genomes / db_prefix / subdir
             dest_path.mkdir(parents=True, exist_ok=True)
             remote_paths = list(
                 listdir(config.host, path=path, pattern=patterns[subdir])
