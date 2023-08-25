@@ -52,6 +52,12 @@ _cfgpath = click.option(
     help="path to config file specifying databases, only "
     "species or compara at present",
 )
+_installation = click.option(
+    "--installation",
+    type=pathlib.Path,
+    help="path to local installation directory",
+)
+
 _verbose = click.option(
     "-v",
     "--verbose",
@@ -182,6 +188,47 @@ def ortholog1to1(configpath, outpath):
     text = json.dumps(related)
     with open_(outpath, mode="wt") as out:
         out.write(text)
+
+
+@main.command(no_args_is_help=True)
+@_installation
+def installed(installation):
+    """show what is installed"""
+    from cogent3 import make_table
+
+    from ensembl_cli.species import Species
+    from ensembl_cli.util import rich_display
+
+    if not installation.exists():
+        click.secho(f"{str(installation)!r} does not exist!")
+        exit(1)
+
+    # TODO install structure should be provided by some type of
+    # hook function
+    genome_dir = installation / "genomes"
+    if genome_dir.exists():
+        species = [fn.name for fn in genome_dir.glob("*")]
+        data = {"species": [], "common name": []}
+        for name in species:
+            cn = Species.get_common_name(name, level="ignore")
+            if not cn:
+                continue
+            data["species"].append(name)
+            data["common name"].append(cn)
+
+        table = make_table(data=data, title="Installed genomes")
+        rich_display(table)
+
+    # TODO as above
+    compara_aligns = installation / "compara" / "aligns"
+    if compara_aligns.exists():
+        align_names = [
+            fn.stem for fn in compara_aligns.glob("*") if not fn.name.startswith(".")
+        ]
+        table = make_table(
+            data={"align name": align_names}, title="Installed whole genome alignments"
+        )
+        rich_display(table)
 
 
 if __name__ == "__main__":
