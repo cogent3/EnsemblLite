@@ -1,3 +1,6 @@
+[![CI](https://github.com/cogent3/ensembl_cli/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/ensembl_cli/actions/workflows/testing_develop.yml)
+[![CodeQL](https://github.com/cogent3/ensembl_cli/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/ensembl_cli/actions/workflows/codeql.yml)
+
 # ensembl_cli
 
 ## Installation
