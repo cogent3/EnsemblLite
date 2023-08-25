@@ -113,19 +113,21 @@ class SqliteDbMixin:
 
     def _init_tables(self) -> None:
         # is source an existing db
-        if self.source.exists():
-            self._db = sqlite3.connect(
-                self.source,
-                detect_types=sqlite3.PARSE_DECLTYPES,
-                check_same_thread=False,
-            )
-            self._db.row_factory = sqlite3.Row
+        self._db = sqlite3.connect(
+            self.source,
+            detect_types=sqlite3.PARSE_DECLTYPES,
+            check_same_thread=False,
+        )
+        self._db.row_factory = sqlite3.Row
 
         # A bit of magic.
         # Assumes schema attributes named as `_<table name>_schema`
-        attr = getattr(self, f"_{self.table_name}_schema")
-        sql = _make_table_sql(self.table_name, attr)
-        self._execute_sql(sql)
+        for attr in dir(self):
+            if attr.endswith("_schema"):
+                table_name = attr.split("_")[1]
+                attr = getattr(self, attr)
+                sql = _make_table_sql(table_name, attr)
+                self._execute_sql(sql)
 
     @property
     def db(self) -> sqlite3.Connection:
