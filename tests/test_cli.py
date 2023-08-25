@@ -1,11 +1,16 @@
 import os
 import shutil
+import sys
 
 import pytest
 
 from click.testing import CliRunner
 
 from ensembl_cli.cli import download, exportrc, install
+
+
+if sys.platform.startswith("linux"):
+    pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
 
 
 def test_download(tmp_config):
