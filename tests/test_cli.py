@@ -13,6 +13,7 @@ if sys.platform.startswith("linux"):
     pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
 
 
+@pytest.mark.slow
 def test_download(tmp_config):
     """runs download, install, drop according to a special test cfg"""
     tmp_dir = tmp_config.parent
