@@ -98,6 +98,8 @@ class valid_compara_align:
 
 def download_aligns(config: Config, debug: bool, verbose: bool):
     """download whole genome alignments"""
+    if not config.align_names:
+        return
     remote_template = (
         f"{config.remote_path}/release-{config.release}/maf/ensembl-compara/multiple_alignments/"
         + "{}"
@@ -141,6 +143,8 @@ class valid_compara_homology:
 
 def download_homology(config: Config, debug: bool, verbose: bool):
     """downloads tsv homology files for each genome"""
+    if not any((config.align_names, config.tree_names)):
+        return
     remote_root = (
         f"{config.remote_path}/release-{config.release}/tsv/ensembl-compara/homologies"
     )
