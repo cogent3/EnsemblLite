@@ -1,5 +1,3 @@
-import pathlib
-
 from configparser import ConfigParser
 
 import pytest
