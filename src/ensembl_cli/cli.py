@@ -10,13 +10,13 @@ import wakepy.keep
 from trogon import tui
 
 from ensembl_cli import __version__
+from ensembl_cli._config import read_config
 from ensembl_cli.download import (
     _cfg,
     download_aligns,
     download_homology,
     download_species,
 )
-from ensembl_cli.util import read_config
 
 
 def listpaths(dirname, glob_pattern):

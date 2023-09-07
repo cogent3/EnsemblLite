@@ -1,4 +1,3 @@
-import configparser
 import functools
 import os
 import pathlib
@@ -8,15 +7,12 @@ import subprocess
 import sys
 import uuid
 
-from dataclasses import dataclass
 from hashlib import md5
 from tempfile import mkdtemp
-from typing import IO, Callable, Iterable, Union
+from typing import IO, Callable, Union
 
 import numba
 import numpy
-
-from cogent3 import load_tree
 
 
 def md5sum(data: bytes, *args) -> str:
@@ -109,133 +105,6 @@ class CaseInsensitiveString(str):
 
     def __str__(self):
         return "".join(list(self))
-
-
-@dataclass
-class Config:
-    host: str
-    remote_path: str
-    release: str
-    staging_path: os.PathLike
-    install_path: os.PathLike
-    species_dbs: Iterable[str]
-    align_names: Iterable[str]
-    tree_names: Iterable[str]
-
-    @property
-    def db_names(self) -> Iterable[str]:
-        from ensembl_cli.species import Species
-
-        for species in self.species_dbs:
-            yield Species.get_ensembl_db_prefix(species)
-
-    @property
-    def staging_genomes(self):
-        return self.staging_path / "genomes"
-
-    @property
-    def install_genomes(self):
-        return self.install_path / "genomes"
-
-    @property
-    def staging_homologies(self):
-        return self.staging_path / "compara" / "homologies"
-
-    @property
-    def install_homologies(self):
-        return self.install_path / "compara" / "homologies"
-
-    @property
-    def staging_aligns(self):
-        return self.staging_path / "compara" / "aligns"
-
-    @property
-    def install_aligns(self):
-        return self.install_path / "compara" / "aligns"
-
-
-def species_from_ensembl_tree(
-    host: str, remote_path: str, release: str, tree_fname: str
-) -> dict[str, str]:
-    from ensembl_cli.species import Species
-
-    url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
-    tree = load_tree(url)
-    tip_names = tree.get_tip_names()
-    selected_species = {}
-    for tip_name in tip_names:
-        name_fields = tip_name.lower().split("_")
-        # produce parts of name starting with highly specific to
-        # more general and look for matches
-        for j in range(len(name_fields) + 1, 1, -1):
-            n = "_".join(name_fields[:j])
-            if n in Species:
-                selected_species[Species.get_common_name(n)] = n
-                break
-        else:
-            raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
-
-    return selected_species
-
-
-def read_config(config_path) -> Config:
-    """returns ensembl release, local path, and db specifics from the provided
-    config path"""
-    from ensembl_cli.species import Species
-
-    parser = configparser.ConfigParser()
-
-    with config_path.expanduser().open() as f:
-        parser.read_file(f)
-
-    release = parser.get("release", "release")
-    host = parser.get("remote path", "host")
-    remote_path = parser.get("remote path", "path")
-    remote_path = remote_path[:-1] if remote_path.endswith("/") else remote_path
-    staging_path = (
-        pathlib.Path(parser.get("local path", "staging_path")).expanduser().absolute()
-    )
-    install_path = (
-        pathlib.Path(parser.get("local path", "install_path")).expanduser().absolute()
-    )
-
-    species_dbs = {}
-    get_option = parser.get
-    align_names = []
-    tree_names = []
-    for section in parser.sections():
-        if section in ("release", "remote path", "local path"):
-            continue
-
-        if section == "compara":
-            value = get_option(section, "align_names", fallback=None)
-            align_names = [] if value is None else [n.strip() for n in value.split(",")]
-            value = get_option(section, "tree_names", fallback=None)
-            tree_names = [] if value is None else [n.strip() for n in value.split(",")]
-            continue
-
-        dbs = [db.strip() for db in get_option(section, "db").split(",")]
-
-        # handle synonyms
-        species = Species.get_species_name(section, level="raise")
-        species_dbs[species] = dbs
-
-    if tree_names:
-        # add all species in the tree to species_dbs
-        for tree_name in tree_names:
-            sp = species_from_ensembl_tree(host, remote_path, release, tree_name)
-            species_dbs.update(sp)
-
-    return Config(
-        host=host,
-        remote_path=remote_path,
-        release=release,
-        staging_path=staging_path,
-        install_path=install_path,
-        species_dbs=species_dbs,
-        align_names=align_names,
-        tree_names=tree_names,
-    )
 
 
 def load_ensembl_checksum(path: os.PathLike) -> dict:

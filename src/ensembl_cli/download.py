@@ -6,14 +6,10 @@ import shutil
 
 import click
 
+from ensembl_cli._config import Config
 from ensembl_cli.ftp_download import download_data, listdir
 from ensembl_cli.species import Species
-from ensembl_cli.util import (
-    Config,
-    dont_checksum,
-    get_resource_path,
-    is_signature,
-)
+from ensembl_cli.util import dont_checksum, get_resource_path, is_signature
 
 
 _cfg = get_resource_path("sample.cfg")

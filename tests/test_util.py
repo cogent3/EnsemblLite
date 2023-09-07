@@ -4,11 +4,11 @@ from configparser import ConfigParser
 
 import pytest
 
+from ensembl_cli._config import read_config
 from ensembl_cli.util import (
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
-    read_config,
 )
 
 
@@ -27,7 +27,7 @@ def compara_cfg(tmp_config):
 
 
 def test_parse_config(compara_cfg):
-    from ensembl_cli.util import read_config
+    from ensembl_cli._config import read_config
 
     cfg = read_config(compara_cfg)
     assert set(cfg.align_names) == {"17_sauropsids.epc", "10_primates.epo"}
@@ -59,7 +59,7 @@ def gorilla_cfg(tmp_config):
 
 
 def test_parse_config_gorilla(gorilla_cfg):
-    from ensembl_cli.util import read_config
+    from ensembl_cli._config import read_config
 
     # Gorilla has two synonyms, we need only one
     cfg = read_config(gorilla_cfg)
