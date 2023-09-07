@@ -33,10 +33,7 @@ def listdir(host: str, path: str, pattern: Callable = None):
     ftp.close()
 
 
-@unsync
-def unsynced_copy_to_local(
-    host: str, src: os.PathLike, dest: os.PathLike
-) -> os.PathLike:
+def _copy_to_local(host: str, src: os.PathLike, dest: os.PathLike) -> os.PathLike:
     if dest.exists():
         return dest
     ftp = configured_ftp(host=host)
@@ -48,6 +45,29 @@ def unsynced_copy_to_local(
     return dest
 
 
+unsynced_copy_to_local = unsync(_copy_to_local)
+
+
+def _get_saved_paths_unsync(description, host, local_dest, remote_paths):
+    tasks = [
+        unsynced_copy_to_local(host, path, local_dest / pathlib.Path(path).name)
+        for path in remote_paths
+    ]
+    saved_paths = [
+        task.result() for task in track(tasks, description=description, transient=True)
+    ]
+    return saved_paths
+
+
+def _get_saved_paths(description, host, local_dest, remote_paths):  # pragma: no cover
+    # keep this, it's useful for debugging
+    saved_paths = []
+    for path in track(remote_paths, description=description, transient=True):
+        saved = _copy_to_local(host, path, local_dest / pathlib.Path(path).name)
+        saved_paths.append(saved)
+    return saved_paths
+
+
 def download_data(
     *,
     host: str,
@@ -56,13 +76,7 @@ def download_data(
     description,
     do_checksum: bool,
 ) -> bool:
-    tasks = [
-        unsynced_copy_to_local(host, path, local_dest / pathlib.Path(path).name)
-        for path in remote_paths
-    ]
-    saved_paths = [
-        task.result() for task in track(tasks, description=description, transient=True)
-    ]
+    saved_paths = _get_saved_paths_unsync(description, host, local_dest, remote_paths)
 
     # load the signature data and sig calc keyed by parent dir
     all_checksums = {}
