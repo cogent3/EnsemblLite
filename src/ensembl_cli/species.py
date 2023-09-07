@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import os
 import re
 import typing
 
 from cogent3 import load_table
+from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
 from .util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
@@ -164,3 +167,22 @@ class SpeciesNameMap:
 
 
 Species = SpeciesNameMap()
+
+
+def species_from_ensembl_tree(tree: TreeNode) -> dict[str, str]:
+    """get species identifiers from an Ensembl tree"""
+    tip_names = tree.get_tip_names()
+    selected_species = {}
+    for tip_name in tip_names:
+        name_fields = tip_name.lower().split("_")
+        # produce parts of name starting with highly specific to
+        # more general and look for matches
+        for j in range(len(name_fields) + 1, 1, -1):
+            n = "_".join(name_fields[:j])
+            if n in Species:
+                selected_species[Species.get_common_name(n)] = n
+                break
+        else:
+            raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
+
+    return selected_species

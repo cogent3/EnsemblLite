@@ -6,6 +6,8 @@ import shutil
 
 import click
 
+from cogent3 import load_tree
+
 from ensembl_cli._config import Config
 from ensembl_cli.ftp_download import download_data, listdir
 from ensembl_cli.species import Species
@@ -169,3 +171,9 @@ def download_homology(config: Config, debug: bool, verbose: bool):
             do_checksum=False,  # no checksums for species homology files
         )
     return
+
+
+def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname: str):
+    """loads a tree from Ensembl"""
+    url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
+    return load_tree(url)
