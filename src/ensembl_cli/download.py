@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 import shutil
 
@@ -10,8 +11,13 @@ from cogent3 import load_tree
 
 from ensembl_cli._config import Config
 from ensembl_cli.ftp_download import download_data, listdir
-from ensembl_cli.species import Species
-from ensembl_cli.util import dont_checksum, get_resource_path, is_signature
+from ensembl_cli.species import Species, species_from_ensembl_tree
+from ensembl_cli.util import (
+    dont_checksum,
+    get_resource_path,
+    is_signature,
+    trees_for_aligns,
+)
 
 
 _cfg = get_resource_path("sample.cfg")
@@ -177,3 +183,31 @@ def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname:
     """loads a tree from Ensembl"""
     url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
     return load_tree(url)
+
+
+def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
+    """returns trees from ensembl compara"""
+    path = f"{remote_path}/release-{release}/compara/species_trees/"
+    return list(listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")))
+
+
+def get_species_for_alignments(
+    host: str, remote_path: str, release: str, align_names: list[str]
+) -> dict[str, list[str]]:
+    """return the species for the indicated alignments"""
+    ensembl_trees = get_ensembl_trees(
+        host=host, remote_path=remote_path, release=release
+    )
+    aligns_trees = trees_for_aligns(align_names, ensembl_trees)
+    species = {}
+    for tree_path in aligns_trees.values():
+        tree_path = pathlib.Path(tree_path)
+        tree = download_ensembl_tree(
+            host=host,
+            remote_path=remote_path,
+            release=release,
+            tree_fname=tree_path.name,
+        )
+        # dict structure is {common name: db prefix}, just use common name
+        species |= {n: ["core"] for n in species_from_ensembl_tree(tree).keys()}
+    return species
