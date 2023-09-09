@@ -53,10 +53,9 @@ def _get_saved_paths_unsync(description, host, local_dest, remote_paths):
         unsynced_copy_to_local(host, path, local_dest / pathlib.Path(path).name)
         for path in remote_paths
     ]
-    saved_paths = [
+    return [
         task.result() for task in track(tasks, description=description, transient=True)
     ]
-    return saved_paths
 
 
 def _get_saved_paths(description, host, local_dest, remote_paths):  # pragma: no cover
