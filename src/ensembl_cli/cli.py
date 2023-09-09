@@ -201,8 +201,15 @@ def exportrc(outpath):
 @click.option(
     "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
 )
-def ortholog1to1(configpath, outpath):
-    """exports all one-to-one ortholog groups in json format"""
+@click.option(
+    "-r",
+    "--relationship",
+    type=click.Choice(["ortholog_one2one", "ortholog_one2many"]),
+    default="ortholog_one2one",
+    help="type of homology",
+)
+def homologs(installed, outpath, relationship):
+    """exports all homolog groups of type relationship in json format"""
     import json
 
     from cogent3 import open_
