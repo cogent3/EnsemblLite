@@ -19,6 +19,14 @@ class Config:
     align_names: Iterable[str]
     tree_names: Iterable[str]
 
+    def update_species(self, species: dict[str, list[str]]):
+        if not species:
+            return
+        for k in species:
+            if k not in Species:
+                raise ValueError(f"Unknown species {k}")
+        self.species_dbs |= species
+
     @property
     def db_names(self) -> Iterable[str]:
         from ensembl_cli.species import Species

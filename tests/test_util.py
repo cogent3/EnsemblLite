@@ -159,3 +159,14 @@ def test_missing_match_align_tree(tmp_config):
         trees_for_aligns(aligns, trees)
 
 
+def test_config_update_invalid_species(tmp_config):
+    config = read_config(tmp_config)
+    with pytest.raises(ValueError):
+        config.update_species({"Micro bat": ["core"]})
+
+
+def test_config_update_species(tmp_config):
+    config = read_config(tmp_config)
+    config.update_species({"Human": ["core"]})
+    assert len(list(config.db_names)) == 2
+    assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}
