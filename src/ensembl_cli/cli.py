@@ -10,7 +10,11 @@ import wakepy.keep
 from trogon import tui
 
 from ensembl_cli import __version__
-from ensembl_cli._config import read_config
+from ensembl_cli._config import (
+    read_config,
+    read_installed_cfg,
+    write_installed_cfg,
+)
 from ensembl_cli.download import (
     _cfg,
     download_aligns,
@@ -158,6 +162,9 @@ def install(configpath, force_overwrite, verbose):
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
+    config.install_path.mkdir(parents=True, exist_ok=True)
+    write_installed_cfg(config)
+
     with wakepy.keep.running():
         local_install_genomes(config, force_overwrite=force_overwrite)
         local_install_compara(config, force_overwrite=force_overwrite)
@@ -188,7 +195,9 @@ def exportrc(outpath):
 
 
 @main.command(no_args_is_help=True)
-@_cfgpath
+@click.option(
+    "-i", "--installed", required=True, help="string pointing to installation"
+)
 @click.option(
     "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
 )
@@ -200,13 +209,12 @@ def ortholog1to1(configpath, outpath):
 
     from ensembl_cli.homologydb import HomologyDb
 
-    config = read_config(configpath)
+    config = read_installed_cfg(installed)
     db_path = config.install_homologies / "homologies.sqlitedb"
     db = HomologyDb(source=db_path)
-    related = list(db.get_related_groups("ortholog_one2one"))
-    text = json.dumps(related)
+    related = list(db.get_related_groups(relationship))
     with open_(outpath, mode="wt") as out:
-        out.write(text)
+        json.dump(related, out)
 
 
 @main.command(no_args_is_help=True)

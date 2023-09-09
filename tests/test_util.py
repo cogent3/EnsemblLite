@@ -3,7 +3,11 @@ from random import shuffle
 
 import pytest
 
-from ensembl_cli._config import read_config
+from ensembl_cli._config import (
+    read_config,
+    read_installed_cfg,
+    write_installed_cfg,
+)
 from ensembl_cli.util import (
     get_resource_path,
     load_ensembl_checksum,
@@ -121,6 +125,16 @@ def test_just_compara(just_compara_cfg):
     cfg = read_config(just_compara_cfg)
     # 10 primates i the alignments, so we should have 10 db's
     assert len(cfg.species_dbs) == 10
+
+
+def test_write_read_installed_config(tmp_config):
+    config = read_config(tmp_config)
+    cfg_path = write_installed_cfg(config)
+    icfg = read_installed_cfg(cfg_path.parent)
+    assert icfg.release == config.release
+    assert icfg.install_path == config.install_path
+
+
 def test_match_align_tree(tmp_config):
     trees = [
         "pub/release-110/compara/species_trees/16_pig_breeds_EPO-Extended_default.nh",

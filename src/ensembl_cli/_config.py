@@ -8,6 +8,9 @@ from typing import Iterable
 from ensembl_cli.species import Species, species_from_ensembl_tree
 
 
+INSTALLED_CONFIG_NAME = "installed.cfg"
+
+
 @dataclass
 class Config:
     host: str
@@ -57,6 +60,47 @@ class Config:
     @property
     def install_aligns(self):
         return self.install_path / "compara" / "aligns"
+
+
+@dataclass
+class InstalledConfig:
+    release: str
+    install_path: os.PathLike
+
+    @property
+    def install_homologies(self):
+        return self.install_path / "compara" / "homologies"
+
+    @property
+    def install_aligns(self):
+        return self.install_path / "compara" / "aligns"
+
+
+def write_installed_cfg(config: Config) -> os.PathLike:
+    """writes an ini file under config.installed_path"""
+    parser = configparser.ConfigParser()
+    parser.add_section("release")
+    parser.set("release", "release", config.release)
+    outpath = config.install_path / INSTALLED_CONFIG_NAME
+    outpath.parent.mkdir(parents=True, exist_ok=True)
+    with outpath.open(mode="w") as out:
+        parser.write(out)
+    return outpath
+
+
+def read_installed_cfg(path: os.PathLike) -> InstalledConfig:
+    """reads an ini file under config.installed_path"""
+    parser = configparser.ConfigParser()
+    path = (
+        path if path.name == INSTALLED_CONFIG_NAME else (path / INSTALLED_CONFIG_NAME)
+    )
+    if not path.exists():
+        print(f"{str(path)} does not exist, exiting")
+        exit(1)
+
+    parser.read(path)
+    release = parser.get("release", "release")
+    return InstalledConfig(release=release, install_path=path.parent)
 
 
 def read_config(config_path) -> Config:
