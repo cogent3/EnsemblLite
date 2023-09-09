@@ -1,4 +1,5 @@
 from configparser import ConfigParser
+from random import shuffle
 
 import pytest
 
@@ -7,6 +8,7 @@ from ensembl_cli.util import (
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
+    trees_for_aligns,
 )
 
 
@@ -119,3 +121,41 @@ def test_just_compara(just_compara_cfg):
     cfg = read_config(just_compara_cfg)
     # 10 primates i the alignments, so we should have 10 db's
     assert len(cfg.species_dbs) == 10
+def test_match_align_tree(tmp_config):
+    trees = [
+        "pub/release-110/compara/species_trees/16_pig_breeds_EPO-Extended_default.nh",
+        "pub/release-110/compara/species_trees/21_murinae_EPO_default.nh",
+        "pub/release-110/compara/species_trees/39_fish_EPO_default.nh",
+        "pub/release-110/compara/species_trees/65_amniota_vertebrates_Mercator-Pecan_default.nh",
+    ]
+
+    aligns = [
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/16_pig_breeds.epo_extended",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/21_murinae.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/39_fish.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/65_amniotes.pecan",
+    ]
+
+    expect = dict(zip(aligns, trees))
+    shuffle(aligns)
+    result = trees_for_aligns(aligns, trees)
+    assert result == expect
+
+
+def test_missing_match_align_tree(tmp_config):
+    trees = [
+        "pub/release-110/compara/species_trees/16_pig_breeds_EPO-Extended_default.nh",
+        "pub/release-110/compara/species_trees/21_murinae_EPO_default.nh",
+        "pub/release-110/compara/species_trees/65_amniota_vertebrates_Mercator-Pecan_default.nh",
+    ]
+
+    aligns = [
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/16_pig_breeds.epo_extended",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/21_murinae.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/39_fish.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/65_amniotes.pecan",
+    ]
+    with pytest.raises(ValueError):
+        trees_for_aligns(aligns, trees)
+
+

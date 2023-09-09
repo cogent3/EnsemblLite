@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import os
 import pathlib
@@ -290,3 +292,41 @@ def rich_display(c3t, title_justify="left"):
 
     console = Console()
     console.print(rich_table)
+
+
+_seps = re.compile(r"[-._\s]")
+
+
+def _name_parts(path: str) -> list[str]:
+    return _seps.split(pathlib.Path(path).name.lower())
+
+
+def _simple_check(align_parts: str, tree_parts: str) -> int:
+    """evaluates whether the start of the two paths match"""
+    matches = 0
+    for a, b in zip(align_parts, tree_parts):
+        if a != b:
+            break
+        matches += 1
+
+    return matches
+
+
+def trees_for_aligns(aligns, trees) -> dict[str, str]:
+    from cogent3.maths.distance_transform import jaccard
+
+    aligns = {p: _name_parts(p) for p in aligns}
+    trees = {p: _name_parts(p) for p in trees}
+    result = {}
+    for align, align_parts in aligns.items():
+        dists = [
+            (_simple_check(align_parts, tree_parts), tree)
+            for tree, tree_parts in trees.items()
+        ]
+        v, p = max(dists)
+        if v == 0:
+            raise ValueError(f"no tree for {align}")
+
+        result[align] = p
+
+    return result
