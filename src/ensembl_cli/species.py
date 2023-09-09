@@ -50,6 +50,7 @@ class SpeciesNameMap:
         return repr(self.to_table())
 
     def __contains__(self, item) -> bool:
+        item = CaseInsensitiveString(item)
         return any(
             item in attr
             for attr in (

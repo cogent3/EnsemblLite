@@ -1,5 +1,7 @@
 from unittest import TestCase
 
+import pytest
+
 from cogent3.util.table import Table
 
 from ensembl_cli.species import Species
@@ -76,3 +78,10 @@ class TestSpeciesNamemaps(TestCase):
         self.assertIsInstance(table, Table)
         self.assertTrue(table.shape[0] > 20)
         self.assertEqual(table.shape[1], 3)
+
+
+@pytest.mark.parametrize(
+    "name", ("Human", "human", "Anas platyrhynchos", "Dog - Basenji")
+)
+def test_contains(name):
+    assert name in Species
