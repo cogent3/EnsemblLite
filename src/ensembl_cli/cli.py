@@ -16,6 +16,7 @@ from ensembl_cli.download import (
     download_aligns,
     download_homology,
     download_species,
+    get_species_for_alignments,
 )
 
 
@@ -112,6 +113,19 @@ def download(configpath, debug, verbose):
         )
 
     config = read_config(configpath)
+    if not any((config.species_dbs, config.align_names)):
+        click.secho("No genomes, no alignments specified")
+        exit(1)
+
+    if not config.species_dbs:
+        species = get_species_for_alignments(
+            host=config.host,
+            remote_path=config.remote_path,
+            release=config.release,
+            align_names=config.align_names,
+        )
+        config.update_species(species)
+
     if verbose:
         print(config.species_dbs)
 
