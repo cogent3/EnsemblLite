@@ -1,11 +1,18 @@
 from configparser import ConfigParser
+from random import shuffle
 
 import pytest
 
+from ensembl_cli._config import (
+    read_config,
+    read_installed_cfg,
+    write_installed_cfg,
+)
 from ensembl_cli.util import (
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
+    trees_for_aligns,
 )
 
 
@@ -24,7 +31,7 @@ def compara_cfg(tmp_config):
 
 
 def test_parse_config(compara_cfg):
-    from ensembl_cli.util import read_config
+    from ensembl_cli._config import read_config
 
     cfg = read_config(compara_cfg)
     assert set(cfg.align_names) == {"17_sauropsids.epc", "10_primates.epo"}
@@ -56,7 +63,7 @@ def gorilla_cfg(tmp_config):
 
 
 def test_parse_config_gorilla(gorilla_cfg):
-    from ensembl_cli.util import read_config
+    from ensembl_cli._config import read_config
 
     # Gorilla has two synonyms, we need only one
     cfg = read_config(gorilla_cfg)
@@ -96,3 +103,84 @@ def test_valid_seq(name):
     from ensembl_cli.download import valid_seq_file
 
     assert valid_seq_file(name)
+
+
+@pytest.fixture(scope="function")
+def just_compara_cfg(tmp_config):
+    # no genomes!
+    parser = ConfigParser()
+    parser.read(tmp_config)
+    parser.remove_section("Saccharomyces cerevisiae")
+    parser.add_section("compara")
+    parser.set("compara", "align_names", value="10_primates.epo")
+    parser.set("compara", "tree_names", value="10_primates_EPO_default.nh")
+    with open(tmp_config, "wt") as out:
+        parser.write(out)
+
+    yield tmp_config
+
+
+def test_just_compara(just_compara_cfg):
+    # get species names from the alignment ref tree
+    cfg = read_config(just_compara_cfg)
+    # 10 primates i the alignments, so we should have 10 db's
+    assert len(cfg.species_dbs) == 10
+
+
+def test_write_read_installed_config(tmp_config):
+    config = read_config(tmp_config)
+    cfg_path = write_installed_cfg(config)
+    icfg = read_installed_cfg(cfg_path.parent)
+    assert icfg.release == config.release
+    assert icfg.install_path == config.install_path
+
+
+def test_match_align_tree(tmp_config):
+    trees = [
+        "pub/release-110/compara/species_trees/16_pig_breeds_EPO-Extended_default.nh",
+        "pub/release-110/compara/species_trees/21_murinae_EPO_default.nh",
+        "pub/release-110/compara/species_trees/39_fish_EPO_default.nh",
+        "pub/release-110/compara/species_trees/65_amniota_vertebrates_Mercator-Pecan_default.nh",
+    ]
+
+    aligns = [
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/16_pig_breeds.epo_extended",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/21_murinae.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/39_fish.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/65_amniotes.pecan",
+    ]
+
+    expect = dict(zip(aligns, trees))
+    shuffle(aligns)
+    result = trees_for_aligns(aligns, trees)
+    assert result == expect
+
+
+def test_missing_match_align_tree(tmp_config):
+    trees = [
+        "pub/release-110/compara/species_trees/16_pig_breeds_EPO-Extended_default.nh",
+        "pub/release-110/compara/species_trees/21_murinae_EPO_default.nh",
+        "pub/release-110/compara/species_trees/65_amniota_vertebrates_Mercator-Pecan_default.nh",
+    ]
+
+    aligns = [
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/16_pig_breeds.epo_extended",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/21_murinae.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/39_fish.epo",
+        "pub/release-110/maf/ensembl-compara/multiple_alignments/65_amniotes.pecan",
+    ]
+    with pytest.raises(ValueError):
+        trees_for_aligns(aligns, trees)
+
+
+def test_config_update_invalid_species(tmp_config):
+    config = read_config(tmp_config)
+    with pytest.raises(ValueError):
+        config.update_species({"Micro bat": ["core"]})
+
+
+def test_config_update_species(tmp_config):
+    config = read_config(tmp_config)
+    config.update_species({"Human": ["core"]})
+    assert len(list(config.db_names)) == 2
+    assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}

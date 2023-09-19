@@ -1,0 +1,15 @@
+##maf version=1
+# emf2maf.pl v1.0.1 from file /hps/nobackup/flicek/ensembl/production/release_dumps/release-106/vertebrates/release-106/emf/ensembl-compara/multiple_alignments/10_primates.epo/10_primates.epo.1_1.emf
+# NOTE: truncated and edited sample for testing purposes
+# Here is the header from the orginal file:
+# original dump date: Sat Feb  5 23:06:31 2022
+# ensembl release: 106
+# emf comment: Alignments: 10 primates EPO
+# emf comment: Region: Homo sapiens chromosome:GRCh38:1:1:248956422:1
+# emf comment: File 1
+# tree: ...
+# id: 20060000040557
+a
+s homo_sapiens.1                   16536299   20485 +  248956422 -TCGC
+s mouse.4          0   20481 +      20481 AT--G
+s rat.1                  232084789   20481 -  248956422 AAA--

@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 import pytest
 
@@ -8,6 +9,11 @@ from click.testing import CliRunner
 from ensembl_cli.cli import download, exportrc, install
 
 
+if sys.platform.startswith("linux"):
+    pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
+
+
+@pytest.mark.slow
 def test_download(tmp_config):
     """runs download, install, drop according to a special test cfg"""
     tmp_dir = tmp_config.parent
@@ -16,15 +22,12 @@ def test_download(tmp_config):
     r = runner.invoke(download, [f"-c{tmp_config}"], catch_exceptions=False)
     assert r.exit_code == 0, r.output
     # make sure the download checkpoint file exists
-    dirnames = [
-        dn
-        for dn in os.listdir(tmp_dir / "staging")
-        if (tmp_dir / "staging" / dn).is_dir()
-    ]
+    genome_dir = tmp_dir / "staging" / "genomes"
+    dirnames = [dn for dn in os.listdir(genome_dir) if (genome_dir / dn).is_dir()]
     assert "saccharomyces_cerevisiae" in dirnames
 
     # make sure file sizes > 0
-    paths = list((tmp_dir / "staging" / "saccharomyces_cerevisiae").glob("*"))
+    paths = list((genome_dir / "saccharomyces_cerevisiae").glob("*"))
     size = sum(p.stat().st_size for p in paths)
     assert size > 0
 

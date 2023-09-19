@@ -1,4 +1,5 @@
-import configparser
+from __future__ import annotations
+
 import functools
 import os
 import pathlib
@@ -8,10 +9,9 @@ import subprocess
 import sys
 import uuid
 
-from dataclasses import dataclass
 from hashlib import md5
 from tempfile import mkdtemp
-from typing import IO, Callable, Iterable, Union
+from typing import IO, Callable, Union
 
 import numba
 import numpy
@@ -89,29 +89,6 @@ def exec_command(cmnd, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     return out.decode("utf8") if out is not None else None
 
 
-class DisplayString(str):
-    """provides a mechanism for customising the str() and repr() of objects"""
-
-    def __new__(cls, arg, num_words=None, repr_length=None, with_quotes=False):
-        new = str.__new__(cls, str(arg))
-        new.num_words = num_words
-        new.repr_length = repr_length or len(str(arg))
-        new.with_quotes = with_quotes
-        return new
-
-    def __repr__(self):
-        if self.num_words is not None:
-            new = " ".join(self.split()[: self.num_words])
-        elif self.repr_length != len(self):
-            new = self[: self.repr_length]
-        else:
-            new = self
-        if len(self) > len(new):
-            new += "..."
-        new = [new, f"'{new}'"][self.with_quotes]
-        return new
-
-
 class CaseInsensitiveString(str):
     """A case-insensitive string class. Comparisons are also case-insensitive."""
 
@@ -130,75 +107,6 @@ class CaseInsensitiveString(str):
 
     def __str__(self):
         return "".join(list(self))
-
-
-@dataclass
-class Config:
-    host: str
-    remote_path: str
-    release: str
-    staging_path: os.PathLike
-    install_path: os.PathLike
-    species_dbs: Iterable[str]
-    align_names: Iterable[str]
-
-    @property
-    def db_names(self) -> Iterable[str]:
-        from ensembl_cli.species import Species
-
-        for species in self.species_dbs:
-            yield Species.get_ensembl_db_prefix(species)
-
-
-def read_config(config_path) -> Config:
-    """returns ensembl release, local path, and db specifics from the provided
-    config path"""
-    from ensembl_cli.species import Species
-
-    parser = configparser.ConfigParser()
-
-    with config_path.expanduser().open() as f:
-        parser.read_file(f)
-
-    release = parser.get("release", "release")
-    host = parser.get("remote path", "host")
-    remote_path = parser.get("remote path", "path")
-    remote_path = remote_path[:-1] if remote_path.endswith("/") else remote_path
-    staging_path = (
-        pathlib.Path(parser.get("local path", "staging_path")).expanduser().absolute()
-    )
-    install_path = (
-        pathlib.Path(parser.get("local path", "install_path")).expanduser().absolute()
-    )
-
-    species_dbs = {}
-    get_option = parser.get
-    align_names = []
-    for section in parser.sections():
-        if section in ("release", "remote path", "local path"):
-            continue
-
-        if section == "compara":
-            align_names = [
-                n.strip() for n in get_option(section, "align_names").split(",")
-            ]
-            continue
-
-        dbs = [db.strip() for db in get_option(section, "db").split(",")]
-
-        # handle synonyms
-        species = Species.get_species_name(section, level="raise")
-        species_dbs[species] = dbs
-
-    return Config(
-        host=host,
-        remote_path=remote_path,
-        release=release,
-        staging_path=staging_path,
-        install_path=install_path,
-        species_dbs=species_dbs,
-        align_names=align_names,
-    )
 
 
 def load_ensembl_checksum(path: os.PathLike) -> dict:
@@ -358,3 +266,67 @@ def _(sig_path: str) -> Callable:
 
 def get_signature_data(path: os.PathLike) -> Callable:
     return _sig_load_funcs[path.name](path)
+
+
+def rich_display(c3t, title_justify="left"):
+    """converts a cogent3 Table to a Rich Table and displays it"""
+    from cogent3.format.table import formatted_array
+    from rich.console import Console
+    from rich.table import Table
+
+    cols = c3t.columns
+    columns = [formatted_array(cols[c], pad=False)[0] for c in c3t.header]
+    rich_table = Table(
+        title=c3t.title,
+        highlight=True,
+        title_justify=title_justify,
+        title_style="bold blue",
+    )
+    for col in c3t.header:
+        numeric_type = any(v in cols[col].dtype.name for v in ("int", "float"))
+        j = "right" if numeric_type else "left"
+        rich_table.add_column(col, justify=j, no_wrap=numeric_type)
+
+    for row in zip(*columns):
+        rich_table.add_row(*row)
+
+    console = Console()
+    console.print(rich_table)
+
+
+_seps = re.compile(r"[-._\s]")
+
+
+def _name_parts(path: str) -> list[str]:
+    return _seps.split(pathlib.Path(path).name.lower())
+
+
+def _simple_check(align_parts: str, tree_parts: str) -> int:
+    """evaluates whether the start of the two paths match"""
+    matches = 0
+    for a, b in zip(align_parts, tree_parts):
+        if a != b:
+            break
+        matches += 1
+
+    return matches
+
+
+def trees_for_aligns(aligns, trees) -> dict[str, str]:
+    from cogent3.maths.distance_transform import jaccard
+
+    aligns = {p: _name_parts(p) for p in aligns}
+    trees = {p: _name_parts(p) for p in trees}
+    result = {}
+    for align, align_parts in aligns.items():
+        dists = [
+            (_simple_check(align_parts, tree_parts), tree)
+            for tree, tree_parts in trees.items()
+        ]
+        v, p = max(dists)
+        if v == 0:
+            raise ValueError(f"no tree for {align}")
+
+        result[align] = p
+
+    return result

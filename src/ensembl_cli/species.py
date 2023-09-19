@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import os
 import re
+import typing
 
-from collections import defaultdict
-
-from cogent3 import open_
+from cogent3 import load_table
+from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
 from .util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 
 _invalid_chars = re.compile("[^a-zA-Z _]")
+
+StrOrNone = typing.Union[str, type(None)]
 
 
 def load_species(species_path):
@@ -19,22 +23,8 @@ def load_species(species_path):
     if not os.path.exists(species_path):
         species_path = get_resource_path("species.tsv")
 
-    with open_(species_path, "r") as infile:
-        data = []
-        for line in infile:
-            line = [e.strip() for e in line.split("\t")]
-            num_fields = len(line)
-            if 2 <= num_fields <= 3:
-                data.append(line)
-            else:
-                print(num_fields, line)
-                raise ValueError(
-                    "species file should be "
-                    "<latin name>\t<common name>\t<optional species synonym>"
-                    " per line"
-                )
-
-    return data
+    table = load_table(species_path)
+    return table.tolist()
 
 
 _species_common_map = load_species(os.path.join(ENSEMBLDBRC, "species.tsv"))
@@ -49,7 +39,6 @@ class SpeciesNameMap:
         self._common_species = {}
         self._species_ensembl = {}
         self._ensembl_species = {}
-        self._synonyms = defaultdict(str)
         for names in species_common:
             names = list(map(CaseInsensitiveString, names))
             self.amend_species(*names)
@@ -60,42 +49,27 @@ class SpeciesNameMap:
     def __repr__(self) -> str:
         return repr(self.to_table())
 
+    def __contains__(self, item) -> bool:
+        item = CaseInsensitiveString(item)
+        return any(
+            item in attr
+            for attr in (
+                self._species_common,
+                self._common_species,
+                self._ensembl_species,
+            )
+        )
+
     def _repr_html_(self) -> str:
         table = self.to_table()
         return table._repr_html_()
 
-    def add_synonym(self, species: str, synonym: str) -> None:
-        """add a synonym for a species name
-
-        This provides an additional mapping to common names and ensembl
-        db names"""
-        species = CaseInsensitiveString(species)
-        synonym = CaseInsensitiveString(synonym)
-        self._synonyms[synonym] = species
-        ensembl_name = synonym.lower().replace(" ", "_")
-        self._ensembl_species[ensembl_name] = synonym
-
-    def get_synonymns(self, name: str) -> set:
-        """all species names matching name
-
-        Parameters
-        ----------
-        name
-            can be common name or a species name
-        """
-        name = self.get_species_name(name)
-        result = {str(k) for k, v in self._synonyms.items() if v == name}
-        return result | {name}
-
-    def get_common_name(self, name: str, level="raise") -> str:
+    def get_common_name(self, name: str, level="raise") -> StrOrNone:
         """returns the common name for the given name (which can be either a
         species name or the ensembl version)"""
         name = CaseInsensitiveString(name)
         if name in self._ensembl_species:
             name = self._ensembl_species[name]
-
-        if name in self._synonyms:
-            name = self._synonyms[name]
 
         if name in self._species_common:
             common_name = self._species_common[name]
@@ -111,17 +85,13 @@ class SpeciesNameMap:
             elif level == "warn":
                 print(f"WARN: {msg}")
 
-        return str(common_name)
+        return common_name
 
-    def get_species_name(self, name: str, level="ignore") -> str:
+    def get_species_name(self, name: str, level="ignore") -> StrOrNone:
         """returns the species name for the given common name"""
         name = CaseInsensitiveString(name)
         if name in self._species_common:
-            return str(name)
-
-        if name in self._synonyms:
-            name = self._synonyms[name]
-            return str(name)
+            return name
 
         species_name = None
         level = level.lower().strip()
@@ -134,14 +104,14 @@ class SpeciesNameMap:
                 raise ValueError(msg)
             elif level == "warn":
                 print(f"WARN: {msg}")
-        return str(species_name)
 
-    def get_species_names(self):
+        return species_name
+
+    def get_species_names(self) -> typing.Sequence[StrOrNone]:
         """returns the list of species names"""
-        names = sorted(self._species_common.keys())
-        return [str(n) for n in names]
+        return sorted(self._species_common.keys())
 
-    def get_ensembl_db_prefix(self, name):
+    def get_ensembl_db_prefix(self, name) -> str:
         """returns a string of the species name in the format used by
         ensembl"""
         name = CaseInsensitiveString(name)
@@ -149,28 +119,12 @@ class SpeciesNameMap:
             name = self._common_species[name]
         try:
             species_name = self.get_species_name(name, level="raise")
-            species_name = (
-                name if str(name) in self.get_synonymns(species_name) else species_name
-            )
-        except ValueError:
+        except ValueError as e:
             if name not in self._species_common:
-                raise ValueError(f"Unknown name {name}")
+                raise ValueError(f"Unknown name {name}") from e
             species_name = name
 
         return str(species_name.lower().replace(" ", "_"))
-
-    def get_compara_name(self, name):
-        """the compara instance attribute name for species matching ``name``"""
-        name = self.get_common_name(name)
-        name = name.replace(".", "")
-        name = name.split()
-        for i, word in enumerate(name):
-            name[i] = word.title()
-        name = "".join(name)
-        for invalid in _invalid_chars.findall(name):
-            name = name.replace(invalid, "")
-
-        return name
 
     def _purge_species(self, species_name):
         """removes a species record"""
@@ -182,7 +136,7 @@ class SpeciesNameMap:
         self._ensembl_species.pop(ensembl_name)
         self._common_species.pop(common_name)
 
-    def amend_species(self, species_name, common_name, synonym=""):
+    def amend_species(self, species_name, common_name):
         """add a new species, and common name"""
         species_name = CaseInsensitiveString(species_name)
         common_name = CaseInsensitiveString(common_name)
@@ -193,30 +147,20 @@ class SpeciesNameMap:
         ensembl_name = species_name.lower().replace(" ", "_")
         self._species_ensembl[species_name] = ensembl_name
         self._ensembl_species[ensembl_name] = species_name
-        if synonym:
-            self.add_synonym(species_name, CaseInsensitiveString(synonym))
 
     def to_table(self):
         """returns cogent3 Table"""
         rows = []
-        have_syns = defaultdict(list)
-        for syn in self._synonyms:
-            have_syns[self._synonyms[syn]].append(syn)
-        syns = dict([(sp, ", ".join(have_syns[sp])) for sp in have_syns])
         for common in self._common_species:
             species = self._common_species[common]
             ensembl = self._species_ensembl[species]
-            syn = syns.get(species, "")
-            compara = self.get_compara_name(species)
 
-            rows += [[species, common, syn, ensembl, compara]]
+            rows += [[species, common, ensembl]]
         return Table(
             [
                 "Species name",
                 "Common name",
-                "Synonymn",
                 "Ensembl Db Prefix",
-                "Compara.Name",
             ],
             data=rows,
             space=2,
@@ -224,3 +168,22 @@ class SpeciesNameMap:
 
 
 Species = SpeciesNameMap()
+
+
+def species_from_ensembl_tree(tree: TreeNode) -> dict[str, str]:
+    """get species identifiers from an Ensembl tree"""
+    tip_names = tree.get_tip_names()
+    selected_species = {}
+    for tip_name in tip_names:
+        name_fields = tip_name.lower().split("_")
+        # produce parts of name starting with highly specific to
+        # more general and look for matches
+        for j in range(len(name_fields) + 1, 1, -1):
+            n = "_".join(name_fields[:j])
+            if n in Species:
+                selected_species[Species.get_common_name(n)] = n
+                break
+        else:
+            raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
+
+    return selected_species

@@ -17,6 +17,8 @@ def _get_block_seqnames(data) -> dict[str, str]:
             names.append(EmfName(*line.strip().split()[1:]))
         elif line.startswith("DATA"):
             break
+    else:
+        raise RuntimeError("missing DATA block")
 
     # EMF compara alignments store one alignment column per line
     # with the order corresponding to SEQ order
@@ -43,13 +45,19 @@ def _iter_blocks(data: typing.Iterable[str]) -> list[tuple[int, int]]:
 
 
 # we need a raw parser
-def parse_emf(path: typing.Union[str, os.PathLike]) -> dict[EmfName, str]:
+def parse_emf(
+    path: typing.Union[str, os.PathLike],
+    check_format: bool = True,
+    extract_data: typing.Callable = _get_block_seqnames,
+) -> dict[EmfName, str]:
     """yield data for alignment from EMF files
 
     Parameters
     ----------
     path
         location of emf file
+    check_format
+        checks whether header
 
     Returns
     -------
@@ -66,11 +74,11 @@ def parse_emf(path: typing.Union[str, os.PathLike]) -> dict[EmfName, str]:
     """
     with open_(path) as infile:
         data = infile.readlines()
-        if not data[0].startswith("##FORMAT (compara)"):
+        if check_format and not data[0].startswith("##FORMAT (compara)"):
             raise NotImplementedError(
                 f"only compara format supported, not {data[0].strip()!r}"
             )
 
     blocks = _iter_blocks(data)
     for start, end in blocks:
-        yield _get_block_seqnames(data[start:end])
+        yield extract_data(data[start:end])

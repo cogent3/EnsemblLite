@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import re
+import typing
 
 from dataclasses import dataclass
 
@@ -35,9 +38,8 @@ def get_dbtype_from_name(name):
         print("Error:")
         print(name, type(name), msg)
         raise
-    dbtype = None
-    dbtype = name[1] if name[0] == "ensembl" else name[-1]
-    return dbtype
+
+    return name[1] if name[0] == "ensembl" else name[-1]
 
 
 def get_db_prefix(name):
@@ -130,6 +132,36 @@ class EmfName:
         # adjust the lengths to be ints and put into python coord
         self.start = int(self.start) - 1
         self.end = int(self.end)
+
+    def __str__(self):
+        attrs = "species", "coord_name", "start", "end", "strand"
+        n = [str(getattr(self, attr)) for attr in attrs]
+        return ":".join(n)
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def to_dict(self) -> dict:
+        attrs = "species", "coord_name", "start", "end", "strand"
+        return {attr: getattr(self, attr) for attr in attrs}
+
+
+@dataclass
+class MafName:
+    """stores source information from Maf records"""
+
+    species: str
+    coord_name: str
+    start: int
+    end: int
+    strand: str
+    coord_length: typing.Optional[str | int]
+
+    def __post_init__(self):
+        # adjust the lengths to be ints and put into python coord
+        self.start = int(self.start) - 1
+        self.end = int(self.end)
+        self.coord_length = int(self.coord_length) if self.coord_length else None
 
     def __str__(self):
         attrs = "species", "coord_name", "start", "end", "strand"

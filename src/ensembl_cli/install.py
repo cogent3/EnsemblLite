@@ -1,15 +1,22 @@
 import os
 import shutil
+import typing
 
-from cogent3 import load_annotations, load_seq, open_
+from cogent3 import load_annotations, load_seq, make_seq, open_
+from cogent3.parse.table import FilteringParser
+from cogent3.util import parallel as PAR
 from rich.progress import track
 from unsync import unsync
 
-from ensembl_cli.util import Config, read_config
+from ensembl_cli import maf
+from ensembl_cli._config import Config
+from ensembl_cli.aligndb import AlignDb
+from ensembl_cli.convert import seq_to_gap_coords
+from ensembl_cli.homologydb import HomologyDb
 
 
 @unsync(cpu_bound=True)
-def _install_one_seq(src, dest_dir):
+def _install_one_seq(src: os.PathLike, dest_dir: os.PathLike) -> bool:
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
     with open_(dest_dir / f"{seq.name}.fa.gz", mode="wt") as outfile:
         outfile.write(seq.to_fasta(block_size=int(1e9)))
@@ -17,7 +24,7 @@ def _install_one_seq(src, dest_dir):
 
 
 @unsync(cpu_bound=True)
-def _install_one_annotations(src, dest):
+def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
 
@@ -25,56 +32,171 @@ def _install_one_annotations(src, dest):
     return True
 
 
-def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike):
+def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / "features.gff3db"
     paths = list(src_dir.glob("*.gff3.gz"))
     return [_install_one_annotations(path, dest) for path in paths]
 
 
-def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike):
+def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
     return [_install_one_seq(path, dest_dir) for path in paths]
 
 
-def local_install_genomes(configpath: os.PathLike, force_overwrite: bool) -> Config:
-    config = read_config(configpath)
+def local_install_genomes(config: Config, force_overwrite: bool):
     if force_overwrite:
-        shutil.rmtree(config.install_path, ignore_errors=True)
+        shutil.rmtree(config.install_genomes, ignore_errors=True)
 
     # we create the local installation
-    config.install_path.mkdir(parents=True, exist_ok=True)
+    config.install_genomes.mkdir(parents=True, exist_ok=True)
     # we create subdirectories for each species
     for db_name in config.db_names:
-        sp_dir = config.install_path / db_name
+        sp_dir = config.install_genomes / db_name
         sp_dir.mkdir(parents=True, exist_ok=True)
 
     # for each species, we identify the download and dest paths for annotations
     tasks = []
     for db_name in config.db_names:
         src_dir = config.staging_path / db_name
-        dest_dir = config.install_path / db_name
+        dest_dir = config.install_genomes / db_name
         tasks.extend(_install_seqs(src_dir, dest_dir))
 
     # we now load the individual gff3 files and write to annotation db's
     for db_name in config.db_names:
         src_dir = config.staging_path / db_name
-        dest_dir = config.install_path / db_name
+        dest_dir = config.install_genomes / db_name
         tasks.extend(_install_gffdb(src_dir, dest_dir))
     # we do all tasks in one go
-    _ = [t.result() for t in track(tasks, description="Installing...", transient=True)]
+    _ = [
+        t.result()
+        for t in track(tasks, description="Installing genomes...", transient=True)
+    ]
 
-    return config
+    return
 
 
-def local_install_compara(configpath: os.PathLike, force_overwrite: bool) -> Config:
-    config = read_config(configpath)
+def seq2gaps(record: dict):
+    seq = make_seq(record.pop("seq"))
+    record["gap_spans"] = seq_to_gap_coords(seq)
+    return record
+
+
+def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
+    records = []
+    for block_id, align in enumerate(maf.parse(path)):
+        converted = []
+        for maf_name, seq in align.items():
+            record = maf_name.to_dict()
+            record["block_id"] = block_id
+            record["source"] = path.name
+            record["seq"] = seq
+            converted.append(seq2gaps(record))
+        records.extend(converted)
+    return records
+
+
+def local_install_compara(config: Config, force_overwrite: bool):
     if force_overwrite:
-        shutil.rmtree(config.install_path, ignore_errors=True)
+        shutil.rmtree(config.install_path / "compara", ignore_errors=True)
 
-    # we create the local installation
-    config.install_path.mkdir(parents=True, exist_ok=True)
+    for align_name in config.align_names:
+        src_dir = config.staging_aligns / align_name
+        dest_dir = config.install_aligns
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        # write out to a db with align_name
+        db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
+        records = []
+        paths = list(src_dir.glob(f"{align_name}*maf*"))
+        max_workers = min(len(paths), 10)
+        for result in track(
+            PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
+            transient=True,
+            description="Installing aligns...",
+            total=len(paths),
+        ):
+            records.extend(result)
 
-    # create the tasks for each alignment name
-    return config
+        db.add_records(records=records)
+        db.close()
+
+    return
+
+
+class LoadHomologies:
+    def __init__(self, allowed_species: set):
+        self._allowed_species = allowed_species
+        # map the Ensembl columns to HomologyDb columns
+
+        self.src_cols = [
+            "homology_type",
+            "species",
+            "gene_stable_id",
+            "protein_stable_id",
+            "homology_species",
+            "homology_gene_stable_id",
+            "homology_protein_stable_id",
+        ]
+        self.dest_col = [
+            "relationship",
+            "species_1",
+            "gene_id_1",
+            "prot_id_1",
+            "species_2",
+            "gene_id_2",
+            "prot_id_2",
+            "source",
+        ]
+        self._reader = FilteringParser(
+            row_condition=self._matching_species, columns=self.src_cols, sep="\t"
+        )
+
+    def _matching_species(self, row):
+        return {row[1], row[4]} <= self._allowed_species
+
+    def __call__(self, dirpath: os.PathLike) -> list:
+        final = None
+        for path in dirpath.glob("*.tsv.gz"):
+            with open_(path) as infile:
+                # we bulk load because it's faster than the default line-by-line
+                # iteration on a file
+                data = infile.read().splitlines()
+
+            rows = list(self._reader(data))
+            header = rows.pop(0)
+            assert list(header) == list(self.src_cols), (header, self.src_cols)
+            rows = [r + [path.name] for r in rows]
+            if final is None:
+                final = rows
+                continue
+
+            final += rows
+
+        return final
+
+
+def local_install_homology(config: Config, force_overwrite: bool):
+    if force_overwrite:
+        shutil.rmtree(config.install_homologies, ignore_errors=True)
+
+    config.install_homologies.mkdir(parents=True, exist_ok=True)
+
+    outpath = config.install_homologies / "homologies.sqlitedb"
+    db = HomologyDb(source=outpath)
+
+    dirnames = [config.staging_homologies / sp for sp in config.db_names]
+    loader = LoadHomologies(allowed_species=set(config.db_names))
+    # On test cases, only 30% speedup from running in parallel due to overhead
+    # of pickling the data, but considerable increase in memory. So, run
+    # in serial to avoid memory issues since it's reasonably fast anyway.
+    for rows in track(
+        map(loader, dirnames),
+        transient=True,
+        description="Installing homologies...",
+        total=len(dirnames),
+    ):
+        db.add_records(rows, loader.dest_col)
+        del rows
+
+    db.close()
