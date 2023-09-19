@@ -6,9 +6,6 @@ name: Format code using black and isort
 
 # copied from cogent3/cogent3/.github
 on:
-  push:
-    branches-ignore:
-      - master
   pull_request:
     branches-ignore:
       - master
