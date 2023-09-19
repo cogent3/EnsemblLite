@@ -13,7 +13,6 @@ on:
 jobs:
   linters:
     runs-on: ubuntu-latest
-    if: github.repository == 'cogent/cogent3'
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
