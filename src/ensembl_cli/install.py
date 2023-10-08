@@ -15,15 +15,15 @@ from ensembl_cli.convert import seq_to_gap_coords
 from ensembl_cli.homologydb import HomologyDb
 
 
-@unsync(cpu_bound=True)
 def _install_one_seq(src: os.PathLike, dest_dir: os.PathLike) -> bool:
+@unsync
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
     with open_(dest_dir / f"{seq.name}.fa.gz", mode="wt") as outfile:
         outfile.write(seq.to_fasta(block_size=int(1e9)))
     return True
 
 
-@unsync(cpu_bound=True)
+@unsync
 def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
