@@ -65,9 +65,10 @@ def local_install_genomes(config: Config, force_overwrite: bool):
 
     # we now load the individual gff3 files and write to annotation db's
     for db_name in config.db_names:
-        src_dir = config.staging_path / db_name
+        src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
         tasks.extend(_install_gffdb(src_dir, dest_dir))
+
     # we do all tasks in one go
     _ = [
         t.result()
