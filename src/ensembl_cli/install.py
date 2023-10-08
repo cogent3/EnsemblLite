@@ -174,7 +174,7 @@ class LoadHomologies:
 
             final += rows
 
-        return final
+        return final or []
 
 
 def local_install_homology(config: Config, force_overwrite: bool):
