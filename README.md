@@ -4,12 +4,34 @@
 
 # ensembl_cli
 
+## A screencast of an early prototype
+
+<details>
+  <summary> 🎬 Very early proof-of-concept demo and plan for a new style terminal user interface </summary>
+    <video src="https://user-images.githubusercontent.com/3102996/273427137-d3835f8b-8c0a-4370-a6e1-f8805f5dd320.mp4" controls="controls" style="max-height:640px">
+    </video>
+</details>
+
+## Developer installs
+
+Fork the repo and clone your fork to your local machine. In the terminal, create either a python virtual environment or a new conda environment and activate it. In that virtual environment
+
+```
+$ pip install flit
+```
+
+Then do the flit version of a "developer install". (It is basically creating a symlink to the repos source directory.)
+
+```
+$ flit install -s --python `which python
+```
+
 ## Installation
 
 Suggest creating a conda environment or a python virtual environment, using python3.11. Then install directly into that environment from the GitHub repo as
 
 ```
-$ python -m pip install "ensembl_cli  @ git+https://github.com/cogent3/ensembl_cli.git@develop"
+$ python -m pip install "ensembl_cli @ git+https://github.com/cogent3/ensembl_cli.git@develop"
 ```
 
 Then run for the first time using
