@@ -202,4 +202,7 @@ def local_install_homology(config: Config, force_overwrite: bool):
         db.add_records(rows, loader.dest_col)
         del rows
 
+    no_records = len(db) == 0
     db.close()
+    if no_records:
+        outpath.unlink()
