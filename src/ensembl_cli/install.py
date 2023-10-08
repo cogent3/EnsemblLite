@@ -10,20 +10,20 @@ from unsync import unsync
 
 from ensembl_cli import maf
 from ensembl_cli._config import Config
+from ensembl_cli._genome import CompressedGenome, Genome
 from ensembl_cli.aligndb import AlignDb
 from ensembl_cli.convert import seq_to_gap_coords
 from ensembl_cli.homologydb import HomologyDb
 
 
-@unsync(cpu_bound=True)
-def _install_one_seq(src: os.PathLike, dest_dir: os.PathLike) -> bool:
+@unsync
+def _install_one_seq(src: os.PathLike, db: Genome) -> bool:
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
-    with open_(dest_dir / f"{seq.name}.fa.gz", mode="wt") as outfile:
-        outfile.write(seq.to_fasta(block_size=int(1e9)))
+    db.add_record(coord_name=seq.name, seq=str(seq))
     return True
 
 
-@unsync(cpu_bound=True)
+@unsync
 def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
@@ -42,7 +42,9 @@ def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
 def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
-    return [_install_one_seq(path, dest_dir) for path in paths]
+    dest = dest_dir / "genome_sequence.seqdb"
+    db = CompressedGenome(source=dest, species=dest.name)
+    return [_install_one_seq(path, db) for path in paths]
 
 
 def local_install_genomes(config: Config, force_overwrite: bool):
@@ -59,15 +61,16 @@ def local_install_genomes(config: Config, force_overwrite: bool):
     # for each species, we identify the download and dest paths for annotations
     tasks = []
     for db_name in config.db_names:
-        src_dir = config.staging_path / db_name
+        src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
         tasks.extend(_install_seqs(src_dir, dest_dir))
 
     # we now load the individual gff3 files and write to annotation db's
     for db_name in config.db_names:
-        src_dir = config.staging_path / db_name
+        src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
         tasks.extend(_install_gffdb(src_dir, dest_dir))
+
     # we do all tasks in one go
     _ = [
         t.result()
@@ -173,7 +176,7 @@ class LoadHomologies:
 
             final += rows
 
-        return final
+        return final or []
 
 
 def local_install_homology(config: Config, force_overwrite: bool):
@@ -199,4 +202,7 @@ def local_install_homology(config: Config, force_overwrite: bool):
         db.add_records(rows, loader.dest_col)
         del rows
 
+    no_records = len(db) == 0
     db.close()
+    if no_records:
+        outpath.unlink()
