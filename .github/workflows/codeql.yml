@@ -13,10 +13,11 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ "master" ]
+    branches-ignore:
+      - master
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "master" ]
+    branches-ignore:
+      - master
   schedule:
     - cron: '39 20 * * 6'
 
@@ -33,8 +34,6 @@ jobs:
       fail-fast: false
       matrix:
         language: [ 'python' ]
-        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
-        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
 
     steps:
     - name: Checkout repository
