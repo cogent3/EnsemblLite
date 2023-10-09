@@ -81,14 +81,24 @@ class SiteMap:
     _trees_path: OptStr = None
 
 
+class EnsemblPrimary(SiteMapABC, SiteMap):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_seqs_path(self, ensembl_name: str) -> str:
+        """path to unmasked genome sequences"""
+        return f"{self._seqs_path}/{ensembl_name}/dna"
+
+    def get_annotations_path(self, ensembl_name: str) -> str:
+        return f"{self._annotations_path}/{ensembl_name}"
+
+
 @extend_docstring_from(SiteMap)
 @register_ensembl_site_map("ftp.ensembl.org")
 def ensembl_main_sitemap():
     """the main Ensembl site map"""
-    return SiteMap(
+    return EnsemblPrimary(
         site="ftp.ensembl.org",
-        _genomes_path="fasta/dna",
-        _annotations_path="gff3",
         _alignments_path="maf/ensembl-compara/multiple_alignments",
         _homologies_path="tsv/ensembl-compara/homologies",
         _trees_path="compara/species_trees",
