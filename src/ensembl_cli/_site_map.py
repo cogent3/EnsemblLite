@@ -70,7 +70,7 @@ OptStr = typing.Optional[str]
 
 
 @dataclass
-class SiteMap(SiteMapABC):
+class SiteMap:
     """records the locations of specific attributes relative to an Ensembl release"""
 
     site: str
