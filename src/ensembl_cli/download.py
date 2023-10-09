@@ -10,6 +10,7 @@ import click
 from cogent3 import load_tree
 
 from ensembl_cli._config import Config
+from ensembl_cli._site_map import get_site_map
 from ensembl_cli.ftp_download import download_data, listdir
 from ensembl_cli.species import Species, species_from_ensembl_tree
 from ensembl_cli.util import (
@@ -49,8 +50,8 @@ def _remove_tmpdirs(path: os.PathLike):
 
 def download_species(config: Config, debug: bool, verbose: bool):
     """download seq and gff data"""
-    remote_template = f"{config.remote_path}/release-{config.release}/" + "{}/{}"
-
+    remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
+    site_map = get_site_map(config.host)
     if verbose:
         click.secho(f"DOWNLOADING\n  ensembl release={config.release}", fg="green")
         click.secho("\n".join(f"  {d}" for d in config.species_dbs), fg="green")
@@ -62,12 +63,14 @@ def download_species(config: Config, debug: bool, verbose: bool):
         local_root = config.staging_genomes / db_prefix
         local_root.mkdir(parents=True, exist_ok=True)
         for subdir in ("fasta", "gff3"):
-            path = remote_template.format(subdir, db_prefix)
-            path = f"{path}/dna" if subdir == "fasta" else path
-            dest_path = config.staging_genomes / db_prefix / subdir
-            dest_path.mkdir(parents=True, exist_ok=True)
+            if subdir == "fasta":
+                remote = site_map.get_seqs_path(db_prefix)
+            else:
+                remote = site_map.get_annotations_path(db_prefix)
+
+            remote_dir = remote_template.format(remote)
             remote_paths = list(
-                listdir(config.host, path=path, pattern=patterns[subdir])
+                listdir(config.host, path=remote_dir, pattern=patterns[subdir])
             )
             if verbose:
                 print(f"{remote_paths=}")
@@ -78,12 +81,14 @@ def download_species(config: Config, debug: bool, verbose: bool):
                 remote_paths = [p for p in remote_paths if not dont_checksum(p)]
                 remote_paths = remote_paths[:4] + paths
 
+            dest_path = config.staging_genomes / db_prefix / subdir
+            dest_path.mkdir(parents=True, exist_ok=True)
             _remove_tmpdirs(dest_path)
             download_data(
                 host=config.host,
                 local_dest=dest_path,
                 remote_paths=remote_paths,
-                description=f"{db_prefix[:5]}.../{subdir}",
+                description=f"{db_prefix[:10]}.../{subdir}",
                 do_checksum=True,
             )
 
