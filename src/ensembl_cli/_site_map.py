@@ -116,6 +116,6 @@ def ensembl_main_sitemap():
 # _homologies_path = "pan_ensembl/tsv/ensembl-compara/homologies",
 
 
-def get_site_map(domain: str) -> SiteMap:
+def get_site_map(domain: str) -> SiteMapABC:
     """returns a site map instance"""
     return _ensembl_site_map[domain]()
