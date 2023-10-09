@@ -1,6 +1,6 @@
 [![CI](https://github.com/cogent3/ensembl_cli/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/ensembl_cli/actions/workflows/testing_develop.yml)
 [![CodeQL](https://github.com/cogent3/ensembl_cli/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/ensembl_cli/actions/workflows/codeql.yml)
-[![Coverage Status](https://coveralls.io/repos/github/cogent3/ensembl_cli/badge.svg?branch=master)](https://coveralls.io/github/cogent3/ensembl_cli?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/cogent3/ensembl_cli/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/ensembl_cli?branch=develop)
 
 # ensembl_cli
 

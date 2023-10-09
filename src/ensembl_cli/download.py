@@ -10,6 +10,7 @@ import click
 from cogent3 import load_tree
 
 from ensembl_cli._config import Config
+from ensembl_cli._site_map import get_site_map
 from ensembl_cli.ftp_download import download_data, listdir
 from ensembl_cli.species import Species, species_from_ensembl_tree
 from ensembl_cli.util import (
@@ -49,8 +50,8 @@ def _remove_tmpdirs(path: os.PathLike):
 
 def download_species(config: Config, debug: bool, verbose: bool):
     """download seq and gff data"""
-    remote_template = f"{config.remote_path}/release-{config.release}/" + "{}/{}"
-
+    remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
+    site_map = get_site_map(config.host)
     if verbose:
         click.secho(f"DOWNLOADING\n  ensembl release={config.release}", fg="green")
         click.secho("\n".join(f"  {d}" for d in config.species_dbs), fg="green")
@@ -62,12 +63,14 @@ def download_species(config: Config, debug: bool, verbose: bool):
         local_root = config.staging_genomes / db_prefix
         local_root.mkdir(parents=True, exist_ok=True)
         for subdir in ("fasta", "gff3"):
-            path = remote_template.format(subdir, db_prefix)
-            path = f"{path}/dna" if subdir == "fasta" else path
-            dest_path = config.staging_genomes / db_prefix / subdir
-            dest_path.mkdir(parents=True, exist_ok=True)
+            if subdir == "fasta":
+                remote = site_map.get_seqs_path(db_prefix)
+            else:
+                remote = site_map.get_annotations_path(db_prefix)
+
+            remote_dir = remote_template.format(remote)
             remote_paths = list(
-                listdir(config.host, path=path, pattern=patterns[subdir])
+                listdir(config.host, path=remote_dir, pattern=patterns[subdir])
             )
             if verbose:
                 print(f"{remote_paths=}")
@@ -78,12 +81,14 @@ def download_species(config: Config, debug: bool, verbose: bool):
                 remote_paths = [p for p in remote_paths if not dont_checksum(p)]
                 remote_paths = remote_paths[:4] + paths
 
+            dest_path = config.staging_genomes / db_prefix / subdir
+            dest_path.mkdir(parents=True, exist_ok=True)
             _remove_tmpdirs(dest_path)
             download_data(
                 host=config.host,
                 local_dest=dest_path,
                 remote_paths=remote_paths,
-                description=f"{db_prefix[:5]}.../{subdir}",
+                description=f"{db_prefix[:10]}.../{subdir}",
                 do_checksum=True,
             )
 
@@ -104,8 +109,10 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
     """download whole genome alignments"""
     if not config.align_names:
         return
+
+    site_map = get_site_map(config.host)
     remote_template = (
-        f"{config.remote_path}/release-{config.release}/maf/ensembl-compara/multiple_alignments/"
+        f"{config.remote_path}/release-{config.release}/{site_map.alignments_path}/"
         + "{}"
     )
     valid_compara = valid_compara_align()
@@ -128,7 +135,7 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
-            description=f"compara/{align_name[:5]}...",
+            description=f"compara/{align_name[:10]}...",
             do_checksum=True,
         )
 
@@ -149,10 +156,13 @@ def download_homology(config: Config, debug: bool, verbose: bool):
     """downloads tsv homology files for each genome"""
     if not any((config.align_names, config.tree_names)):
         return
-    remote_root = (
-        f"{config.remote_path}/release-{config.release}/tsv/ensembl-compara/homologies"
+
+    site_map = get_site_map(config.host)
+    remote_template = (
+        f"{config.remote_path}/release-{config.release}/{site_map.homologies_path}/"
+        + "{}"
     )
-    remote_template = f"{remote_root}/" + "{}"
+
     local = config.staging_homologies
 
     for db_name in config.db_names:
@@ -173,7 +183,7 @@ def download_homology(config: Config, debug: bool, verbose: bool):
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
-            description=f"homologies/{db_name[:5]}...",
+            description=f"homologies/{db_name[:10]}...",
             do_checksum=False,  # no checksums for species homology files
         )
     return
@@ -181,13 +191,15 @@ def download_homology(config: Config, debug: bool, verbose: bool):
 
 def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname: str):
     """loads a tree from Ensembl"""
-    url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
+    site_map = get_site_map(host)
+    url = f"https://{host}/{remote_path}/release-{release}/{site_map.trees_path}/{tree_fname}"
     return load_tree(url)
 
 
 def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
     """returns trees from ensembl compara"""
-    path = f"{remote_path}/release-{release}/compara/species_trees/"
+    site_map = get_site_map(host)
+    path = f"{remote_path}/release-{release}/{site_map.trees_path}"
     return list(listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")))
 
 
