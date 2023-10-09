@@ -73,8 +73,8 @@ class SiteMap(SiteMapABC):
     """records the locations of specific attributes relative to an Ensembl release"""
 
     site: str
-    _genomes_path: str
-    _annotations_path: str
+    _seqs_path: str = "fasta"
+    _annotations_path: str = "gff3"
     _alignments_path: OptStr = None
     _homologies_path: OptStr = None
     _trees_path: OptStr = None
