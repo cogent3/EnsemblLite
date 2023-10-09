@@ -2,6 +2,7 @@ import typing
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cache
 
 from cogent3.util.misc import extend_docstring_from
 
@@ -116,6 +117,7 @@ def ensembl_main_sitemap():
 # _homologies_path = "pan_ensembl/tsv/ensembl-compara/homologies",
 
 
+@cache
 def get_site_map(domain: str) -> SiteMapABC:
     """returns a site map instance"""
     return _ensembl_site_map[domain]()

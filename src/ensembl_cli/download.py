@@ -109,8 +109,10 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
     """download whole genome alignments"""
     if not config.align_names:
         return
+
+    site_map = get_site_map(config.host)
     remote_template = (
-        f"{config.remote_path}/release-{config.release}/maf/ensembl-compara/multiple_alignments/"
+        f"{config.remote_path}/release-{config.release}/{site_map.alignments_path}/"
         + "{}"
     )
     valid_compara = valid_compara_align()
@@ -133,7 +135,7 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
-            description=f"compara/{align_name[:5]}...",
+            description=f"compara/{align_name[:10]}...",
             do_checksum=True,
         )
 
@@ -154,10 +156,13 @@ def download_homology(config: Config, debug: bool, verbose: bool):
     """downloads tsv homology files for each genome"""
     if not any((config.align_names, config.tree_names)):
         return
-    remote_root = (
-        f"{config.remote_path}/release-{config.release}/tsv/ensembl-compara/homologies"
+
+    site_map = get_site_map(config.host)
+    remote_template = (
+        f"{config.remote_path}/release-{config.release}/{site_map.homologies_path}/"
+        + "{}"
     )
-    remote_template = f"{remote_root}/" + "{}"
+
     local = config.staging_homologies
 
     for db_name in config.db_names:
@@ -178,7 +183,7 @@ def download_homology(config: Config, debug: bool, verbose: bool):
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
-            description=f"homologies/{db_name[:5]}...",
+            description=f"homologies/{db_name[:10]}...",
             do_checksum=False,  # no checksums for species homology files
         )
     return
@@ -186,13 +191,15 @@ def download_homology(config: Config, debug: bool, verbose: bool):
 
 def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname: str):
     """loads a tree from Ensembl"""
-    url = f"https://{host}/{remote_path}/release-{release}/compara/species_trees/{tree_fname}"
+    site_map = get_site_map(host)
+    url = f"https://{host}/{remote_path}/release-{release}/{site_map.trees_path}/{tree_fname}"
     return load_tree(url)
 
 
 def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
     """returns trees from ensembl compara"""
-    path = f"{remote_path}/release-{release}/compara/species_trees/"
+    site_map = get_site_map(host)
+    path = f"{remote_path}/release-{release}/{site_map.trees_path}"
     return list(listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")))
 
 
