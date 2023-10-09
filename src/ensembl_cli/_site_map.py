@@ -44,13 +44,14 @@ StrOrNone = typing.Union[str, type(None)]
 
 
 class SiteMapABC(ABC):
-    @property
-    def genome_path(self) -> str:
-        return self._genome_path
+    @abstractmethod
+    def get_seqs_path(self, ensembl_name: str) -> str:
+        """returns the path to genome sequences for species_db_name"""
+        ...
 
-    @property
-    def annotations_path(self) -> str:
-        return self._annotations_path
+    @abstractmethod
+    def get_annotations_path(self, ensembl_name: str) -> str:
+        ...
 
     @property
     def alignments_path(self) -> StrOrNone:
