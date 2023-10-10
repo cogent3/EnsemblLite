@@ -11,6 +11,7 @@ from trogon import tui
 
 from ensembl_cli import __version__
 from ensembl_cli._config import (
+    DOWNLOADED_CONFIG_NAME,
     read_config,
     read_installed_cfg,
     write_installed_cfg,
@@ -133,6 +134,7 @@ def download(configpath, debug, verbose):
     if verbose:
         print(config.species_dbs)
 
+    config.write()
     with wakepy.keep.running():
         download_species(config, debug, verbose)
         download_homology(config, debug, verbose)
