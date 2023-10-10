@@ -33,6 +33,7 @@ class Genome(SqliteDbMixin):
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
+        self.db.commit()
 
     def get_seq(
         self, *, coord_name: str, start: OptInt = None, end: OptInt = None

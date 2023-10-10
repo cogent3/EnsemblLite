@@ -87,6 +87,7 @@ class HomologyDb(SqliteDbMixin):
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
         self.db.executemany(sql, records)
+        self.db.commit()
 
     def get_related_to(
         self, *, gene_id: str, relationship_type: str
