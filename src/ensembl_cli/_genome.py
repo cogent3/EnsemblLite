@@ -13,7 +13,7 @@ OptInt = typing.Optional[int]
 # todo: or compresses sequence records on write into db, and just inflates then returns substring
 
 
-class Genome(SqliteDbMixin):
+class GenomeDb(SqliteDbMixin):
     table_name = "genome"
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
     _metadata_schema = {"species": "TEXT"}
@@ -85,7 +85,7 @@ compress_it = _str_to_bytes() + get_app("compress")
 decompress_it = get_app("decompress") + _bytes_to_str()
 
 
-class CompressedGenome(Genome):
+class CompressedGenomeDb(GenomeDb):
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
     def add_record(self, *, coord_name: str, seq: str):
