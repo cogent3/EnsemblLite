@@ -11,9 +11,9 @@ from unsync import unsync
 from ensembl_cli import maf
 from ensembl_cli._config import Config
 from ensembl_cli._genomedb import CompressedGenomeDb, compress_it
+from ensembl_cli._homologydb import HomologyDb
 from ensembl_cli.aligndb import AlignDb
 from ensembl_cli.convert import seq_to_gap_coords
-from ensembl_cli._homologydb import HomologyDb
 
 
 @unsync(cpu_bound=True)

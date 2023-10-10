@@ -32,8 +32,6 @@ def compara_cfg(tmp_config):
 
 
 def test_parse_config(compara_cfg):
-    from ensembl_cli._config import read_config
-
     cfg = read_config(compara_cfg)
     assert set(cfg.align_names) == {"17_sauropsids.epc", "10_primates.epo"}
 

@@ -33,8 +33,6 @@ class Config:
 
     @property
     def db_names(self) -> Iterable[str]:
-        from ensembl_cli.species import Species
-
         for species in self.species_dbs:
             yield Species.get_ensembl_db_prefix(species)
 

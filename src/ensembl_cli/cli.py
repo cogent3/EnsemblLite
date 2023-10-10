@@ -45,7 +45,7 @@ def sorted_by_size(local_path, dbnames, debug=False):
     if debug:
         pprint(size_dbnames)
 
-    sizes, dbnames = zip(*size_dbnames)
+    _, dbnames = zip(*size_dbnames)
     return dbnames
 
 
