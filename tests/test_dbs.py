@@ -2,8 +2,8 @@ import pytest
 
 from cogent3 import load_table
 
+from ensembl_cli._aligndb import AlignDb
 from ensembl_cli._homologydb import HomologyDb
-from ensembl_cli.aligndb import AlignDb
 from ensembl_cli.install import LoadHomologies, _load_one_align
 
 
