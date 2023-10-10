@@ -2,8 +2,8 @@ import pytest
 
 from cogent3 import load_table
 
+from ensembl_cli._homologydb import HomologyDb
 from ensembl_cli.aligndb import AlignDb
-from ensembl_cli.homologydb import HomologyDb
 from ensembl_cli.install import LoadHomologies, _load_one_align
 
 
@@ -46,7 +46,7 @@ def test_homology_db(hom_dir):
     got = loader(hom_dir)
     outpath = hom_dir / "species.sqlitedb"
     db = HomologyDb(source=outpath)
-    db.add_records(got, loader.dest_col)
+    db.add_records(records=got, col_order=loader.dest_col)
     assert len(db) == 2
     db.close()
     got = HomologyDb(source=outpath)

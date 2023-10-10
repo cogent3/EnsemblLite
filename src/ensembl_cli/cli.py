@@ -11,6 +11,7 @@ from trogon import tui
 
 from ensembl_cli import __version__
 from ensembl_cli._config import (
+    DOWNLOADED_CONFIG_NAME,
     read_config,
     read_installed_cfg,
     write_installed_cfg,
@@ -44,7 +45,7 @@ def sorted_by_size(local_path, dbnames, debug=False):
     if debug:
         pprint(size_dbnames)
 
-    sizes, dbnames = zip(*size_dbnames)
+    _, dbnames = zip(*size_dbnames)
     return dbnames
 
 
@@ -56,6 +57,12 @@ _cfgpath = click.option(
     type=pathlib.Path,
     help="path to config file specifying databases, only "
     "species or compara at present",
+)
+_download = click.option(
+    "-d",
+    "--download",
+    type=pathlib.Path,
+    help="path to local download directory, contains a cfg file",
 )
 _installation = click.option(
     "--installation",
@@ -133,6 +140,7 @@ def download(configpath, debug, verbose):
     if verbose:
         print(config.species_dbs)
 
+    config.write()
     with wakepy.keep.running():
         download_species(config, debug, verbose)
         download_homology(config, debug, verbose)
@@ -142,10 +150,10 @@ def download(configpath, debug, verbose):
 
 
 @main.command(no_args_is_help=True)
-@_cfgpath
+@_download
 @_force
 @_verbose
-def install(configpath, force_overwrite, verbose):
+def install(download, force_overwrite, verbose):
     """create the local representations of the data"""
     from ensembl_cli.install import (
         local_install_compara,
@@ -153,11 +161,7 @@ def install(configpath, force_overwrite, verbose):
         local_install_homology,
     )
 
-    if configpath.name == _cfg:
-        click.secho(
-            "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
-        )
-
+    configpath = download / DOWNLOADED_CONFIG_NAME
     config = read_config(configpath)
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
@@ -214,7 +218,7 @@ def homologs(installed, outpath, relationship):
 
     from cogent3 import open_
 
-    from ensembl_cli.homologydb import HomologyDb
+    from ensembl_cli._homologydb import HomologyDb
 
     config = read_installed_cfg(installed)
     db_path = config.install_homologies / "homologies.sqlitedb"

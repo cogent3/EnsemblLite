@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from typing import Iterable
+from typing import Iterable, Sized
 
 from rich.progress import track
 
@@ -81,12 +81,13 @@ class HomologyDb(SqliteDbMixin):
         self._init_tables()
 
     def add_records(
-        self, records: typing.Sequence[HomologyRecordType], col_order: list[str]
+        self, *, records: typing.Sequence[HomologyRecordType], col_order: Sized[str]
     ):
         # bulk insert
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
         self.db.executemany(sql, records)
+        self.db.commit()
 
     def get_related_to(
         self, *, gene_id: str, relationship_type: str
