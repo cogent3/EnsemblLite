@@ -10,20 +10,19 @@ from unsync import unsync
 
 from ensembl_cli import maf
 from ensembl_cli._config import Config
-from ensembl_cli._genome import CompressedGenome, Genome
+from ensembl_cli._genome import CompressedGenome, compress_it
 from ensembl_cli.aligndb import AlignDb
 from ensembl_cli.convert import seq_to_gap_coords
 from ensembl_cli.homologydb import HomologyDb
 
 
-@unsync
-def _install_one_seq(src: os.PathLike, db: Genome) -> bool:
+@unsync(cpu_bound=True)
+def _install_one_seq(src: os.PathLike) -> typing.Tuple[str, bytes]:
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
-    db.add_record(coord_name=seq.name, seq=str(seq))
-    return True
+    return seq.name, compress_it(str(seq))
 
 
-@unsync
+@unsync(cpu_bound=True)
 def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
@@ -39,12 +38,14 @@ def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     return [_install_one_annotations(path, dest) for path in paths]
 
 
-def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
+T = typing.Tuple[os.PathLike, typing.List[typing.Tuple[str, bytes]]]
+
+
+def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
     dest = dest_dir / "genome_sequence.seqdb"
-    db = CompressedGenome(source=dest, species=dest.name)
-    return [_install_one_seq(path, db) for path in paths]
+    return dest, [_install_one_seq(path) for path in paths]
 
 
 def local_install_genomes(config: Config, force_overwrite: bool):
@@ -59,13 +60,28 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         sp_dir.mkdir(parents=True, exist_ok=True)
 
     # for each species, we identify the download and dest paths for annotations
-    tasks = []
+    # our tasks here are the load/compress steps
+    tasks = {}
     for db_name in config.db_names:
         src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
-        tasks.extend(_install_seqs(src_dir, dest_dir))
+        dest, tsks = _install_seqs(src_dir, dest_dir)
+        tasks[dest] = tsks
+
+    for dest, tsks in tasks.items():
+        db = CompressedGenome(source=dest, species=dest.parent.name)
+        records = [
+            tsk.result()
+            for tsk in track(
+                tsks,
+                description=f"Installing {dest.parent.name} seqs...",
+                transient=True,
+            )
+        ]
+        db.add_compressed_records(records=records)
 
     # we now load the individual gff3 files and write to annotation db's
+    tasks = []
     for db_name in config.db_names:
         src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
@@ -74,7 +90,7 @@ def local_install_genomes(config: Config, force_overwrite: bool):
     # we do all tasks in one go
     _ = [
         t.result()
-        for t in track(tasks, description="Installing genomes...", transient=True)
+        for t in track(tasks, description="Installing annotations...", transient=True)
     ]
 
     return
