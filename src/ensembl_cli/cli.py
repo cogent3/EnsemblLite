@@ -218,7 +218,7 @@ def homologs(installed, outpath, relationship):
 
     from cogent3 import open_
 
-    from ensembl_cli.homologydb import HomologyDb
+    from ensembl_cli._homologydb import HomologyDb
 
     config = read_installed_cfg(installed)
     db_path = config.install_homologies / "homologies.sqlitedb"

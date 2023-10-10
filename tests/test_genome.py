@@ -1,6 +1,6 @@
 import pytest
 
-from ensembl_cli._genome import (
+from ensembl_cli._genomedb import (
     CompressedGenomeDb,
     GenomeDb,
     compress_it,
