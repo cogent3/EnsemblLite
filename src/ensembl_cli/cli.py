@@ -58,6 +58,12 @@ _cfgpath = click.option(
     help="path to config file specifying databases, only "
     "species or compara at present",
 )
+_download = click.option(
+    "-d",
+    "--download",
+    type=pathlib.Path,
+    help="path to local download directory, contains a cfg file",
+)
 _installation = click.option(
     "--installation",
     type=pathlib.Path,
@@ -144,10 +150,10 @@ def download(configpath, debug, verbose):
 
 
 @main.command(no_args_is_help=True)
-@_cfgpath
+@_download
 @_force
 @_verbose
-def install(configpath, force_overwrite, verbose):
+def install(download, force_overwrite, verbose):
     """create the local representations of the data"""
     from ensembl_cli.install import (
         local_install_compara,
@@ -155,11 +161,7 @@ def install(configpath, force_overwrite, verbose):
         local_install_homology,
     )
 
-    if configpath.name == _cfg:
-        click.secho(
-            "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
-        )
-
+    configpath = download / DOWNLOADED_CONFIG_NAME
     config = read_config(configpath)
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
