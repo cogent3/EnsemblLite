@@ -1,11 +1,6 @@
 import pytest
 
-from ensembl_cli._genomedb import (
-    CompressedGenomeDb,
-    GenomeDb,
-    compress_it,
-    decompress_it,
-)
+from ensembl_cli._genomedb import CompressedGenomeDb, GenomeDb, compress_it
 
 
 @pytest.fixture(scope="function")
