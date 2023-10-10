@@ -46,7 +46,7 @@ def test_homology_db(hom_dir):
     got = loader(hom_dir)
     outpath = hom_dir / "species.sqlitedb"
     db = HomologyDb(source=outpath)
-    db.add_records(got, loader.dest_col)
+    db.add_records(records=got, col_order=loader.dest_col)
     assert len(db) == 2
     db.close()
     got = HomologyDb(source=outpath)

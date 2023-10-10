@@ -148,7 +148,7 @@ class LoadHomologies:
         self._allowed_species = allowed_species
         # map the Ensembl columns to HomologyDb columns
 
-        self.src_cols = [
+        self.src_cols = (
             "homology_type",
             "species",
             "gene_stable_id",
@@ -156,8 +156,8 @@ class LoadHomologies:
             "homology_species",
             "homology_gene_stable_id",
             "homology_protein_stable_id",
-        ]
-        self.dest_col = [
+        )
+        self.dest_col = (
             "relationship",
             "species_1",
             "gene_id_1",
@@ -166,7 +166,7 @@ class LoadHomologies:
             "gene_id_2",
             "prot_id_2",
             "source",
-        ]
+        )
         self._reader = FilteringParser(
             row_condition=self._matching_species, columns=self.src_cols, sep="\t"
         )
@@ -215,7 +215,7 @@ def local_install_homology(config: Config, force_overwrite: bool):
         description="Installing homologies...",
         total=len(dirnames),
     ):
-        db.add_records(rows, loader.dest_col)
+        db.add_records(records=rows, col_order=loader.dest_col)
         del rows
 
     no_records = len(db) == 0
