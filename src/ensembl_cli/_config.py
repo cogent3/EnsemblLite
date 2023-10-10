@@ -9,6 +9,7 @@ from ensembl_cli.species import Species, species_from_ensembl_tree
 
 
 INSTALLED_CONFIG_NAME = "installed.cfg"
+DOWNLOADED_CONFIG_NAME = "downloaded.cfg"
 
 
 @dataclass
@@ -60,6 +61,45 @@ class Config:
     @property
     def install_aligns(self):
         return self.install_path / "compara" / "aligns"
+
+    def to_dict(self):
+        """returns cfg as a dict"""
+        if not self.db_names:
+            raise ValueError("no db names")
+
+        data = {
+            "remote path": {"path": str(self.remote_path), "host": str(self.host)},
+            "local path": {
+                "staging_path": str(self.staging_path),
+                "install_path": str(self.install_path),
+            },
+            "release": {"release": self.release},
+        }
+
+        if self.align_names or self.tree_names:
+            data["compara"] = {}
+
+        if self.align_names:
+            data["compara"]["align_names"] = "".join(self.align_names)
+        if self.tree_names:
+            data["compara"]["tree_names"] = "".join(self.tree_names)
+
+        for db_name in self.db_names:
+            data[db_name] = {"db": "core"}
+
+        return data
+
+    def write(self):
+        """writes a ini to staging_path/DOWNLOADED_CONFIG_NAME"""
+        parser = configparser.ConfigParser()
+        cfg = self.to_dict()
+        for section, settings in cfg.items():
+            parser.add_section(section)
+            for option, val in settings.items():
+                parser.set(section, option=option, value=val)
+        self.staging_path.mkdir(parents=True, exist_ok=True)
+        with (self.staging_path / DOWNLOADED_CONFIG_NAME).open(mode="w") as out:
+            parser.write(out, space_around_delimiters=True)
 
 
 @dataclass

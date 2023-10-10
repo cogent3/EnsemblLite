@@ -4,6 +4,7 @@ from random import shuffle
 import pytest
 
 from ensembl_cli._config import (
+    DOWNLOADED_CONFIG_NAME,
     read_config,
     read_installed_cfg,
     write_installed_cfg,
@@ -184,3 +185,13 @@ def test_config_update_species(tmp_config):
     config.update_species({"Human": ["core"]})
     assert len(list(config.db_names)) == 2
     assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}
+
+
+def test_cfg_to_dict(just_compara_cfg):
+    cfg = read_config(just_compara_cfg)
+    data = cfg.to_dict()
+    cfg.write()
+    path = cfg.staging_path / DOWNLOADED_CONFIG_NAME
+    assert path.exists()
+    got_cfg = read_config(path)
+    assert got_cfg.to_dict() == data
