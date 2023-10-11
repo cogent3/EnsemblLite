@@ -23,7 +23,7 @@ $ pip install flit
 Then do the flit version of a "developer install". (It is basically creating a symlink to the repos source directory.)
 
 ```
-$ flit install -s --python `which python
+$ flit install -s --python `which python`
 ```
 
 ## Installation
@@ -121,7 +121,7 @@ Downloads are written to a local directory, specified in the config file. Downlo
 
 ### Install
 
-"Installation" involves transforming downloaded files into local sqlite3 databases which are saved to the location specified in the config file.
+"Installation" presently involves transforming downloaded files into local sqlite3 databases which are saved to the location specified in the config file.
 
 From the maf alignment files, the "ancestral" sequences are discarded and for every aligned sequence only the gap data is stored (i.e. gap position and length) along with the genomic coordinates. These alignments will be reconstructable by combining this information with the whole genome sequence. (This approach reduces storage requirements ~5-fold).
 
