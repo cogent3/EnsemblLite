@@ -37,7 +37,7 @@ $ python -m pip install "ensembl_cli @ git+https://github.com/cogent3/ensembl_cl
 Then run for the first time using
 
 ```
-$ ensembl_cli tui
+$ elt tui
 ```
 
 The first start takes a while as, behind the scenes, cogent3 is transpiling various functions into C and compiling them. Eventually, you get a very neat terminal interface you can click around in. To exit, make sure the "root" is selected on the left panel then `^+r`.
@@ -48,22 +48,22 @@ The setup is (for now) controlled using a config file, defined in `ini` format. 
 
 <!-- [[[cog
 import cog
-from ensembl_cli import cli
+from ensembl_lite import cli
 from click.testing import CliRunner
 runner = CliRunner()
 result = runner.invoke(cli.main, ["exportrc", "--help"])
-help = result.output.replace("Usage: main", "Usage: ensembl_cli")
+help = result.output.replace("Usage: main", "Usage: elt")
 cog.out(
     "```\n{}\n```".format(help)
 )
 ]]] -->
 ```
-Usage: ensembl_cli exportrc [OPTIONS]
+Usage: elt exportrc [OPTIONS]
 
   exports sample config and species table to the nominated path
 
   setting an environment variable ENSEMBLDBRC with this path will force its
-  contents to override the default ensembl_cli settings
+  contents to override the default ensembl_lite settings
 
 Options:
   -o, --outpath PATH  path to directory to export all rc contents
