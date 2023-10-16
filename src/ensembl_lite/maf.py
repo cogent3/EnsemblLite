@@ -5,7 +5,7 @@ import os
 
 from cogent3 import open_
 
-from ensembl_cli.name import MafName
+from ensembl_lite.name import MafName
 
 
 def _get_alignment_block_indices(data: list[str]) -> list[tuple[int]]:

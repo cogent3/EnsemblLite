@@ -1,6 +1,6 @@
 import pytest
 
-from ensembl_cli.emf import EmfName, parse_emf
+from ensembl_lite.emf import EmfName, parse_emf
 
 
 def test_load(DATA_DIR):

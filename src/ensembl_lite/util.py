@@ -47,7 +47,7 @@ def _get_resource_dir() -> os.PathLike:
     if "ENSEMBLDBRC" in os.environ:
         path = os.environ["ENSEMBLDBRC"]
     else:
-        from ensembl_cli import data
+        from ensembl_lite import data
 
         path = pathlib.Path(data.__file__).parent
 

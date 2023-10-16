@@ -8,12 +8,12 @@ from cogent3.util import parallel as PAR
 from rich.progress import track
 from unsync import unsync
 
-from ensembl_cli import maf
-from ensembl_cli._aligndb import AlignDb
-from ensembl_cli._config import Config
-from ensembl_cli._genomedb import CompressedGenomeDb, compress_it
-from ensembl_cli._homologydb import HomologyDb
-from ensembl_cli.convert import seq_to_gap_coords
+from ensembl_lite import maf
+from ensembl_lite._aligndb import AlignDb
+from ensembl_lite._config import Config
+from ensembl_lite._genomedb import CompressedGenomeDb, compress_it
+from ensembl_lite._homologydb import HomologyDb
+from ensembl_lite.convert import seq_to_gap_coords
 
 
 @unsync(cpu_bound=True)

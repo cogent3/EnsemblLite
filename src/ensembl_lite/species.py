@@ -24,7 +24,7 @@ def load_species(species_path):
         species_path = get_resource_path("species.tsv")
 
     table = load_table(species_path)
-    return table.tolist()
+    return table.to_list()
 
 
 _species_common_map = load_species(os.path.join(ENSEMBLDBRC, "species.tsv"))

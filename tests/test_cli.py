@@ -6,7 +6,7 @@ import pytest
 
 from click.testing import CliRunner
 
-from ensembl_cli.cli import download, exportrc, install
+from ensembl_lite.cli import download, exportrc, install
 
 
 if sys.platform.startswith("linux"):

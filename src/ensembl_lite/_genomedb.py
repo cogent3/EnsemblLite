@@ -3,7 +3,7 @@ import typing
 from cogent3 import get_app
 from cogent3.app.composable import define_app
 
-from ensembl_cli._db_base import SqliteDbMixin
+from ensembl_lite._db_base import SqliteDbMixin
 
 
 OptInt = typing.Optional[int]
@@ -122,5 +122,4 @@ class CompressedGenomeDb(GenomeDb):
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        print(seq)
         return seq[start:end]

@@ -1,6 +1,6 @@
 import pytest
 
-from ensembl_cli._site_map import get_site_map
+from ensembl_lite._site_map import get_site_map
 
 
 @pytest.mark.parametrize("site", ("ftp.ensembl.org",))

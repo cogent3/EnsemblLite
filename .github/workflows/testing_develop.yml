@@ -24,14 +24,15 @@ jobs:
           fetch-depth: 0
 
       # Setup env
-      - uses: "actions/setup-python@v2"
+      - uses: "actions/setup-python@v3"
         with:
             python-version: "${{ matrix.python-version }}"
 
       - name: "Installs for ${{ matrix.python-version }}"
         run: |
           python --version
-          pip install --upgrade pip wheel setuptools nox
+          pip install --upgrade pip wheel setuptools flit
+          pip install --upgrade nox
 
       - name: "Run nox for ${{ matrix.python-version }}"
         run: "nox -s test-${{ matrix.python-version }}"

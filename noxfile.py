@@ -15,5 +15,5 @@ def test(session):
         "--cov-report",
         f"lcov:lcov-{session.python}.info",
         "--cov",
-        "ensembl_cli",
+        "ensembl_lite",
     )
