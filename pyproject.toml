@@ -5,7 +5,6 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "ensembl_lite"
 description = """Ensembl cli tools"""
-# remember to update cogent3/_version.py too!
 version = "2023.7.9a1"
 authors = [
     { name = "Gavin Huttley", email = "Gavin.Huttley@anu.edu.au"},
@@ -39,9 +38,9 @@ classifiers = [
     ]
 
 [project.urls]
-Documentation = "https://github.com/cogent3/ensembl_cli"
-"Bug Tracker" = "https://github.com/cogent3/ensembl_cli/issues"
-"Source Code" = "https://github.com/cogent3/ensembl_cli"
+Documentation = "https://github.com/cogent3/EnsemblLite"
+"Bug Tracker" = "https://github.com/cogent3/EnsemblLite/issues"
+"Source Code" = "https://github.com/cogent3/EnsemblLite"
 
 [project.scripts]
 elt = "ensembl_lite.cli:main"
