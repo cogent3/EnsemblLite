@@ -10,6 +10,9 @@
   <summary> 🎬 Very early proof-of-concept demo and plan for a new style terminal user interface </summary>
     <video src="https://user-images.githubusercontent.com/3102996/273427137-d3835f8b-8c0a-4370-a6e1-f8805f5dd320.mp4" controls="controls" style="max-height:640px">
     </video>
+    
+**NOTE:** the command line name has changed since this early version. See text below for the new name.
+
 </details>
 
 ## Developer installs
