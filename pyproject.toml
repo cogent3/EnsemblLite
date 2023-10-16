@@ -3,7 +3,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "ensembl_cli"
+name = "ensembl_lite"
 description = """Ensembl cli tools"""
 # remember to update cogent3/_version.py too!
 version = "2023.7.9a1"
@@ -44,7 +44,7 @@ Documentation = "https://github.com/cogent3/ensembl_cli"
 "Source Code" = "https://github.com/cogent3/ensembl_cli"
 
 [project.scripts]
-ensembl_cli = "ensembl_cli.cli:main"
+elt = "ensembl_lite.cli:main"
 
 [project.optional-dependencies]
 test = [

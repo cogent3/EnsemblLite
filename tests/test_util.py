@@ -3,13 +3,13 @@ from random import shuffle
 
 import pytest
 
-from ensembl_cli._config import (
+from ensembl_lite._config import (
     DOWNLOADED_CONFIG_NAME,
     read_config,
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_cli.util import (
+from ensembl_lite.util import (
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
@@ -62,7 +62,7 @@ def gorilla_cfg(tmp_config):
 
 
 def test_parse_config_gorilla(gorilla_cfg):
-    from ensembl_cli._config import read_config
+    from ensembl_lite._config import read_config
 
     # Gorilla has two synonyms, we need only one
     cfg = read_config(gorilla_cfg)
@@ -83,7 +83,7 @@ def test_parse_config_gorilla(gorilla_cfg):
     ),
 )
 def test_invalid_seq(name):
-    from ensembl_cli.download import valid_seq_file
+    from ensembl_lite.download import valid_seq_file
 
     assert not valid_seq_file(name)
 
@@ -99,7 +99,7 @@ def test_invalid_seq(name):
     ),
 )
 def test_valid_seq(name):
-    from ensembl_cli.download import valid_seq_file
+    from ensembl_lite.download import valid_seq_file
 
     assert valid_seq_file(name)
 

@@ -1,4 +1,4 @@
-from ensembl_cli import maf
+from ensembl_lite import maf
 
 
 def test_read(DATA_DIR):

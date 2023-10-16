@@ -7,7 +7,7 @@ from typing import Callable, Iterable
 from rich.progress import track
 from unsync import unsync
 
-from ensembl_cli.util import (
+from ensembl_lite.util import (
     atomic_write,
     dont_checksum,
     get_sig_calc_func,

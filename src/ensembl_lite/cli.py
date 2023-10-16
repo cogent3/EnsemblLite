@@ -9,14 +9,14 @@ import wakepy.keep
 
 from trogon import tui
 
-from ensembl_cli import __version__
-from ensembl_cli._config import (
+from ensembl_lite import __version__
+from ensembl_lite._config import (
     DOWNLOADED_CONFIG_NAME,
     read_config,
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_cli.download import (
+from ensembl_lite.download import (
     _cfg,
     download_aligns,
     download_homology,
@@ -155,7 +155,7 @@ def download(configpath, debug, verbose):
 @_verbose
 def install(download, force_overwrite, verbose):
     """create the local representations of the data"""
-    from ensembl_cli.install import (
+    from ensembl_lite.install import (
         local_install_compara,
         local_install_genomes,
         local_install_homology,
@@ -183,8 +183,8 @@ def exportrc(outpath):
     """exports sample config and species table to the nominated path
 
     setting an environment variable ENSEMBLDBRC with this path
-    will force its contents to override the default ensembl_cli settings"""
-    from ensembl_cli.util import ENSEMBLDBRC
+    will force its contents to override the default ensembl_lite settings"""
+    from ensembl_lite.util import ENSEMBLDBRC
 
     shutil.copytree(ENSEMBLDBRC, outpath)
     # we assume all files starting with alphabetical characters are valid
@@ -218,7 +218,7 @@ def homologs(installed, outpath, relationship):
 
     from cogent3 import open_
 
-    from ensembl_cli._homologydb import HomologyDb
+    from ensembl_lite._homologydb import HomologyDb
 
     config = read_installed_cfg(installed)
     db_path = config.install_homologies / "homologies.sqlitedb"
@@ -234,8 +234,8 @@ def installed(installation):
     """show what is installed"""
     from cogent3 import make_table
 
-    from ensembl_cli.species import Species
-    from ensembl_cli.util import rich_display
+    from ensembl_lite.species import Species
+    from ensembl_lite.util import rich_display
 
     if not installation.exists():
         click.secho(f"{str(installation)!r} does not exist!")

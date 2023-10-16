@@ -2,9 +2,9 @@ import pytest
 
 from cogent3 import load_table
 
-from ensembl_cli._aligndb import AlignDb
-from ensembl_cli._homologydb import HomologyDb
-from ensembl_cli.install import LoadHomologies, _load_one_align
+from ensembl_lite._aligndb import AlignDb
+from ensembl_lite._homologydb import HomologyDb
+from ensembl_lite.install import LoadHomologies, _load_one_align
 
 
 def test_db_align(DATA_DIR, tmp_path):

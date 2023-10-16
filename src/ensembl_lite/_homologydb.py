@@ -6,7 +6,7 @@ from typing import Iterable, Sized
 
 from rich.progress import track
 
-from ensembl_cli._db_base import SqliteDbMixin
+from ensembl_lite._db_base import SqliteDbMixin
 
 
 class HomologyRecordType(typing.TypedDict):

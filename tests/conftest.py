@@ -4,7 +4,7 @@ from configparser import ConfigParser
 
 import pytest
 
-from ensembl_cli.util import get_resource_path
+from ensembl_lite.util import get_resource_path
 
 
 @pytest.fixture(scope="session")
