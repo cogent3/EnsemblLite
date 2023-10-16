@@ -108,7 +108,7 @@ _release = click.option("-r", "--release", type=int, help="Ensembl release numbe
 @click.group()
 @click.version_option(__version__)
 def main():
-    """admin tools for obtaining and interrogating subsets of https://ensembl.org genomic data"""
+    """tools for obtaining and interrogating subsets of https://ensembl.org genomic data"""
     pass
 
 
