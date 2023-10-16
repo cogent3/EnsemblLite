@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 __author__ = "Gavin Huttley"
-__copyright__ = "Copyright 2023-, The ensembl cli project"
+__copyright__ = "Copyright 2023-, The ensembl lite project"
 __credits__ = ["Gavin Huttley"]
 __license__ = "BSD"
 __version__ = "2023.7.9a1"
