@@ -31,7 +31,8 @@ jobs:
       - name: "Installs for ${{ matrix.python-version }}"
         run: |
           python --version
-          pip install --upgrade pip wheel setuptools nox
+          pip install --upgrade pip wheel setuptools flit
+          pip install --upgrade nox
 
       - name: "Run nox for ${{ matrix.python-version }}"
         run: "nox -s test-${{ matrix.python-version }}"
