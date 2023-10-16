@@ -122,5 +122,4 @@ class CompressedGenomeDb(GenomeDb):
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        print(seq)
         return seq[start:end]
