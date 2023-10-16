@@ -23,7 +23,7 @@ dependencies = ["click",
         "numpy",
         "trogon",
         "unsync",
-        "wakepy",
+        "wakepy>0.7",
         ]
 classifiers = [
         "Development Status :: 5 - Production/Stable",
