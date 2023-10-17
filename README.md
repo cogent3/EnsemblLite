@@ -2,7 +2,7 @@
 [![CodeQL](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml)
 [![Coverage Status](https://coveralls.io/repos/github/cogent3/EnsemblLite/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/EnsemblLite?branch=develop)
 
-# ensembl_cli
+# EnsemblLite
 
 ## A screencast of an early prototype
 
@@ -34,7 +34,7 @@ $ flit install -s --python `which python`
 Suggest creating a conda environment or a python virtual environment, using python3.11. Then install directly into that environment from the GitHub repo as
 
 ```
-$ python -m pip install "ensembl_cli @ git+https://github.com/cogent3/ensembl_cli.git@develop"
+$ python -m pip install "ensembl_lite @ git+https://github.com/cogent3/EnsemblLite.git@develop"
 ```
 
 Then run for the first time using
