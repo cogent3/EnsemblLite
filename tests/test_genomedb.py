@@ -100,7 +100,7 @@ def test_add_compressed(small_data):
 
 
 def test_selected_seq_is_annotated(small_genome, small_annotdb):
-    gen_seqs_db, seqs = small_genome
+    gen_seqs_db, _ = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1")
     assert seq.annotation_db == small_annotdb
