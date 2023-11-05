@@ -11,7 +11,7 @@ from unsync import unsync
 from ensembl_lite import maf
 from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
-from ensembl_lite._genomedb import CompressedGenomeDb, compress_it
+from ensembl_lite._genomedb import CompressedGenomeSeqsDb, compress_it
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.convert import seq_to_gap_coords
 
@@ -69,7 +69,7 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         tasks[dest] = tsks
 
     for dest, tsks in tasks.items():
-        db = CompressedGenomeDb(source=dest, species=dest.parent.name)
+        db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
         records = [
             tsk.result()
             for tsk in track(

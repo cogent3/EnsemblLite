@@ -1,6 +1,10 @@
 import pytest
 
-from ensembl_lite._genomedb import CompressedGenomeDb, GenomeDb, compress_it
+from ensembl_lite._genomedb import (
+    CompressedGenomeSeqsDb,
+    GenomeSeqsDb,
+    compress_it,
+)
 
 
 @pytest.fixture(scope="function")
@@ -10,14 +14,14 @@ def small_data():
 
 @pytest.fixture(scope="function")
 def small_genome(small_data):
-    db = GenomeDb(source=":memory:", species="dodo")
+    db = GenomeSeqsDb(source=":memory:", species="dodo")
     db.add_records(records=small_data.items())
     return db, small_data
 
 
 @pytest.fixture(scope="function")
 def compressed_small_genome(small_data):
-    db = CompressedGenomeDb(source=":memory:", species="dodo")
+    db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
     db.add_records(records=small_data.items())
     return db, small_data
 
@@ -41,7 +45,7 @@ def test_get_fullseq(genome, request, name):
 
 
 def test_add_compressed(small_data):
-    db = CompressedGenomeDb(source=":memory:", species="dodo")
+    db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
     data = {k: compress_it(s) for k, s in small_data.items()}
     db.add_compressed_records(records=data.items())
     assert db.get_seq(coord_name="s1") == small_data["s1"]
