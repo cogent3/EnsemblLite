@@ -12,11 +12,11 @@ authors = [
 keywords = ["biology", "genomics", "evolution", "bioinformatics"]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.9,<3.12"
 dependencies = ["click",
         "scitrack",
         "typing_extensions",
-        "cogent3 @ git+https://github.com/cogent3/cogent3.git@develop",
+        "cogent3",
         "rich",
         "numba",
         "numpy",
