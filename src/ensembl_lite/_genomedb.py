@@ -36,7 +36,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
     ) -> str:
         """
 
@@ -47,7 +47,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
@@ -56,15 +56,15 @@ class GenomeSeqsDb(SqliteDbMixin):
         else:
             start = 1
 
-        if end is None:
+        if stop is None:
             sql = f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where coord_name = ?"
             values = start, coord_name
         else:
-            end -= start - 1
+            stop -= start - 1
             sql = (
                 f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where coord_name = ?"
             )
-            values = start, end, coord_name
+            values = start, stop, coord_name
 
         return self._execute_sql(sql, values).fetchone()[0]
 
@@ -104,7 +104,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
     ) -> str:
         """
 
@@ -115,11 +115,11 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        return seq[start:end]
+        return seq[start:stop]
