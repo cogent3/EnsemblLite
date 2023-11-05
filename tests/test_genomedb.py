@@ -1,7 +1,10 @@
 import pytest
 
+from cogent3.core.annotation_db import GffAnnotationDb
+
 from ensembl_lite._genomedb import (
     CompressedGenomeSeqsDb,
+    Genome,
     GenomeSeqsDb,
     compress_it,
 )
@@ -9,7 +12,51 @@ from ensembl_lite._genomedb import (
 
 @pytest.fixture(scope="function")
 def small_data():
-    return {"s1": "AAACCCCAA", "s2": "TTGGTT"}
+    return {"s1": "TAACCCCAAG", "s2": "TTGGTTGG"}
+
+
+@pytest.fixture(scope="function")
+def small_annots():
+    return [
+        dict(
+            seqid="s1",
+            name="gene-01",
+            biotype="gene",
+            spans=[(1, 3), (7, 9)],
+            strand="+",
+        ),
+        dict(
+            seqid="s1",
+            name="exon-01",
+            biotype="exon",
+            spans=[(1, 3)],
+            strand="+",
+            parent_id="gene-01",
+        ),
+        dict(
+            seqid="s1",
+            name="exon-02",
+            biotype="exon",
+            spans=[(7, 9)],
+            strand="+",
+            parent_id="gene-01",
+        ),
+        dict(
+            seqid="s2",
+            name="gene-02",
+            biotype="gene",
+            spans=[(2, 4), (6, 8)],
+            strand="+",
+        ),
+    ]
+
+
+@pytest.fixture(scope="function")
+def small_annotdb(small_annots):
+    db = GffAnnotationDb(source=":memory:")
+    for record in small_annots:
+        db.add_feature(**record)
+    return db
 
 
 @pytest.fixture(scope="function")
@@ -50,3 +97,14 @@ def test_add_compressed(small_data):
     db.add_compressed_records(records=data.items())
     assert db.get_seq(coord_name="s1") == small_data["s1"]
     assert db.get_seq(coord_name="s2") == small_data["s2"]
+
+
+def test_selected_seq_is_annotated(small_genome, small_annotdb):
+    gen_seqs_db, seqs = small_genome
+    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    seq = genome.get_seq(seqid="s1")
+    assert seq.annotation_db == small_annotdb
+    gene = list(genome.get_features(seqid="s1", biotype="gene"))[0]
+    gene_seq = gene.get_slice()
+    assert str(gene_seq) == "AAAA"
+    assert gene.name == "gene-01"
