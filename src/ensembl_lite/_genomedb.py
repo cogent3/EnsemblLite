@@ -1,19 +1,20 @@
 import typing
 
-from cogent3 import get_app
+from cogent3 import get_app, make_seq
 from cogent3.app.composable import define_app
+from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._db_base import SqliteDbMixin
 
 
 OptInt = typing.Optional[int]
-
+OptionalStr = typing.Optional[str]
 
 # todo: make a variant that wraps a directory of compressed sequence files
 # todo: or compresses sequence records on write into db, and just inflates then returns substring
 
 
-class GenomeDb(SqliteDbMixin):
+class GenomeSeqsDb(SqliteDbMixin):
     table_name = "genome"
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
     _metadata_schema = {"species": "TEXT"}
@@ -36,7 +37,7 @@ class GenomeDb(SqliteDbMixin):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
     ) -> str:
         """
 
@@ -47,7 +48,7 @@ class GenomeDb(SqliteDbMixin):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
@@ -56,15 +57,15 @@ class GenomeDb(SqliteDbMixin):
         else:
             start = 1
 
-        if end is None:
+        if stop is None:
             sql = f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where coord_name = ?"
             values = start, coord_name
         else:
-            end -= start - 1
+            stop -= start - 1
             sql = (
                 f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where coord_name = ?"
             )
-            values = start, end, coord_name
+            values = start, stop, coord_name
 
         return self._execute_sql(sql, values).fetchone()[0]
 
@@ -85,7 +86,7 @@ compress_it = _str_to_bytes() + get_app("compress")
 decompress_it = get_app("decompress") + _bytes_to_str()
 
 
-class CompressedGenomeDb(GenomeDb):
+class CompressedGenomeSeqsDb(GenomeSeqsDb):
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
     def add_record(self, *, coord_name: str, seq: str):
@@ -104,7 +105,7 @@ class CompressedGenomeDb(GenomeDb):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
     ) -> str:
         """
 
@@ -115,11 +116,63 @@ class CompressedGenomeDb(GenomeDb):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        return seq[start:end]
+        return seq[start:stop]
+
+
+# todo: this wrapping class is required for memory efficiency because
+# the cogent3 SequeceCollection class is not designed for large sequence
+# collections, either large sequences or large numbers of sequences. The
+# correct solution is to improve that.
+class Genome:
+    """connecting sequences and their annotations"""
+
+    def __init__(
+        self,
+        *,
+        species: str,
+        seqs: GenomeSeqsDb | CompressedGenomeSeqsDb,
+        annots: GffAnnotationDb,
+    ) -> None:
+        self.species = species
+        self._seqs = seqs
+        self._annotdb = annots
+
+    def get_seq(self, *, seqid: str, start: OptInt = None, stop: OptInt = None) -> str:
+        """
+
+        Parameters
+        ----------
+        seqid
+            name of chromosome etc..
+        start
+            starting position of slice in python coordinates, defaults
+            to 0
+        stop
+            ending position of slice in python coordinates, defaults
+            to length of coordinate
+        """
+        seq = self._seqs.get_seq(coord_name=seqid, start=start, stop=stop)
+        seq = make_seq(seq, name=seqid, moltype="dna")
+        seq.annotation_offset = start or 0
+        seq.annotation_db = self._annotdb
+        return seq
+
+    def get_features(
+        self,
+        *,
+        biotype: str = None,
+        seqid: str = None,
+        name: str = None,
+        start: int = None,
+        stop: int = None,
+    ):
+        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid")}
+        seq = self.get_seq(seqid=seqid, start=start, stop=stop)
+        yield from seq.get_features(**kwargs)

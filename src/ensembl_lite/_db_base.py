@@ -25,7 +25,7 @@ def array_to_sqlite(data):
 
 
 def sqlite_to_array(data):
-    result = numpy.frombuffer(gzip.decompress(data), dtype=numpy.int32)
+    result = numpy.frombuffer(gzip.decompress(data), dtype=int)
     dim = result.shape[0] // 2
     return result.reshape((dim, 2))
 
