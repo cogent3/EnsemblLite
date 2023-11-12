@@ -1,8 +1,5 @@
-import os
 import pathlib
 import shutil
-
-from pprint import pprint
 
 import click
 import wakepy.keep
@@ -23,30 +20,6 @@ from ensembl_lite.download import (
     download_species,
     get_species_for_alignments,
 )
-
-
-def listpaths(dirname, glob_pattern):
-    """return path to all files matching glob_pattern"""
-    fns = [str(p) for p in pathlib.Path(dirname).glob(glob_pattern)]
-    return fns if fns else None
-
-
-def sorted_by_size(local_path, dbnames, debug=False):
-    """returns dbnames ordered by directory size"""
-    join = os.path.join
-    getsize = os.path.getsize
-    size_dbnames = []
-    for dbname in dbnames:
-        path = join(local_path, dbname.name)
-        size = sum(getsize(join(path, fname)) for fname in os.listdir(path))
-        size_dbnames.append([size, dbname])
-    size_dbnames.sort()
-
-    if debug:
-        pprint(size_dbnames)
-
-    _, dbnames = zip(*size_dbnames)
-    return dbnames
 
 
 # defining some of the options

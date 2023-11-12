@@ -56,30 +56,6 @@ def _make_table_sql(
     return f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types});"
 
 
-def _add_record_sql(
-    table_name: str,
-    data: dict,
-) -> ReturnType:
-    """creates SQL defining the table
-
-    Parameters
-    ----------
-    table_name : str
-        name of the table
-    data : dict
-        {<column name>: column type}
-
-    Returns
-    -------
-    str, tuple
-        the SQL statement and the tuple of values
-    """
-    cols = ", ".join(k.lower() for k in data)
-    pos = ", ".join("?" * len(data))
-    sql = f"INSERT INTO {table_name} ({cols}) VALUES ({pos});"
-    return sql, tuple(data.values())
-
-
 class SqliteDbMixin:
     table_name = None
     _db = None
