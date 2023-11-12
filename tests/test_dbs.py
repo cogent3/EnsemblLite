@@ -7,15 +7,27 @@ from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.install import LoadHomologies, _load_one_align
 
 
-def test_db_align(DATA_DIR, tmp_path):
+@pytest.fixture
+def db_align(DATA_DIR, tmp_path):
     records = _load_one_align(DATA_DIR / "tiny.maf")
     outpath = tmp_path / "blah.sqlitedb"
     db = AlignDb(source=outpath)
     db.add_records(records)
-    orig = len(db)
     db.close()
-    got = AlignDb(source=outpath)
+    return AlignDb(source=outpath)
+
+
+def test_db_align(db_align):
+    orig = len(db_align)
+    source = db_align.source
+    db_align.close()
+    got = AlignDb(source=source)
     assert len(got) == orig
+
+
+@pytest.mark.parametrize("func", (str, repr))
+def test_db_align_repr(db_align, func):
+    func(db_align)
 
 
 @pytest.fixture
