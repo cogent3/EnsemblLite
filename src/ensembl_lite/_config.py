@@ -126,6 +126,7 @@ def write_installed_cfg(config: Config) -> os.PathLike:
     parser = configparser.ConfigParser()
     parser.add_section("release")
     parser.set("release", "release", config.release)
+    # create all the genome
     outpath = config.install_path / INSTALLED_CONFIG_NAME
     outpath.parent.mkdir(parents=True, exist_ok=True)
     with outpath.open(mode="w") as out:

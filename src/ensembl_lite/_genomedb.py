@@ -3,6 +3,7 @@ import typing
 from cogent3 import get_app, make_seq
 from cogent3.app.composable import define_app
 from cogent3.core.annotation_db import GffAnnotationDb
+from cogent3.util.table import Table
 
 from ensembl_lite._db_base import SqliteDbMixin
 
@@ -176,3 +177,7 @@ class Genome:
         kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid")}
         seq = self.get_seq(seqid=seqid, start=start, stop=stop)
         yield from seq.get_features(**kwargs)
+
+
+def get_feature_table(genome: Genome) -> Table:
+    ...
