@@ -11,6 +11,11 @@ from ensembl_lite.species import Species, species_from_ensembl_tree
 INSTALLED_CONFIG_NAME = "installed.cfg"
 DOWNLOADED_CONFIG_NAME = "downloaded.cfg"
 
+_COMPARA_NAME = "compara"
+_ALIGNS_NAME = "aligns"
+_HOMOLOGIES_NAME = "homologies"
+_GENOMES_NAME = "genomes"
+
 
 @dataclass
 class Config:
@@ -38,27 +43,27 @@ class Config:
 
     @property
     def staging_genomes(self):
-        return self.staging_path / "genomes"
+        return self.staging_path / _GENOMES_NAME
 
     @property
     def install_genomes(self):
-        return self.install_path / "genomes"
+        return self.install_path / _GENOMES_NAME
 
     @property
     def staging_homologies(self):
-        return self.staging_path / "compara" / "homologies"
+        return self.staging_path / _COMPARA_NAME / _HOMOLOGIES_NAME
 
     @property
     def install_homologies(self):
-        return self.install_path / "compara" / "homologies"
+        return self.install_path / _COMPARA_NAME / _HOMOLOGIES_NAME
 
     @property
     def staging_aligns(self):
-        return self.staging_path / "compara" / "aligns"
+        return self.staging_path / _COMPARA_NAME / _ALIGNS_NAME
 
     @property
     def install_aligns(self):
-        return self.install_path / "compara" / "aligns"
+        return self.install_path / _COMPARA_NAME / _ALIGNS_NAME
 
     def to_dict(self):
         """returns cfg as a dict"""
@@ -110,19 +115,19 @@ class InstalledConfig:
 
     @property
     def compara_path(self):
-        return self.install_path / "compara"
+        return self.install_path / _COMPARA_NAME
 
     @property
     def homologies_path(self):
-        return self.compara_path / "homologies"
+        return self.compara_path / _HOMOLOGIES_NAME
 
     @property
     def aligns_path(self):
-        return self.compara_path / "aligns"
+        return self.compara_path / _ALIGNS_NAME
 
     @property
     def genomes_path(self):
-        return self.install_path / "genomes"
+        return self.install_path / _GENOMES_NAME
 
     def installed_genome(self, species: str) -> os.PathLike:
         db_name = Species.get_ensembl_db_prefix(species)
