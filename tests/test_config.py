@@ -15,12 +15,12 @@ def test_installed_genome():
 
 def test_installed_aligns():
     cfg = InstalledConfig(release=110, install_path="abcd")
-    assert cfg.install_aligns == pathlib.Path("abcd/compara/aligns")
+    assert cfg.aligns_path == pathlib.Path("abcd/compara/aligns")
 
 
 def test_installed_homologies():
     cfg = InstalledConfig(release=110, install_path="abcd")
-    assert cfg.install_homologies == pathlib.Path("abcd/compara/homologies")
+    assert cfg.homologies_path == pathlib.Path("abcd/compara/homologies")
 
 
 def test_read_installed(tmp_config, tmp_path):

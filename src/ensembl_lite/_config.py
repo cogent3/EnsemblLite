@@ -109,16 +109,24 @@ class InstalledConfig:
         self.install_path = pathlib.Path(self.install_path)
 
     @property
-    def install_homologies(self):
-        return self.install_path / "compara" / "homologies"
+    def compara_path(self):
+        return self.install_path / "compara"
 
     @property
-    def install_aligns(self):
-        return self.install_path / "compara" / "aligns"
+    def homologies_path(self):
+        return self.compara_path / "homologies"
+
+    @property
+    def aligns_path(self):
+        return self.compara_path / "aligns"
+
+    @property
+    def genomes_path(self):
+        return self.install_path / "genomes"
 
     def installed_genome(self, species: str) -> os.PathLike:
         db_name = Species.get_ensembl_db_prefix(species)
-        return self.install_path / "genomes" / db_name
+        return self.genomes_path / db_name
 
 
 def write_installed_cfg(config: Config) -> os.PathLike:
