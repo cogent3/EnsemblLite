@@ -105,6 +105,9 @@ class InstalledConfig:
     release: str
     install_path: os.PathLike
 
+    def __post_init__(self):
+        self.install_path = pathlib.Path(self.install_path)
+
     @property
     def install_homologies(self):
         return self.install_path / "compara" / "homologies"
@@ -112,6 +115,10 @@ class InstalledConfig:
     @property
     def install_aligns(self):
         return self.install_path / "compara" / "aligns"
+
+    def installed_genome(self, species: str) -> os.PathLike:
+        db_name = Species.get_ensembl_db_prefix(species)
+        return self.install_path / "genome" / db_name
 
 
 def write_installed_cfg(config: Config) -> os.PathLike:
