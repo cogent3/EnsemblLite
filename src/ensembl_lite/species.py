@@ -24,7 +24,11 @@ def load_species(species_path):
         species_path = get_resource_path("species.tsv")
 
     table = load_table(species_path)
-    return table.tolist()
+    try:
+        # remove this after 2023 Q4 (when the to_list() deprecation has been released)
+        return table.to_list()
+    except AttributeError:
+        return table.tolist()
 
 
 _species_common_map = load_species(os.path.join(ENSEMBLDBRC, "species.tsv"))
