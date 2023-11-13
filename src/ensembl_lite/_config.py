@@ -118,7 +118,7 @@ class InstalledConfig:
 
     def installed_genome(self, species: str) -> os.PathLike:
         db_name = Species.get_ensembl_db_prefix(species)
-        return self.install_path / "genome" / db_name
+        return self.install_path / "genomes" / db_name
 
 
 def write_installed_cfg(config: Config) -> os.PathLike:
