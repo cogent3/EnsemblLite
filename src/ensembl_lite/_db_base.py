@@ -1,9 +1,17 @@
+import dataclasses
 import gzip
 import inspect
 import sqlite3
 import typing
 
 import numpy
+
+
+@dataclasses.dataclass
+class _compressed_array_proxy:
+    """this exists only to automate conversion of a customised sqlite type"""
+
+    array: numpy.ndarray
 
 
 class AlignRecordType(typing.TypedDict):
@@ -20,19 +28,22 @@ class AlignRecordType(typing.TypedDict):
 ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
 
 
-def array_to_sqlite(data):
-    return gzip.compress(data.tobytes())
+def compressed_array_to_sqlite(data):
+    return gzip.compress(data.array.astype(numpy.int32).tobytes())
 
 
-def sqlite_to_array(data):
-    result = numpy.frombuffer(gzip.decompress(data), dtype=int)
+def decompressed_sqlite_to_array(data):
+    result = numpy.frombuffer(gzip.decompress(data), dtype=numpy.int32)
     dim = result.shape[0] // 2
     return result.reshape((dim, 2))
 
 
 # registering the conversion functions with sqlite
-sqlite3.register_adapter(numpy.ndarray, array_to_sqlite)
-sqlite3.register_converter("array", sqlite_to_array)
+# since these conversion functions are tied to a type, need to ensure the
+# type will be unique to this tool, best way is to use <libname_type> and
+# wrap a fundamental type with a proxy
+sqlite3.register_adapter(_compressed_array_proxy, compressed_array_to_sqlite)
+sqlite3.register_converter("compressed_array", decompressed_sqlite_to_array)
 
 
 def _make_table_sql(

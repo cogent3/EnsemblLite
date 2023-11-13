@@ -99,6 +99,10 @@ def test_add_compressed(small_data):
     assert db.get_seq(coord_name="s2") == small_data["s2"]
 
 
+def test_annodb(small_annotdb):
+    list(small_annotdb.get_features_matching(seqid="s1", biotype="gene"))
+
+
 def test_selected_seq_is_annotated(small_genome, small_annotdb):
     gen_seqs_db, _ = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)

@@ -10,7 +10,7 @@ from unsync import unsync
 
 from ensembl_lite import maf
 from ensembl_lite._aligndb import AlignDb
-from ensembl_lite._config import Config
+from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import CompressedGenomeSeqsDb, compress_it
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.convert import seq_to_gap_coords
@@ -93,6 +93,8 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         for t in track(tasks, description="Installing annotations...", transient=True)
     ]
 
+    db.close()
+
     return
 
 
@@ -118,7 +120,7 @@ def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
 
 def local_install_compara(config: Config, force_overwrite: bool):
     if force_overwrite:
-        shutil.rmtree(config.install_path / "compara", ignore_errors=True)
+        shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
 
     for align_name in config.align_names:
         src_dir = config.staging_aligns / align_name

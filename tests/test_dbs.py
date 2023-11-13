@@ -1,13 +1,14 @@
+import numpy
 import pytest
 
 from cogent3 import load_table
 
-from ensembl_lite._aligndb import AlignDb
+from ensembl_lite._aligndb import AlignDb, AlignRecordType
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.install import LoadHomologies, _load_one_align
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_align(DATA_DIR, tmp_path):
     records = _load_one_align(DATA_DIR / "tiny.maf")
     outpath = tmp_path / "blah.sqlitedb"
@@ -23,6 +24,30 @@ def test_db_align(db_align):
     db_align.close()
     got = AlignDb(source=source)
     assert len(got) == orig
+
+
+def test_db_align_add_records(db_align):
+    gap_spans = numpy.array([[2, 5], [7, 1]], dtype=int)
+    records = [
+        AlignRecordType(
+            source="blah",
+            block_id=42,
+            species="human",
+            coord_name="1",
+            start=22,
+            end=42,
+            strand="-",
+            gap_spans=gap_spans,
+        )
+    ]
+    db_align.add_records(records)
+    got = list(
+        db_align._execute_sql(
+            f"SELECT * from {db_align.table_name} where block_id=?", (42,)
+        )
+    )
+    got_spans = got[0]["gap_spans"]
+    assert numpy.allclose(got_spans, gap_spans)
 
 
 @pytest.mark.parametrize("func", (str, repr))
