@@ -2,7 +2,7 @@ import typing
 
 import numpy
 
-from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 
 
 class AlignRecordType(typing.TypedDict):
@@ -30,7 +30,7 @@ class AlignDb(SqliteDbMixin):
         "start": "INTEGER",
         "end": "INTEGER",
         "strand": "TEXT",
-        "gap_spans": "array",
+        "gap_spans": "compressed_array",
     }
 
     def __init__(self, *, source=":memory:"):
@@ -54,6 +54,7 @@ class AlignDb(SqliteDbMixin):
             ).fetchall()
         ]
         for i in range(len(records)):
+            records[i]["gap_spans"] = _compressed_array_proxy(records[i]["gap_spans"])
             records[i] = [records[i][c] for c in col_order]
 
         val_placeholder = ", ".join("?" * len(col_order))

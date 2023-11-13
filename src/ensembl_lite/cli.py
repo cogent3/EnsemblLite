@@ -136,6 +136,9 @@ def install(download, force_overwrite, verbose):
 
     configpath = download / DOWNLOADED_CONFIG_NAME
     config = read_config(configpath)
+    if verbose:
+        print(f"{config.install_path=}")
+
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
 
