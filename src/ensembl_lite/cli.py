@@ -4,6 +4,7 @@ import shutil
 import click
 import wakepy.keep
 
+from rich.progress import track
 from trogon import tui
 
 from ensembl_lite import __version__
@@ -226,21 +227,17 @@ def homologs(installed, outpath, relationship):
 
 
 @main.command(no_args_is_help=True)
-@_installation
-def installed(installation):
+@_installed
+def installed(installed):
     """show what is installed"""
     from cogent3 import make_table
 
     from ensembl_lite.species import Species
     from ensembl_lite.util import rich_display
 
-    if not installation.exists():
-        click.secho(f"{str(installation)!r} does not exist!")
-        exit(1)
+    config = read_installed_cfg(installed)
 
-    # TODO install structure should be provided by some type of
-    # hook function
-    genome_dir = installation / "genomes"
+    genome_dir = config.genomes_path
     if genome_dir.exists():
         species = [fn.name for fn in genome_dir.glob("*")]
         data = {"species": [], "common name": []}
@@ -255,7 +252,7 @@ def installed(installation):
         rich_display(table)
 
     # TODO as above
-    compara_aligns = installation / "compara" / "aligns"
+    compara_aligns = config.aligns_path
     if compara_aligns.exists():
         align_names = [
             fn.stem for fn in compara_aligns.glob("*") if not fn.name.startswith(".")
@@ -277,7 +274,7 @@ _species = click.option(
     "--species",
     required=True,
     callback=_species_names_from_csv,
-    help="Comma separated list of species names.",
+    help="Single species name, or multiple (comma separated).",
 )
 _outdir = click.option(
     "--outdir",
@@ -287,7 +284,11 @@ _outdir = click.option(
     help="Output file name.",
 )
 _limit = click.option(
-    "--limit", type=int, default=0, help="Limit to this number of genes."
+    "--limit",
+    type=int,
+    default=None,
+    help="Limit to this number of genes.",
+    show_default=True,
 )
 
 
@@ -329,7 +330,7 @@ def dump_genes(installed, species, outdir, limit):
         "strand",
         "phase",
     ]
-    for i, record in enumerate(annot_db.get_records_matching(biotype="gene")):
+    for i, record in track(enumerate(annot_db.get_records_matching(biotype="gene"))):
         rows.append([record[c] for c in columns])
         if i == limit:
             break

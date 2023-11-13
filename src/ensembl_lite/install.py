@@ -93,6 +93,8 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         for t in track(tasks, description="Installing annotations...", transient=True)
     ]
 
+    db.close()
+
     return
 
 
