@@ -110,6 +110,9 @@ class InstalledConfig:
     release: str
     install_path: os.PathLike
 
+    def __hash__(self):
+        return id(self)
+
     def __post_init__(self):
         self.install_path = pathlib.Path(self.install_path)
 
