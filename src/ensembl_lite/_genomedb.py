@@ -92,6 +92,9 @@ decompress_it = get_app("decompress") + _bytes_to_str()
 class CompressedGenomeSeqsDb(GenomeSeqsDb):
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
+    def __hash__(self):
+        return id(self)
+
     def add_record(self, *, coord_name: str, seq: str):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
         self._execute_sql(sql, (coord_name, compress_it(seq), len(seq)))
