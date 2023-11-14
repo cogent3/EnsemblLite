@@ -136,6 +136,10 @@ class InstalledConfig:
         db_name = Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
+    def list_genomes(self):
+        """returns list of installed genomes"""
+        return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
+
 
 def write_installed_cfg(config: Config) -> os.PathLike:
     """writes an ini file under config.installed_path"""
