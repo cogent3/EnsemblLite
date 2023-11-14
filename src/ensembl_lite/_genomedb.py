@@ -2,8 +2,9 @@ import typing
 
 from cogent3 import get_app, make_seq
 from cogent3.app.composable import define_app
+from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
-from cogent3.util.table import Table
+from cogent3.core.sequence import Sequence
 
 from ensembl_lite._db_base import SqliteDbMixin
 
@@ -181,10 +182,19 @@ class Genome:
         name: str = None,
         start: int = None,
         stop: int = None,
-    ):
-        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid")}
-        seq = self.get_seq(seqid=seqid, start=start, stop=stop)
-        yield from seq.get_features(**kwargs)
+    ) -> typing.Iterable[Feature]:
+        """yields features in blocks of seqid"""
+        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid") and v}
+        if seqid:
+            seqids = [seqid]
+        else:
+            seqids = {
+                ft["seqid"] for ft in self._annotdb.get_features_matching(**kwargs)
+            }
+
+        for seqid in seqids:
+            seq = self.get_seq(seqid=seqid)
+            yield from seq.get_features(**kwargs)
 
 
 def get_feature_table(genome: Genome) -> Table:
