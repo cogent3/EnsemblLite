@@ -29,6 +29,9 @@ class GenomeSeqsDb(SqliteDbMixin):
         self._execute_sql("INSERT INTO metadata(species) VALUES (?)", (species,))
         self.db.commit()
 
+    def __hash__(self):
+        return id(self)
+
     def add_record(self, *, coord_name: str, seq: str):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
         self._execute_sql(sql, (coord_name, seq, len(seq)))

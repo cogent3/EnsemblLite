@@ -112,3 +112,9 @@ def test_selected_seq_is_annotated(small_genome, small_annotdb):
     gene_seq = gene.get_slice()
     assert str(gene_seq) == "AAAA"
     assert gene.name == "gene-01"
+
+
+@pytest.mark.parametrize("cls", (GenomeSeqsDb, CompressedGenomeSeqsDb))
+def test_hashable_genome(cls):
+    genome = cls(species="dodo", source=":memory:")
+    assert hash(genome) == id(genome)
