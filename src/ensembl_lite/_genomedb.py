@@ -132,7 +132,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        return seq[start:stop]
+        return seq[start:stop] if start or stop else seq
 
 
 # todo: this wrapping class is required for memory efficiency because
