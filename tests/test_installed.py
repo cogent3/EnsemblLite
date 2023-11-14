@@ -65,7 +65,7 @@ def test_get_genes(one_genome, make_seq_name):
 
 
 def test_installed_genomes(one_genome):
-    inst, seq = one_genome
+    inst, _ = one_genome
     config = read_installed_cfg(inst)
     got = config.list_genomes()
     assert got == ["caenorhabditis_elegans"]
