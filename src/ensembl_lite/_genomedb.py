@@ -6,6 +6,7 @@ from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 
+from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 
 
@@ -197,5 +198,29 @@ class Genome:
             yield from seq.get_features(**kwargs)
 
 
-def get_feature_table(genome: Genome) -> Table:
-    ...
+def load_genome(*, cfg: InstalledConfig, species: str):
+    """returns the Genome with bound seqs and features"""
+    genome_path = cfg.installed_genome(species) / _SEQDB_NAME
+    seqs = CompressedGenomeSeqsDb(source=genome_path, species=species)
+    ann_path = cfg.installed_genome(species) / _ANNOTDB_NAME
+    ann = GffAnnotationDb(source=ann_path)
+    return Genome(species=species, seqs=seqs, annots=ann)
+
+
+def get_seqs_for_ids(
+    *,
+    cfg: InstalledConfig,
+    species: str,
+    names: list[str],
+    make_seq_name: typing.Callable = None,
+) -> typing.Iterable[Sequence]:
+    genome = load_genome(cfg=cfg, species=species)
+    # is it possible to do batch query for all names?
+    for name in names:
+        feature = list(genome.get_features(name=name))[0]
+        seq = feature.get_slice()
+        if callable(make_seq_name):
+            seq.name = make_seq_name(feature)
+        else:
+            seq.name = feature.name
+        yield seq

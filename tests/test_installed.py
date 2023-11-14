@@ -12,7 +12,7 @@ from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
     CompressedGenomeSeqsDb,
-    get_seq_by_ids,
+    get_seqs_for_ids,
 )
 
 
@@ -42,6 +42,26 @@ def one_genome(DATA_DIR, tmp_dir):
     seq = load_seq(input_seq, input_ann, moltype="dna")
     write_installed_cfg(cfg)
     return tmp_dir, seq
+
+
+@pytest.mark.parametrize("make_seq_name", (False, True))
+def test_get_genes(one_genome, make_seq_name):
+    inst, seq = one_genome
+    config = read_installed_cfg(inst)
+    species = "caenorhabditis_elegans"
+    name = "CDS:B0019.1"
+    if make_seq_name:
+        # silly hack to make sure function applied
+        make_seq_name = lambda x: x.name * 2
+
+    gene = list(
+        get_seqs_for_ids(
+            cfg=config, species=species, names=[name], make_seq_name=make_seq_name
+        )
+    )[0]
+    expect = [ft.get_slice() for ft in seq.get_features(name=name)][0]
+    assert gene.name == (name * 2 if make_seq_name else name)
+    assert str(gene) == str(expect)
 
 
 def test_installed_genomes(one_genome):
