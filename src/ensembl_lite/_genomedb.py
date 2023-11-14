@@ -2,15 +2,19 @@ import typing
 
 from cogent3 import get_app, make_seq
 from cogent3.app.composable import define_app
+from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
-from cogent3.util.table import Table
+from cogent3.core.sequence import Sequence
 
+from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 
 
 OptInt = typing.Optional[int]
 OptionalStr = typing.Optional[str]
 
+_SEQDB_NAME = "genome_sequence.seqdb"
+_ANNOTDB_NAME = "features.gff3db"
 # todo: make a variant that wraps a directory of compressed sequence files
 # todo: or compresses sequence records on write into db, and just inflates then returns substring
 
@@ -26,6 +30,9 @@ class GenomeSeqsDb(SqliteDbMixin):
         # the metadata table stores species info
         self._execute_sql("INSERT INTO metadata(species) VALUES (?)", (species,))
         self.db.commit()
+
+    def __hash__(self):
+        return id(self)
 
     def add_record(self, *, coord_name: str, seq: str):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
@@ -90,6 +97,9 @@ decompress_it = get_app("decompress") + _bytes_to_str()
 class CompressedGenomeSeqsDb(GenomeSeqsDb):
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
+    def __hash__(self):
+        return id(self)
+
     def add_record(self, *, coord_name: str, seq: str):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
         self._execute_sql(sql, (coord_name, compress_it(seq), len(seq)))
@@ -124,7 +134,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        return seq[start:stop]
+        return seq[start:stop] if start or stop else seq
 
 
 # todo: this wrapping class is required for memory efficiency because
@@ -173,11 +183,44 @@ class Genome:
         name: str = None,
         start: int = None,
         stop: int = None,
-    ):
-        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid")}
-        seq = self.get_seq(seqid=seqid, start=start, stop=stop)
-        yield from seq.get_features(**kwargs)
+    ) -> typing.Iterable[Feature]:
+        """yields features in blocks of seqid"""
+        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid") and v}
+        if seqid:
+            seqids = [seqid]
+        else:
+            seqids = {
+                ft["seqid"] for ft in self._annotdb.get_features_matching(**kwargs)
+            }
+
+        for seqid in seqids:
+            seq = self.get_seq(seqid=seqid)
+            yield from seq.get_features(**kwargs)
 
 
-def get_feature_table(genome: Genome) -> Table:
-    ...
+def load_genome(*, cfg: InstalledConfig, species: str):
+    """returns the Genome with bound seqs and features"""
+    genome_path = cfg.installed_genome(species) / _SEQDB_NAME
+    seqs = CompressedGenomeSeqsDb(source=genome_path, species=species)
+    ann_path = cfg.installed_genome(species) / _ANNOTDB_NAME
+    ann = GffAnnotationDb(source=ann_path)
+    return Genome(species=species, seqs=seqs, annots=ann)
+
+
+def get_seqs_for_ids(
+    *,
+    cfg: InstalledConfig,
+    species: str,
+    names: list[str],
+    make_seq_name: typing.Callable = None,
+) -> typing.Iterable[Sequence]:
+    genome = load_genome(cfg=cfg, species=species)
+    # is it possible to do batch query for all names?
+    for name in names:
+        feature = list(genome.get_features(name=name))[0]
+        seq = feature.get_slice()
+        if callable(make_seq_name):
+            seq.name = make_seq_name(feature)
+        else:
+            seq.name = feature.name
+        yield seq

@@ -30,3 +30,10 @@ def test_read_installed(tmp_config, tmp_path):
     assert str(got.installed_genome("human")) == str(
         got.install_path / "genomes/homo_sapiens"
     )
+
+
+def test_installed_config_hash():
+    ic = InstalledConfig(release="11", install_path="abcd")
+    assert hash(ic) == id(ic)
+    v = {ic}
+    assert len(v) == 1

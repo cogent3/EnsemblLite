@@ -110,6 +110,9 @@ class InstalledConfig:
     release: str
     install_path: os.PathLike
 
+    def __hash__(self):
+        return id(self)
+
     def __post_init__(self):
         self.install_path = pathlib.Path(self.install_path)
 
@@ -132,6 +135,10 @@ class InstalledConfig:
     def installed_genome(self, species: str) -> os.PathLike:
         db_name = Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
+
+    def list_genomes(self):
+        """returns list of installed genomes"""
+        return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
 
 
 def write_installed_cfg(config: Config) -> os.PathLike:

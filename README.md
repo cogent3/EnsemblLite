@@ -4,6 +4,9 @@
 
 # EnsemblLite
 
+> **Warning**
+> EnsemblLite is not ready for use! We will remove this notice when we are ready to post to PyPi at which point it will be ready for trialling.
+
 ## A screencast of an early prototype
 
 <details>
