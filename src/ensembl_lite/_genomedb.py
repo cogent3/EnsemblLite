@@ -11,6 +11,8 @@ from ensembl_lite._db_base import SqliteDbMixin
 OptInt = typing.Optional[int]
 OptionalStr = typing.Optional[str]
 
+_SEQDB_NAME = "genome_sequence.seqdb"
+_ANNOTDB_NAME = "features.gff3db"
 # todo: make a variant that wraps a directory of compressed sequence files
 # todo: or compresses sequence records on write into db, and just inflates then returns substring
 

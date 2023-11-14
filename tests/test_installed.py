@@ -8,7 +8,12 @@ from ensembl_lite._config import (
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb, get_seq_by_ids
+from ensembl_lite._genomedb import (
+    _ANNOTDB_NAME,
+    _SEQDB_NAME,
+    CompressedGenomeSeqsDb,
+    get_seq_by_ids,
+)
 
 
 @pytest.fixture
@@ -18,7 +23,7 @@ def one_genome(DATA_DIR, tmp_dir):
     celegans = cfg.installed_genome("Caenorhabditis elegans")
     celegans.mkdir(parents=True, exist_ok=True)
 
-    seqs_path = celegans / "genome_sequence.seqdb"
+    seqs_path = celegans / _SEQDB_NAME
     seqdb = CompressedGenomeSeqsDb(source=seqs_path, species=seqs_path.parent.name)
     input_seq = DATA_DIR / "c_elegans_WS199_shortened.fasta"
     seq = load_seq(
@@ -30,7 +35,7 @@ def one_genome(DATA_DIR, tmp_dir):
     seqdb.add_records(records=[(name, str(seq))])
     seqdb.close()
 
-    annot_path = celegans / "features.gff3db"
+    annot_path = celegans / _ANNOTDB_NAME
     input_ann = DATA_DIR / "c_elegans_WS199_shortened.gff3"
     ann_db = load_annotations(path=input_ann, write_path=annot_path)
     ann_db.db.close()

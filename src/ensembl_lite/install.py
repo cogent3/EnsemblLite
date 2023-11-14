@@ -11,7 +11,12 @@ from unsync import unsync
 from ensembl_lite import maf
 from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import _COMPARA_NAME, Config
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb, compress_it
+from ensembl_lite._genomedb import (
+    _ANNOTDB_NAME,
+    _SEQDB_NAME,
+    CompressedGenomeSeqsDb,
+    compress_it,
+)
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.convert import seq_to_gap_coords
 
@@ -33,7 +38,7 @@ def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
 
 def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "gff3"
-    dest = dest_dir / "features.gff3db"
+    dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
     return [_install_one_annotations(path, dest) for path in paths]
 
@@ -44,7 +49,7 @@ T = typing.Tuple[os.PathLike, typing.List[typing.Tuple[str, bytes]]]
 def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
-    dest = dest_dir / "genome_sequence.seqdb"
+    dest = dest_dir / _SEQDB_NAME
     return dest, [_install_one_seq(path) for path in paths]
 
 
