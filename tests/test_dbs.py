@@ -70,7 +70,7 @@ def test_extract_homology_data(hom_dir):
     loader = LoadHomologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
-    got = loader(hom_dir)
+    got = loader(hom_dir.glob("*.tsv.gz"))
     assert len(got) == 2
     # loader dest cols matches the db schema
     assert set(loader.dest_col) == HomologyDb._homology_schema.keys()
@@ -80,7 +80,7 @@ def test_homology_db(hom_dir):
     loader = LoadHomologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
-    got = loader(hom_dir)
+    got = loader(hom_dir.glob("*.tsv.gz"))
     outpath = hom_dir / "species.sqlitedb"
     db = HomologyDb(source=outpath)
     db.add_records(records=got, col_order=loader.dest_col)

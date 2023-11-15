@@ -181,9 +181,9 @@ class LoadHomologies:
     def _matching_species(self, row):
         return {row[1], row[4]} <= self._allowed_species
 
-    def __call__(self, dirpath: os.PathLike) -> list:
-        final = None
-        for path in dirpath.glob("*.tsv.gz"):
+    def __call__(self, paths: typing.Iterable[os.PathLike]) -> list:
+        final = []
+        for path in paths:
             with open_(path) as infile:
                 # we bulk load because it's faster than the default line-by-line
                 # iteration on a file
@@ -193,13 +193,9 @@ class LoadHomologies:
             header = rows.pop(0)
             assert list(header) == list(self.src_cols), (header, self.src_cols)
             rows = [r + [path.name] for r in rows]
-            if final is None:
-                final = rows
-                continue
+            final.extend(rows)
 
-            final += rows
-
-        return final or []
+        return final
 
 
 def local_install_homology(config: Config, force_overwrite: bool):
@@ -216,12 +212,12 @@ def local_install_homology(config: Config, force_overwrite: bool):
     # On test cases, only 30% speedup from running in parallel due to overhead
     # of pickling the data, but considerable increase in memory. So, run
     # in serial to avoid memory issues since it's reasonably fast anyway.
-    for rows in track(
-        map(loader, dirnames),
+    for dirname in track(
+        dirnames,
         transient=True,
         description="Installing homologies...",
-        total=len(dirnames),
     ):
+        rows = loader(dirname.glob("*.tsv.gz"))
         db.add_records(records=rows, col_order=loader.dest_col)
         del rows
 
