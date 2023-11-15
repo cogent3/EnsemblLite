@@ -4,9 +4,16 @@ import typing
 
 from typing import Iterable, Sized
 
+from cogent3.core.alignment import SequenceCollection
 from rich.progress import track
 
+from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+
+
+OptionalStr = typing.Optional[str]
+
+_HOMOLOGYDB_NAME = "homologies.sqlitedb"
 
 
 class HomologyRecordType(typing.TypedDict):
@@ -122,3 +129,19 @@ class HomologyDb(SqliteDbMixin):
     def get_distinct(self, column: str) -> set[str]:
         sql = f"SELECT DISTINCT {column} from {self.table_name}"
         return {r[column] for r in self._execute_sql(sql).fetchall()}
+
+
+def load_homology_db(
+    *,
+    cfg: InstalledConfig,
+) -> HomologyDb:
+    return HomologyDb(source=cfg.homologies_path / _HOMOLOGYDB_NAME)
+
+
+def get_homologous_seqs(
+    *,
+    cfg: InstalledConfig,
+    names: list[str],
+) -> typing.Iterable[SequenceCollection]:
+    # todo support ensuring species set present
+    hdb = load_homology_db(cfg)

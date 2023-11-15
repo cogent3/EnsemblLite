@@ -219,8 +219,7 @@ def homologs(installed, outpath, relationship):
     from ensembl_lite._homologydb import HomologyDb
 
     config = read_installed_cfg(installed)
-    db_path = config.install_homologies / "homologies.sqlitedb"
-    db = HomologyDb(source=db_path)
+    db = HomologyDb(source=config.homologies_path)
     related = list(db.get_related_groups(relationship))
     with open_(outpath, mode="wt") as out:
         json.dump(related, out)
@@ -301,8 +300,6 @@ def dump_genes(installed, species, outdir, limit):
     """Dump meta data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
     from cogent3 import make_table
     from cogent3.core.annotation_db import GffAnnotationDb
-
-    from ensembl_lite.species import Species
 
     config = read_installed_cfg(installed)
     species = species[0]
