@@ -146,4 +146,4 @@ def get_homologous_seqs(
     names: list[str],
 ) -> typing.Iterable[SequenceCollection]:
     # todo support ensuring species set present
-    hdb = load_homology_db(cfg)
+    hdb = load_homology_db(cfg=cfg)
