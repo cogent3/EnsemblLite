@@ -10,6 +10,8 @@ from ensembl_lite._config import (
     write_installed_cfg,
 )
 from ensembl_lite.util import (
+    elt_compress_it,
+    elt_decompress_it,
     get_resource_path,
     load_ensembl_checksum,
     load_ensembl_md5sum,
@@ -193,3 +195,11 @@ def test_cfg_to_dict(just_compara_cfg):
     assert path.exists()
     got_cfg = read_config(path)
     assert got_cfg.to_dict() == data
+
+
+def test_blosc_apps():
+    o = "ACGG" * 1000
+    z = elt_compress_it(o)
+    assert isinstance(z, bytes)
+    assert len(z) < len(o)
+    assert elt_decompress_it(z) == o

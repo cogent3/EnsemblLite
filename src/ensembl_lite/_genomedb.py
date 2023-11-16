@@ -1,13 +1,13 @@
 import typing
 
-from cogent3 import get_app, make_seq
-from cogent3.app.composable import define_app
+from cogent3 import make_seq
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite.util import elt_compress_it, elt_decompress_it
 
 
 OptInt = typing.Optional[int]
@@ -78,22 +78,6 @@ class GenomeSeqsDb(SqliteDbMixin):
         return self._execute_sql(sql, values).fetchone()[0]
 
 
-@define_app
-def _str_to_bytes(data: str) -> bytes:
-    """converts string to bytes"""
-    return data.encode("utf8")
-
-
-@define_app
-def _bytes_to_str(data: bytes) -> str:
-    """converts bytes into string"""
-    return data.decode("utf8")
-
-
-compress_it = _str_to_bytes() + get_app("compress")
-decompress_it = get_app("decompress") + _bytes_to_str()
-
-
 class CompressedGenomeSeqsDb(GenomeSeqsDb):
     _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
@@ -102,12 +86,14 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
 
     def add_record(self, *, coord_name: str, seq: str):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
-        self._execute_sql(sql, (coord_name, compress_it(seq), len(seq)))
+        self._execute_sql(sql, (coord_name, elt_compress_it(seq), len(seq)))
         self.db.commit()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
-        self.add_compressed_records(records=[(n, compress_it(s)) for n, s in records])
+        self.add_compressed_records(
+            records=[(n, elt_compress_it(s)) for n, s in records]
+        )
 
     def add_compressed_records(self, *, records: typing.Iterable[list[str, bytes]]):
         """sequences already compressed"""
@@ -133,7 +119,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         """
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
-        seq = decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
+        seq = elt_decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
         return seq[start:stop] if start or stop else seq
 
 

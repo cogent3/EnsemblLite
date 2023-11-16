@@ -15,16 +15,16 @@ from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
     CompressedGenomeSeqsDb,
-    compress_it,
 )
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.convert import seq_to_gap_coords
+from ensembl_lite.util import elt_compress_it
 
 
 @unsync(cpu_bound=True)
 def _install_one_seq(src: os.PathLike) -> typing.Tuple[str, bytes]:
     seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
-    return seq.name, compress_it(str(seq))
+    return seq.name, elt_compress_it(str(seq))
 
 
 @unsync(cpu_bound=True)
