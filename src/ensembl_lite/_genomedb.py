@@ -180,7 +180,11 @@ class Genome:
                 ft["seqid"] for ft in self._annotdb.get_features_matching(**kwargs)
             }
         for seqid in seqids:
-            seq = self.get_seq(seqid=seqid)
+            try:
+                seq = self.get_seq(seqid=seqid)
+            except TypeError:
+                msg = f"ERROR (report me): {self.species!r}, {seqid!r}"
+                raise TypeError(msg)
             yield from seq.get_features(**kwargs)
 
 
