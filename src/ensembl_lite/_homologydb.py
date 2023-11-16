@@ -45,26 +45,22 @@ def grouped_related(
     I assume that for a specific relationship type, a gene can only belong
     to one group.
     """
-    result = {}
+    # grouped is {gene id: set(group)}. So gene's that belong to the same
+    # group have the same value
+    grouped = {}
     for record in track(data, description="Grouping related...", transient=True):
-        pair = [
-            (record["species_1"], record["gene_id_1"]),
-            (record["species_2"], record["gene_id_2"]),
-        ]
-
-        for member in pair:
-            if member in result:
-                # one member, rel has already been encountered
-                # so we get this value and update it with the new pair
-                val = result[member]
-                break
+        sp1, id1 = record["species_1"], record["gene_id_1"]
+        sp2, id2 = record["species_2"], record["gene_id_2"]
+        pair = [(sp1, id1), (sp2, id2)]
+        if id1 in grouped:
+            val = grouped[id1]
+        elif id2 in grouped:
+            val = grouped[id2]
         else:
             val = set()
-
         val.update(pair)
-        for member in pair:
-            result[member] = val
-    return [tuple(v) for v in result.values()]
+        grouped[id1] = grouped[id2] = val
+    return {frozenset(v) for v in grouped.values()}
 
 
 # the homology db stores pairwise relationship information

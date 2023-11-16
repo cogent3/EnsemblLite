@@ -2,7 +2,12 @@ import pytest
 
 from cogent3 import load_table
 
-from ensembl_lite._homologydb import _HOMOLOGYDB_NAME, HomologyDb
+from ensembl_lite._homologydb import (
+    _HOMOLOGYDB_NAME,
+    HomologyDb,
+    HomologyRecordType,
+    grouped_related,
+)
 from ensembl_lite.install import LoadHomologies
 
 
@@ -39,12 +44,11 @@ def o2o_db(DATA_DIR, tmp_dir):
     table = load_table(raw).get_columns(loader.src_cols)
 
     table = table.with_new_header(loader.src_cols, loader.dest_col[:-1])
-    expect = _make_expected_o2o(table)
 
     data = loader([raw])
     homdb = HomologyDb(tmp_dir / _HOMOLOGYDB_NAME)
     homdb.add_records(records=data, col_order=loader.dest_col)
-    return homdb, expect
+    return homdb, table
 
 
 @pytest.mark.parametrize(
@@ -58,7 +62,82 @@ def o2o_db(DATA_DIR, tmp_dir):
     ),
 )
 def test_hdb(o2o_db, gene_id):
-    homdb, expect = o2o_db
+    homdb, table = o2o_db
+    expect = _make_expected_o2o(table)
 
     got = homdb.get_related_to(gene_id=gene_id, relationship_type="ortholog_one2one")
     assert got == expect[gene_id]
+
+
+@pytest.fixture
+def orth_records():
+    common = dict(relationship="ortholog_one2one")
+    return [
+        HomologyRecordType(
+            species_1="a", gene_id_1="1", species_2="b", gene_id_2="2", **common
+        ),  # grp 1
+        HomologyRecordType(
+            species_1="b", gene_id_1="2", species_2="c", gene_id_2="3", **common
+        ),  # grp 1
+        HomologyRecordType(
+            species_1="d", gene_id_1="4", species_2="e", gene_id_2="5", **common
+        ),
+    ]
+
+
+@pytest.fixture
+def hom_records(orth_records):
+    return orth_records + [
+        HomologyRecordType(
+            species_1="a",
+            gene_id_1="6",
+            species_2="e",
+            gene_id_2="7",
+            relationship="ortholog_one2many",
+        ),
+    ]
+
+
+def _reduced_to_ids(groups):
+    return [[i for _, i in group] for group in groups]
+
+
+def test_hdb_get_related_groups(o2o_db):
+    homdb, table = o2o_db
+    got = homdb.get_related_groups(relationship_type="ortholog_one2one")
+    groups = _reduced_to_ids(got)
+    assert len(groups) == 5
+
+
+@pytest.fixture
+def hom_hdb(hom_records):
+    col_order = (
+        "relationship",
+        "species_1",
+        "gene_id_1",
+        "species_2",
+        "gene_id_2",
+    )
+    records = [[r[c] for c in col_order] for r in hom_records]
+    hdb = HomologyDb(source=":memory:")
+    hdb.add_records(records=records, col_order=col_order)
+    return hdb
+
+
+def test_group_related(hom_records):
+    orths = [r for r in hom_records if r["relationship"] == "ortholog_one2one"]
+    got = grouped_related(orths)
+    expect = {
+        frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
+        frozenset([("d", "4"), ("e", "5")]),
+    }
+    assert got == expect
+
+
+def test_homology_db(hom_hdb):
+    got = hom_hdb.get_related_groups("ortholog_one2one")
+    expect = {
+        frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
+        frozenset([("d", "4"), ("e", "5")]),
+    }
+    assert got == expect
