@@ -143,13 +143,3 @@ def id_by_species_group(related) -> tuple[dict[str, list], dict[str, int]]:
             sp_groups[sp].append(gene_id)
             id_group_map[gene_id] = group_num
     return sp_groups, id_group_map
-
-
-def get_homologous_seqs(
-    *,
-    cfg: InstalledConfig,
-    names: list[str] = None,
-) -> typing.Iterable[SequenceCollection]:
-    # todo support ensuring species set present
-    hdb = load_homology_db(cfg=cfg)
-    related = db.get_related_groups(relationship)
