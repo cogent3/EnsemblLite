@@ -1,6 +1,7 @@
 from configparser import ConfigParser
 from random import shuffle
 
+import numpy
 import pytest
 
 from ensembl_lite._config import (
@@ -10,6 +11,8 @@ from ensembl_lite._config import (
     write_installed_cfg,
 )
 from ensembl_lite.util import (
+    blosc_compress_it,
+    blosc_decompress_it,
     elt_compress_it,
     elt_decompress_it,
     get_resource_path,
@@ -203,3 +206,17 @@ def test_blosc_apps():
     assert isinstance(z, bytes)
     assert len(z) < len(o)
     assert elt_decompress_it(z) == o
+
+
+def test_blosc_array():
+    from ensembl_lite._db_base import (
+        _compressed_array_proxy,
+        compressed_array_to_sqlite,
+        decompressed_sqlite_to_array,
+    )
+
+    data = numpy.array([[0, 3], [4, 11]], dtype=numpy.int32)
+    arr = _compressed_array_proxy(data)
+    z = compressed_array_to_sqlite(arr)
+    got = decompressed_sqlite_to_array(z)
+    assert numpy.allclose(got, data)

@@ -355,8 +355,8 @@ def blosc_compress_it(data: bytes) -> bytes:
 
 
 @define_app
-def blosc_decompress_it(data: bytes) -> bytes:
-    return bytes(blosc2.decompress(data, as_bytearray=True))
+def blosc_decompress_it(data: bytes, as_bytearray=True) -> bytes:
+    return bytes(blosc2.decompress(data, as_bytearray=as_bytearray))
 
 
 elt_compress_it = _str_to_bytes() + blosc_compress_it()
