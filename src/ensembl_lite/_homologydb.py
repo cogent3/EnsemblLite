@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import typing
 
+from collections import defaultdict
+
 from cogent3.core.alignment import SequenceCollection
 from rich.progress import track
 
@@ -132,10 +134,22 @@ def load_homology_db(
     return HomologyDb(source=cfg.homologies_path / _HOMOLOGYDB_NAME)
 
 
+def id_by_species_group(related) -> tuple[dict[str, list], dict[str, int]]:
+    """returns all ID's for a species and relationship index"""
+    sp_groups = defaultdict(list)
+    id_group_map = {}
+    for group_num, group in enumerate(related):
+        for sp, gene_id in group:
+            sp_groups[sp].append(gene_id)
+            id_group_map[gene_id] = group_num
+    return sp_groups, id_group_map
+
+
 def get_homologous_seqs(
     *,
     cfg: InstalledConfig,
-    names: list[str],
+    names: list[str] = None,
 ) -> typing.Iterable[SequenceCollection]:
     # todo support ensuring species set present
     hdb = load_homology_db(cfg=cfg)
+    related = db.get_related_groups(relationship)

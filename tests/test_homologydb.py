@@ -7,6 +7,7 @@ from ensembl_lite._homologydb import (
     HomologyDb,
     HomologyRecordType,
     grouped_related,
+    id_by_species_group,
 )
 from ensembl_lite.install import LoadHomologies
 
@@ -80,7 +81,7 @@ def orth_records():
             species_1="b", gene_id_1="2", species_2="c", gene_id_2="3", **common
         ),  # grp 1
         HomologyRecordType(
-            species_1="d", gene_id_1="4", species_2="e", gene_id_2="5", **common
+            species_1="a", gene_id_1="4", species_2="b", gene_id_2="5", **common
         ),
     ]
 
@@ -103,7 +104,7 @@ def _reduced_to_ids(groups):
 
 
 def test_hdb_get_related_groups(o2o_db):
-    homdb, table = o2o_db
+    homdb, _ = o2o_db
     got = homdb.get_related_groups(relationship_type="ortholog_one2one")
     groups = _reduced_to_ids(got)
     assert len(groups) == 5
@@ -129,7 +130,7 @@ def test_group_related(hom_records):
     got = grouped_related(orths)
     expect = {
         frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
-        frozenset([("d", "4"), ("e", "5")]),
+        frozenset([("a", "4"), ("b", "5")]),
     }
     assert got == expect
 
@@ -138,6 +139,22 @@ def test_homology_db(hom_hdb):
     got = hom_hdb.get_related_groups("ortholog_one2one")
     expect = {
         frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
-        frozenset([("d", "4"), ("e", "5")]),
+        frozenset([("a", "4"), ("b", "5")]),
     }
     assert got == expect
+
+
+def test_grouped_by_species(hom_hdb):
+    got_species, got_gene_map = id_by_species_group(
+        hom_hdb.get_related_groups("ortholog_one2one")
+    )
+    for k, v in got_species.items():
+        got_species[k] = set(v)
+    expected_species = {"a": {"1", "4"}, "b": {"2", "5"}, "c": {"3"}}
+    assert got_species == expected_species
+    expected_groups = {("1", "2", "3"), ("4", "5")}
+    got_groups = {}
+    for g, i in got_gene_map.items():
+        got_groups[i] = got_groups.get(i, []) + [g]
+    got_groups = {tuple(sorted(g)) for g in got_groups.values()}
+    assert got_groups == expected_groups
