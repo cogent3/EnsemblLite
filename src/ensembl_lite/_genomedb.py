@@ -207,10 +207,22 @@ def get_seqs_for_ids(
     genome = load_genome(cfg=cfg, species=species)
     # is it possible to do batch query for all names?
     for name in names:
-        feature = list(genome.get_features(name=name))[0]
+        feature = list(genome.get_features(name=f"%{name}"))[0]
+        transcripts = list(feature.get_children(biotype="mRNA"))
+        if not transcripts:
+            continue
+
+        longest = max(transcripts, key=lambda x: len(x))
+        cds = list(longest.get_children(biotype="CDS"))
+        if not cds:
+            continue
+
+        feature = cds[0]
         seq = feature.get_slice()
         if callable(make_seq_name):
             seq.name = make_seq_name(feature)
         else:
-            seq.name = feature.name
+            seq.name = f"{species}-{name}"
+        seq.info["species"] = species
+        seq.info["name"] = name
         yield seq
