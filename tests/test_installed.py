@@ -49,7 +49,8 @@ def test_get_genes(one_genome, make_seq_name):
     inst, seq = one_genome
     config = read_installed_cfg(inst)
     species = "caenorhabditis_elegans"
-    name = "CDS:B0019.1"
+    name = "Gene:WBGene00000138"
+    cds_name = "CDS:B0019.1"
     if make_seq_name:
         # silly hack to make sure function applied
         make_seq_name = lambda x: x.name * 2
@@ -59,8 +60,10 @@ def test_get_genes(one_genome, make_seq_name):
             cfg=config, species=species, names=[name], make_seq_name=make_seq_name
         )
     )[0]
-    expect = [ft.get_slice() for ft in seq.get_features(name=name)][0]
-    assert gene.name == (name * 2 if make_seq_name else name)
+    expect = [ft.get_slice() for ft in seq.get_features(name=cds_name)][0]
+    assert gene.name == (
+        cds_name * 2 if make_seq_name else f"caenorhabditis_elegans-{name}"
+    )
     assert str(gene) == str(expect)
 
 

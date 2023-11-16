@@ -2,12 +2,8 @@ import pytest
 
 from cogent3.core.annotation_db import GffAnnotationDb
 
-from ensembl_lite._genomedb import (
-    CompressedGenomeSeqsDb,
-    Genome,
-    GenomeSeqsDb,
-    compress_it,
-)
+from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome, GenomeSeqsDb
+from ensembl_lite.util import elt_compress_it
 
 
 @pytest.fixture(scope="function")
@@ -93,7 +89,7 @@ def test_get_fullseq(genome, request, name):
 
 def test_add_compressed(small_data):
     db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
-    data = {k: compress_it(s) for k, s in small_data.items()}
+    data = {k: elt_compress_it(s) for k, s in small_data.items()}
     db.add_compressed_records(records=data.items())
     assert db.get_seq(coord_name="s1") == small_data["s1"]
     assert db.get_seq(coord_name="s2") == small_data["s2"]

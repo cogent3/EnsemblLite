@@ -2,10 +2,13 @@ import os
 import shutil
 import typing
 
-from cogent3 import load_annotations, load_seq, make_seq, open_
+from collections import Counter
+
+from cogent3 import load_annotations, make_seq, open_
+from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.table import FilteringParser
 from cogent3.util import parallel as PAR
-from rich.progress import track
+from rich.progress import Progress, track
 from unsync import unsync
 
 from ensembl_lite import maf
@@ -15,20 +18,32 @@ from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
     CompressedGenomeSeqsDb,
-    compress_it,
 )
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.convert import seq_to_gap_coords
+from ensembl_lite.species import Species
+from ensembl_lite.util import elt_compress_it
 
 
+def _rename(label: str) -> str:
+    return label.split()[0]
+
+
+def _get_seqs(src: os.PathLike) -> typing.List[typing.Tuple[str, bytes]]:
+    with open_(src) as infile:
+        data = infile.read().splitlines()
+    name_seqs = list(MinimalFastaParser(data))
+    labels = Counter(n for n, _ in name_seqs)
+    if max(labels.values()) != 1:
+        multiples = {k: c for k, c in labels.items() if c > 1}
+        msg = f"Some seqid's not unique for {str(src.parent.name)!r} : {multiples}"
+        raise RuntimeError(msg)
+    return [(_rename(name), elt_compress_it(seq)) for name, seq in name_seqs]
+
+
+# todo just use cogent3 for multiprocess, unsync is limited
 @unsync(cpu_bound=True)
-def _install_one_seq(src: os.PathLike) -> typing.Tuple[str, bytes]:
-    seq = load_seq(src, moltype="dna", label_to_name=lambda x: x.split()[0])
-    return seq.name, compress_it(str(seq))
-
-
-@unsync(cpu_bound=True)
-def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
+def _load_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     if dest.exists():
         return True
 
@@ -36,21 +51,31 @@ def _install_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     return True
 
 
-def _install_gffdb(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
+def _load_annotations(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
-    return [_install_one_annotations(path, dest) for path in paths]
+    return [_load_one_annotations(path, dest) for path in paths]
 
 
 T = typing.Tuple[os.PathLike, typing.List[typing.Tuple[str, bytes]]]
 
 
-def _install_seqs(src_dir: os.PathLike, dest_dir: os.PathLike) -> T:
+def _prepped_seqs(src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progress) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
     dest = dest_dir / _SEQDB_NAME
-    return dest, [_install_one_seq(path) for path in paths]
+    all_seqs = []
+
+    max_workers = min(len(paths), 10)
+    common_name = Species.get_common_name(src_dir.parent.name)
+    msg = f"📚🗜️ {common_name} seqs"
+    load = progress.add_task(msg, total=len(paths))
+    for result in PAR.as_completed(_get_seqs, paths, max_workers=max_workers):
+        all_seqs.extend(result)
+        progress.update(load, advance=1, description=msg)
+
+    return dest, all_seqs
 
 
 def local_install_genomes(config: Config, force_overwrite: bool):
@@ -60,45 +85,38 @@ def local_install_genomes(config: Config, force_overwrite: bool):
     # we create the local installation
     config.install_genomes.mkdir(parents=True, exist_ok=True)
     # we create subdirectories for each species
-    for db_name in config.db_names:
+    for db_name in list(config.db_names):
         sp_dir = config.install_genomes / db_name
         sp_dir.mkdir(parents=True, exist_ok=True)
 
     # for each species, we identify the download and dest paths for annotations
     # our tasks here are the load/compress steps
-    tasks = {}
-    for db_name in config.db_names:
-        src_dir = config.staging_genomes / db_name
-        dest_dir = config.install_genomes / db_name
-        dest, tsks = _install_seqs(src_dir, dest_dir)
-        tasks[dest] = tsks
-
-    for dest, tsks in tasks.items():
-        db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
-        records = [
-            tsk.result()
-            for tsk in track(
-                tsks,
-                description=f"Installing {dest.parent.name} seqs...",
-                transient=True,
-            )
-        ]
-        db.add_compressed_records(records=records)
+    db_names = list(config.db_names)
+    with Progress(transient=True) as progress:
+        writing = progress.add_task(total=len(db_names), description="Installing  🧬")
+        for db_name in db_names:
+            src_dir = config.staging_genomes / db_name
+            dest_dir = config.install_genomes / db_name
+            progress.update(writing, description="Installing  🧬", advance=1)
+            dest, records = _prepped_seqs(src_dir, dest_dir, progress)
+            db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
+            db.add_compressed_records(records=records)
+            db.close()
 
     # we now load the individual gff3 files and write to annotation db's
+    # because we're using unsync here, the code is different in structure to
+    # above
     tasks = []
     for db_name in config.db_names:
         src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
-        tasks.extend(_install_gffdb(src_dir, dest_dir))
+        tasks.extend(_load_annotations(src_dir, dest_dir))
 
     # we do all tasks in one go
     _ = [
         t.result()
-        for t in track(tasks, description="Installing annotations...", transient=True)
+        for t in track(tasks, description="Installing 🧬 features", transient=True)
     ]
-
-    db.close()
 
     return
 
@@ -139,7 +157,7 @@ def local_install_compara(config: Config, force_overwrite: bool):
         for result in track(
             PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
             transient=True,
-            description="Installing aligns...",
+            description="Installing alignments",
             total=len(paths),
         ):
             records.extend(result)

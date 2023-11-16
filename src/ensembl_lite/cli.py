@@ -1,6 +1,8 @@
 import pathlib
 import shutil
 
+from collections import defaultdict
+
 import click
 import wakepy.keep
 
@@ -197,6 +199,14 @@ _installed = click.option(
     help="string pointing to installation",
 )
 
+_limit = click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Limit to this number of genes.",
+    show_default=True,
+)
+
 
 @main.command(no_args_is_help=True)
 @_installed
@@ -206,23 +216,48 @@ _installed = click.option(
 @click.option(
     "-r",
     "--relationship",
-    type=click.Choice(["ortholog_one2one", "ortholog_one2many"]),
+    type=click.Choice(["ortholog_one2one"]),
     default="ortholog_one2one",
     help="type of homology",
 )
-def homologs(installed, outpath, relationship):
+@_limit
+@_force
+def homologs(installed, outpath, relationship, limit, force_overwrite):
     """exports all homolog groups of type relationship in json format"""
-    import json
+    from cogent3 import make_unaligned_seqs
 
-    from cogent3 import open_
+    from ensembl_lite._genomedb import get_seqs_for_ids
+    from ensembl_lite._homologydb import id_by_species_group, load_homology_db
 
-    from ensembl_lite._homologydb import HomologyDb
+    if force_overwrite:
+        shutil.rmtree(outpath, ignore_errors=True)
+
+    outpath.mkdir(parents=True, exist_ok=True)
 
     config = read_installed_cfg(installed)
-    db = HomologyDb(source=config.homologies_path)
-    related = list(db.get_related_groups(relationship))
-    with open_(outpath, mode="wt") as out:
-        json.dump(related, out)
+    db = load_homology_db(cfg=config)
+    related = db.get_related_groups(relationship_type=relationship)
+    if limit:
+        related = list(related)[:limit]
+
+    sp_groups, gene_map = id_by_species_group(related)
+    # we now get all the sequences for all species
+    grouped = defaultdict(list)
+    for species, gene_ids in track(
+        sp_groups.items(), description="Getting seqs", transient=True
+    ):
+        seqs = get_seqs_for_ids(cfg=config, species=species, names=gene_ids)
+        for seq in seqs:
+            grouped[gene_map[seq.info.name]].append(seq)
+
+    # todo also need to be writing out a logfile, plus a meta data table of
+    #  gene IDs and location info
+    for group, seqs in track(
+        grouped.items(), description="Writing seqs", total=len(grouped), transient=True
+    ):
+        seqs = make_unaligned_seqs(seqs, moltype="dna")
+        outname = outpath / f"seqcoll-{group}.fasta"
+        seqs.write(outname)
 
 
 @main.command(no_args_is_help=True)
@@ -281,13 +316,6 @@ _outdir = click.option(
     required=True,
     default="gene_metadata.tsv",
     help="Output file name.",
-)
-_limit = click.option(
-    "--limit",
-    type=int,
-    default=None,
-    help="Limit to this number of genes.",
-    show_default=True,
 )
 
 

@@ -13,8 +13,11 @@ from hashlib import md5
 from tempfile import mkdtemp
 from typing import IO, Callable, Union
 
+import blosc2
 import numba
 import numpy
+
+from cogent3.app.composable import define_app
 
 
 def md5sum(data: bytes, *args) -> str:
@@ -330,3 +333,31 @@ def trees_for_aligns(aligns, trees) -> dict[str, str]:
         result[align] = p
 
     return result
+
+
+@define_app
+def _str_to_bytes(data: str) -> bytes:
+    """converts string to bytes"""
+    return data.encode("utf8")
+
+
+@define_app
+def _bytes_to_str(data: bytes) -> str:
+    """converts bytes into string"""
+    return data.decode("utf8")
+
+
+@define_app
+def blosc_compress_it(data: bytes) -> bytes:
+    return blosc2.compress(
+        data, codec=blosc2.Codec.ZLIB, clevel=9, filter=blosc2.Filter.SHUFFLE
+    )
+
+
+@define_app
+def blosc_decompress_it(data: bytes, as_bytearray=True) -> bytes:
+    return bytes(blosc2.decompress(data, as_bytearray=as_bytearray))
+
+
+elt_compress_it = _str_to_bytes() + blosc_compress_it()
+elt_decompress_it = blosc_decompress_it() + _bytes_to_str()

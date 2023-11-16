@@ -1,10 +1,11 @@
 import dataclasses
-import gzip
 import inspect
 import sqlite3
 import typing
 
 import numpy
+
+from ensembl_lite.util import blosc_compress_it, blosc_decompress_it
 
 
 @dataclasses.dataclass
@@ -27,13 +28,16 @@ class AlignRecordType(typing.TypedDict):
 
 ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
 
+_compressor = blosc_compress_it()
+_decompressor = blosc_decompress_it()
+
 
 def compressed_array_to_sqlite(data):
-    return gzip.compress(data.array.astype(numpy.int32).tobytes())
+    return _compressor(data.array.astype(numpy.int32).tobytes())
 
 
 def decompressed_sqlite_to_array(data):
-    result = numpy.frombuffer(gzip.decompress(data), dtype=numpy.int32)
+    result = numpy.frombuffer(_decompressor(data), dtype=numpy.int32)
     dim = result.shape[0] // 2
     return result.reshape((dim, 2))
 
@@ -142,3 +146,7 @@ class SqliteDbMixin:
     def close(self):
         self.db.commit()
         self.db.close()
+
+    def get_distinct(self, column: str) -> set[str]:
+        sql = f"SELECT DISTINCT {column} from {self.table_name}"
+        return {r[column] for r in self._execute_sql(sql).fetchall()}
