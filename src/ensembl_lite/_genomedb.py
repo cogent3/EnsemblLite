@@ -90,14 +90,15 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         self.db.commit()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
-        sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
         self.add_compressed_records(
             records=[(n, elt_compress_it(s)) for n, s in records]
         )
 
     def add_compressed_records(self, *, records: typing.Iterable[list[str, bytes]]):
         """sequences already compressed"""
+
         sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
+
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
         self.db.commit()
 
@@ -178,7 +179,6 @@ class Genome:
             seqids = {
                 ft["seqid"] for ft in self._annotdb.get_features_matching(**kwargs)
             }
-
         for seqid in seqids:
             seq = self.get_seq(seqid=seqid)
             yield from seq.get_features(**kwargs)
