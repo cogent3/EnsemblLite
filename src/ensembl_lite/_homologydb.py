@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import typing
 
-from typing import Iterable, Sized
-
 from cogent3.core.alignment import SequenceCollection
 from rich.progress import track
 
@@ -11,6 +9,7 @@ from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 
 
+NoneType = type(None)
 OptionalStr = typing.Optional[str]
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
@@ -88,8 +87,11 @@ class HomologyDb(SqliteDbMixin):
         self._init_tables()
 
     def add_records(
-        self, *, records: typing.Sequence[HomologyRecordType], col_order: Sized[str]
-    ):
+        self,
+        *,
+        records: typing.Sequence,
+        col_order: typing.Sized[str],
+    ) -> NoneType:
         # bulk insert
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
@@ -116,7 +118,7 @@ class HomologyDb(SqliteDbMixin):
 
     def get_related_groups(
         self, relationship_type: str
-    ) -> Iterable[tuple[tuple[str, str]]]:
+    ) -> typing.Iterable[tuple[tuple[str, str]]]:
         """returns all groups of relationship type"""
         # get all gene ID's first
         sql = f"SELECT * from {self.table_name} WHERE relationship=?"
