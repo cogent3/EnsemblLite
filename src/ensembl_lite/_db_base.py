@@ -146,3 +146,7 @@ class SqliteDbMixin:
     def close(self):
         self.db.commit()
         self.db.close()
+
+    def get_distinct(self, column: str) -> set[str]:
+        sql = f"SELECT DISTINCT {column} from {self.table_name}"
+        return {r[column] for r in self._execute_sql(sql).fetchall()}
