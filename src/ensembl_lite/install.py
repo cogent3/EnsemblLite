@@ -93,11 +93,11 @@ def local_install_genomes(config: Config, force_overwrite: bool):
     # our tasks here are the load/compress steps
     db_names = list(config.db_names)
     with Progress(transient=True) as progress:
-        writing = progress.add_task(total=len(db_names), description=f"Installing  🧬")
+        writing = progress.add_task(total=len(db_names), description="Installing  🧬")
         for db_name in db_names:
             src_dir = config.staging_genomes / db_name
             dest_dir = config.install_genomes / db_name
-            progress.update(writing, description=f"Installing  🧬", advance=1)
+            progress.update(writing, description="Installing  🧬", advance=1)
             dest, records = _prepped_seqs(src_dir, dest_dir, progress)
             db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
             db.add_compressed_records(records=records)
@@ -115,7 +115,7 @@ def local_install_genomes(config: Config, force_overwrite: bool):
     # we do all tasks in one go
     _ = [
         t.result()
-        for t in track(tasks, description="Installing 🧬  features", transient=True)
+        for t in track(tasks, description="Installing 🧬 features", transient=True)
     ]
 
     return
