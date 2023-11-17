@@ -115,7 +115,7 @@ class SqliteDbMixin:
         # Assumes schema attributes named as `_<table name>_schema`
         for attr in dir(self):
             if attr.endswith("_schema"):
-                table_name = attr.split("_")[1]
+                table_name = "_".join(attr.split("_")[1:-1])
                 attr = getattr(self, attr)
                 sql = _make_table_sql(table_name, attr)
                 self._execute_sql(sql)

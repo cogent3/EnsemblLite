@@ -224,8 +224,6 @@ _limit = click.option(
 @_force
 def homologs(installed, outpath, relationship, limit, force_overwrite):
     """exports all homolog groups of type relationship in json format"""
-    from cogent3 import make_unaligned_seqs
-
     from ensembl_lite._genomedb import get_seqs_for_ids
     from ensembl_lite._homologydb import id_by_species_group, load_homology_db
 
@@ -244,7 +242,7 @@ def homologs(installed, outpath, relationship, limit, force_overwrite):
     # we now get all the sequences for all species
     grouped = defaultdict(list)
     for species, gene_ids in track(
-        sp_groups.items(), description="Getting seqs", transient=True
+        sp_groups.items(), description="🚚 🧬", transient=True
     ):
         seqs = get_seqs_for_ids(cfg=config, species=species, names=gene_ids)
         for seq in seqs:
@@ -252,12 +250,14 @@ def homologs(installed, outpath, relationship, limit, force_overwrite):
 
     # todo also need to be writing out a logfile, plus a meta data table of
     #  gene IDs and location info
+    # todo why is this loop so slow if we use make_unaligned_seqs??
     for group, seqs in track(
-        grouped.items(), description="Writing seqs", total=len(grouped), transient=True
+        grouped.items(), description="✏️ 🧬", total=len(grouped), transient=True
     ):
-        seqs = make_unaligned_seqs(seqs, moltype="dna")
+        txt = [seq.to_fasta() for seq in seqs]
         outname = outpath / f"seqcoll-{group}.fasta"
-        seqs.write(outname)
+        with outname.open(mode="w") as outfile:
+            outfile.write("".join(txt))
 
 
 @main.command(no_args_is_help=True)
