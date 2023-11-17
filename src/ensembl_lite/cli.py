@@ -224,8 +224,6 @@ _limit = click.option(
 @_force
 def homologs(installed, outpath, relationship, limit, force_overwrite):
     """exports all homolog groups of type relationship in json format"""
-    from cogent3 import make_unaligned_seqs
-
     from ensembl_lite._genomedb import get_seqs_for_ids
     from ensembl_lite._homologydb import id_by_species_group, load_homology_db
 
@@ -255,9 +253,10 @@ def homologs(installed, outpath, relationship, limit, force_overwrite):
     for group, seqs in track(
         grouped.items(), description="Writing seqs", total=len(grouped), transient=True
     ):
-        seqs = make_unaligned_seqs(seqs, moltype="dna")
+        txt = [seq.to_fasta() for seq in seqs]
         outname = outpath / f"seqcoll-{group}.fasta"
-        seqs.write(outname)
+        with outname.open(mode="w") as outfile:
+            outfile.write("".join(txt))
 
 
 @main.command(no_args_is_help=True)
