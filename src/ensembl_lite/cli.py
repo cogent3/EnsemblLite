@@ -6,7 +6,6 @@ from collections import defaultdict
 import click
 import wakepy.keep
 
-from cogent3.util import parallel as PAR
 from rich.progress import track
 from trogon import tui
 
@@ -80,6 +79,13 @@ _dbrc_out = click.option(
     help="path to directory to export all rc contents",
 )
 _release = click.option("-r", "--release", type=int, help="Ensembl release number")
+_nprocs = click.option(
+    "-np",
+    "--num_procs",
+    type=int,
+    default=None,
+    help="number of procs to use, defaults to all",
+)
 
 
 @tui()
@@ -129,9 +135,10 @@ def download(configpath, debug, verbose):
 
 @main.command(no_args_is_help=True)
 @_download
+@_nprocs
 @_force
 @_verbose
-def install(download, force_overwrite, verbose):
+def install(download, num_procs, force_overwrite, verbose):
     """create the local representations of the data"""
     from ensembl_lite.install import (
         local_install_compara,
@@ -150,9 +157,15 @@ def install(download, force_overwrite, verbose):
     config.install_path.mkdir(parents=True, exist_ok=True)
     write_installed_cfg(config)
     with wakepy.keep.running():
-        local_install_genomes(config, force_overwrite=force_overwrite)
-        local_install_compara(config, force_overwrite=force_overwrite)
-        local_install_homology(config, force_overwrite=force_overwrite)
+        local_install_genomes(
+            config, force_overwrite=force_overwrite, max_workers=num_procs
+        )
+        local_install_compara(
+            config, force_overwrite=force_overwrite, max_workers=num_procs
+        )
+        local_install_homology(
+            config, force_overwrite=force_overwrite, max_workers=num_procs
+        )
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
