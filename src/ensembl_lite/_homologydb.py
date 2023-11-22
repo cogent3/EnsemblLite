@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import typing
 
 from collections import defaultdict
@@ -137,6 +138,21 @@ def load_homology_db(
 def id_by_species_group(related) -> tuple[dict[str, list], dict[str, int]]:
     """returns all ID's for a species and relationship index"""
     sp_groups = defaultdict(list)
+
+
+@dataclasses.dataclass
+class species_genes:
+    """contains gene IDs for species"""
+
+    species: str
+    gene_ids: list[str] = None
+
+    def __hash__(self):
+        return hash(self.species)
+
+    def __post_init__(self):
+        self.gene_ids = []
+
     id_group_map = {}
     for group_num, group in enumerate(related):
         for sp, gene_id in group:
