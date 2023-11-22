@@ -83,7 +83,7 @@ class SqliteDbMixin:
         bargs.apply_defaults()
         init_vals = bargs.arguments
         init_vals.pop("self", None)
-        obj._serialisable = init_vals
+        obj._init_vals = init_vals
         return obj
 
     def __repr__(self):
@@ -91,7 +91,7 @@ class SqliteDbMixin:
         total_records = len(self)
         args = ", ".join(
             f"{k}={repr(v) if isinstance(v, str) else v}"
-            for k, v in self._serialisable.items()
+            for k, v in self._init_vals.items()
             if k != "data"
         )
         return f"{name}({args}, total_records={total_records})"
