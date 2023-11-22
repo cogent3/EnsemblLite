@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import shutil
 import typing
@@ -80,7 +82,9 @@ def _prepped_seqs(
     return dest, all_seqs
 
 
-def local_install_genomes(config: Config, force_overwrite: bool):
+def local_install_genomes(
+    config: Config, force_overwrite: bool, max_workers: int | None
+):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
 
@@ -93,7 +97,8 @@ def local_install_genomes(config: Config, force_overwrite: bool):
 
     # for each species, we identify the download and dest paths for annotations
     db_names = list(config.db_names)
-    max_workers = min(len(db_names) + 1, 11)
+    if max_workers:
+        max_workers = min(len(db_names) + 1, max_workers)
 
     # we load the individual gff3 files and write to annotation db's
     src_dest_paths = []
@@ -146,7 +151,9 @@ def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
     return records
 
 
-def local_install_compara(config: Config, force_overwrite: bool):
+def local_install_compara(
+    config: Config, force_overwrite: bool, max_workers: int | None
+):
     if force_overwrite:
         shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
 
@@ -158,7 +165,9 @@ def local_install_compara(config: Config, force_overwrite: bool):
         db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
         records = []
         paths = list(src_dir.glob(f"{align_name}*maf*"))
-        max_workers = min(len(paths), 10)
+        if max_workers:
+            max_workers = min(len(paths) + 1, max_workers)
+
         for result in track(
             PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
             transient=True,
@@ -221,7 +230,9 @@ class LoadHomologies:
         return final
 
 
-def local_install_homology(config: Config, force_overwrite: bool):
+def local_install_homology(
+    config: Config, force_overwrite: bool, max_workers: int | None
+):
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)
 
@@ -239,7 +250,9 @@ def local_install_homology(config: Config, force_overwrite: bool):
     # On test cases, only 30% speedup from running in parallel due to overhead
     # of pickling the data, but considerable increase in memory. So, run
     # in serial to avoid memory issues since it's reasonably fast anyway.
-    max_workers = min(len(dirnames) + 1, 11)
+    if max_workers:
+        max_workers = min(len(dirnames) + 1, max_workers)
+
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
