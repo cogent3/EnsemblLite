@@ -9,7 +9,6 @@ from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.table import FilteringParser
 from cogent3.util import parallel as PAR
 from rich.progress import Progress, track
-from unsync import unsync
 
 from ensembl_lite import maf
 from ensembl_lite._aligndb import AlignDb
@@ -41,9 +40,8 @@ def _get_seqs(src: os.PathLike) -> typing.List[typing.Tuple[str, bytes]]:
     return [(_rename(name), elt_compress_it(seq)) for name, seq in name_seqs]
 
 
-# todo just use cogent3 for multiprocess, unsync is limited
-@unsync(cpu_bound=True)
-def _load_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
+def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
+    src, dest = src_dest
     if dest.exists():
         return True
 
@@ -51,23 +49,26 @@ def _load_one_annotations(src: os.PathLike, dest: os.PathLike) -> bool:
     return True
 
 
-def _load_annotations(src_dir: os.PathLike, dest_dir: os.PathLike) -> list[bool]:
+def _make_src_dest_annotation_paths(
+    src_dir: os.PathLike, dest_dir: os.PathLike
+) -> list[tuple[os.PathLike, os.PathLike]]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
-    return [_load_one_annotations(path, dest) for path in paths]
+    return [(path, dest) for path in paths]
 
 
 T = typing.Tuple[os.PathLike, typing.List[typing.Tuple[str, bytes]]]
 
 
-def _prepped_seqs(src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progress) -> T:
+def _prepped_seqs(
+    src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progress, max_workers: int
+) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
     dest = dest_dir / _SEQDB_NAME
     all_seqs = []
 
-    max_workers = min(len(paths), 10)
     common_name = Species.get_common_name(src_dir.parent.name)
     msg = f"📚🗜️ {common_name} seqs"
     load = progress.add_task(msg, total=len(paths))
@@ -91,33 +92,36 @@ def local_install_genomes(config: Config, force_overwrite: bool):
         sp_dir.mkdir(parents=True, exist_ok=True)
 
     # for each species, we identify the download and dest paths for annotations
-    # our tasks here are the load/compress steps
     db_names = list(config.db_names)
-    with Progress(transient=True) as progress:
-        writing = progress.add_task(total=len(db_names), description="Installing  🧬")
-        for db_name in db_names:
-            src_dir = config.staging_genomes / db_name
-            dest_dir = config.install_genomes / db_name
-            progress.update(writing, description="Installing  🧬", advance=1)
-            dest, records = _prepped_seqs(src_dir, dest_dir, progress)
-            db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
-            db.add_compressed_records(records=records)
-            db.close()
+    max_workers = min(len(db_names) + 1, 11)
 
-    # we now load the individual gff3 files and write to annotation db's
-    # because we're using unsync here, the code is different in structure to
-    # above
-    tasks = []
+    # we load the individual gff3 files and write to annotation db's
+    src_dest_paths = []
     for db_name in config.db_names:
         src_dir = config.staging_genomes / db_name
         dest_dir = config.install_genomes / db_name
-        tasks.extend(_load_annotations(src_dir, dest_dir))
+        src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
 
-    # we do all tasks in one go
-    _ = [
-        t.result()
-        for t in track(tasks, description="Installing 🧬 features", transient=True)
-    ]
+    with Progress(transient=True) as progress:
+        msg = "Installing  🧬 features"
+        writing = progress.add_task(total=len(src_dest_paths), description=msg)
+        for _ in PAR.as_completed(
+            _load_one_annotations, src_dest_paths, max_workers=max_workers
+        ):
+            progress.update(writing, description=msg, advance=1)
+
+    with Progress(transient=True) as progress:
+        writing = progress.add_task(
+            total=len(db_names), description="Installing  🧬", advance=0
+        )
+        for db_name in db_names:
+            src_dir = config.staging_genomes / db_name
+            dest_dir = config.install_genomes / db_name
+            dest, records = _prepped_seqs(src_dir, dest_dir, progress, max_workers)
+            db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
+            db.add_compressed_records(records=records)
+            db.close()
+            progress.update(writing, description="Installing  🧬", advance=1)
 
     return
 
@@ -226,19 +230,23 @@ def local_install_homology(config: Config, force_overwrite: bool):
     outpath = config.install_homologies / "homologies.sqlitedb"
     db = HomologyDb(source=outpath)
 
-    dirnames = [config.staging_homologies / sp for sp in config.db_names]
+    dirnames = []
+    for sp in config.db_names:
+        path = config.staging_homologies / sp
+        dirnames.append(list(path.glob("*.tsv.gz")))
+
     loader = LoadHomologies(allowed_species=set(config.db_names))
     # On test cases, only 30% speedup from running in parallel due to overhead
     # of pickling the data, but considerable increase in memory. So, run
     # in serial to avoid memory issues since it's reasonably fast anyway.
-    for dirname in track(
-        dirnames,
-        transient=True,
-        description="Installing homologies...",
-    ):
-        rows = loader(dirname.glob("*.tsv.gz"))
-        db.add_records(records=rows, col_order=loader.dest_col)
-        del rows
+    max_workers = min(len(dirnames) + 1, 11)
+    with Progress(transient=True) as progress:
+        msg = "Installing homologies"
+        writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
+        for rows in PAR.as_completed(loader, dirnames, max_workers=max_workers):
+            db.add_records(records=rows, col_order=loader.dest_col)
+            del rows
+            progress.update(writing, description=msg, advance=1)
 
     no_records = len(db) == 0
     db.close()
