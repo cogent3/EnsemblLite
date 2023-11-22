@@ -74,6 +74,7 @@ def _prepped_seqs(src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progres
     for result in PAR.as_completed(_get_seqs, paths, max_workers=max_workers):
         all_seqs.extend(result)
         progress.update(load, advance=1, description=msg)
+    progress.update(load, visible=False)
 
     return dest, all_seqs
 
