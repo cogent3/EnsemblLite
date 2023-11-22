@@ -6,6 +6,7 @@ from collections import defaultdict
 import click
 import wakepy.keep
 
+from cogent3.util import parallel as PAR
 from rich.progress import track
 from trogon import tui
 
@@ -148,7 +149,6 @@ def install(download, force_overwrite, verbose):
 
     config.install_path.mkdir(parents=True, exist_ok=True)
     write_installed_cfg(config)
-
     with wakepy.keep.running():
         local_install_genomes(config, force_overwrite=force_overwrite)
         local_install_compara(config, force_overwrite=force_overwrite)
@@ -222,10 +222,14 @@ _limit = click.option(
 )
 @_limit
 @_force
-def homologs(installed, outpath, relationship, limit, force_overwrite):
+@_verbose
+def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
     """exports all homolog groups of type relationship in json format"""
-    from ensembl_lite._genomedb import get_seqs_for_ids
+    from rich.progress import Progress
+
+    from ensembl_lite._genomedb import get_selected_seqs
     from ensembl_lite._homologydb import id_by_species_group, load_homology_db
+    from ensembl_lite.species import Species
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
@@ -238,15 +242,34 @@ def homologs(installed, outpath, relationship, limit, force_overwrite):
     if limit:
         related = list(related)[:limit]
 
-    sp_groups, gene_map = id_by_species_group(related)
+    get_seqs = get_selected_seqs(config=config)
+    sp_gene_groups, gene_map = id_by_species_group(related)
     # we now get all the sequences for all species
     grouped = defaultdict(list)
-    for species, gene_ids in track(
-        sp_groups.items(), description="🚚 🧬", transient=True
-    ):
-        seqs = get_seqs_for_ids(cfg=config, species=species, names=gene_ids)
-        for seq in seqs:
-            grouped[gene_map[seq.info.name]].append(seq)
+    todo = {s.species for s in sp_gene_groups}
+    with Progress(transient=True) as progress:
+        reading = progress.add_task(
+            total=len(sp_gene_groups), description="Extracting  🧬"
+        )
+        for seqs in get_seqs.as_completed(
+            sp_gene_groups,
+            parallel=True,
+            par_kw=dict(max_workers=11),
+            show_progress=False,
+        ):
+            if not seqs:
+                print(seqs)
+                exit(1)
+
+            common = Species.get_common_name(seqs.obj[0].info.species)
+            msg = f"Done {common!r}  🧬"
+            if verbose:
+                todo = todo - {seqs.obj[0].info.species}
+                msg = f"Remaining {todo} 🧬"
+
+            progress.update(reading, description=msg, advance=1)
+            for seq in seqs.obj:
+                grouped[gene_map[seq.info.name]].append(seq)
 
     # todo also need to be writing out a logfile, plus a meta data table of
     #  gene IDs and location info
