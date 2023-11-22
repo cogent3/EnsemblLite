@@ -187,6 +187,10 @@ class Genome:
                 raise TypeError(msg)
             yield from seq.get_features(**kwargs)
 
+    def close(self):
+        self._seqs.close()
+        self._annotdb.db.close()
+
 
 def load_genome(*, cfg: InstalledConfig, species: str):
     """returns the Genome with bound seqs and features"""
@@ -226,3 +230,6 @@ def get_seqs_for_ids(
         seq.info["species"] = species
         seq.info["name"] = name
         yield seq
+
+    genome.close()
+    del genome
