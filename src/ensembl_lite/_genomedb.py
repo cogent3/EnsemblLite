@@ -231,6 +231,9 @@ def get_seqs_for_ids(
             seq.name = f"{species}-{name}"
         seq.info["species"] = species
         seq.info["name"] = name
+        # disconnect from annotation so the closure of the genome
+        # does not cause issues when run in parallel
+        seq.annotation_db = None
         yield seq
 
     genome.close()

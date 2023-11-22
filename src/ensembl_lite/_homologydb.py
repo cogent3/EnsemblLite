@@ -3,9 +3,6 @@ from __future__ import annotations
 import dataclasses
 import typing
 
-from collections import defaultdict
-
-from cogent3.core.alignment import SequenceCollection
 from rich.progress import track
 
 from ensembl_lite._config import InstalledConfig
@@ -135,11 +132,6 @@ def load_homology_db(
     return HomologyDb(source=cfg.homologies_path / _HOMOLOGYDB_NAME)
 
 
-def id_by_species_group(related) -> tuple[dict[str, list], dict[str, int]]:
-    """returns all ID's for a species and relationship index"""
-    sp_groups = defaultdict(list)
-
-
 @dataclasses.dataclass
 class species_genes:
     """contains gene IDs for species"""
@@ -153,9 +145,15 @@ class species_genes:
     def __post_init__(self):
         self.gene_ids = []
 
+
+def id_by_species_group(related) -> tuple[list[species_genes], dict[str, int]]:
+    """returns species gene sets and relationship index"""
+    sp_groups = {}
     id_group_map = {}
     for group_num, group in enumerate(related):
         for sp, gene_id in group:
-            sp_groups[sp].append(gene_id)
+            val = sp_groups[sp] if sp in sp_groups else species_genes(species=sp)
+            val.gene_ids.append(gene_id)
+            sp_groups[sp] = val
             id_group_map[gene_id] = group_num
-    return sp_groups, id_group_map
+    return list(sp_groups.values()), id_group_map
