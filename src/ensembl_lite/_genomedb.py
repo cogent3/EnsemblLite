@@ -1,12 +1,14 @@
 import typing
 
 from cogent3 import make_seq
+from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite._homologydb import species_genes
 from ensembl_lite.util import elt_compress_it, elt_decompress_it
 
 
@@ -233,3 +235,18 @@ def get_seqs_for_ids(
 
     genome.close()
     del genome
+
+
+@define_app
+def get_selected_seqs(species_gene_ids: species_genes, config: InstalledConfig) -> list:
+    """return gene sequences when given a species_gene_id instance
+
+    Notes
+    -----
+    This function becomes a class, created using config. Calling the class
+    instance with a species_genes instance is used to extract the list of gene
+    ID's from the species.
+    """
+    species = species_gene_ids.species
+    gene_ids = species_gene_ids.gene_ids
+    return list(get_seqs_for_ids(cfg=config, species=species, names=gene_ids))
