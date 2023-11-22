@@ -6,7 +6,6 @@ from collections import defaultdict
 import click
 import wakepy.keep
 
-from cogent3.util import parallel as PAR
 from rich.progress import track
 from trogon import tui
 
