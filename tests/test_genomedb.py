@@ -114,3 +114,15 @@ def test_selected_seq_is_annotated(small_genome, small_annotdb):
 def test_hashable_genome(cls):
     genome = cls(species="dodo", source=":memory:")
     assert hash(genome) == id(genome)
+
+
+def test_genome_close(small_genome, small_annotdb):
+    import sqlite3
+
+    gen_seqs_db, _ = small_genome
+    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    seq = genome.get_seq(seqid="s1")
+    assert seq
+    genome.close()
+    with pytest.raises(sqlite3.ProgrammingError):
+        genome.get_seq(seqid="s1")

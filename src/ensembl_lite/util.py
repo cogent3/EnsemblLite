@@ -349,9 +349,7 @@ def _bytes_to_str(data: bytes) -> str:
 
 @define_app
 def blosc_compress_it(data: bytes) -> bytes:
-    return blosc2.compress(
-        data, codec=blosc2.Codec.ZLIB, clevel=9, filter=blosc2.Filter.SHUFFLE
-    )
+    return blosc2.compress(data, clevel=9, filter=blosc2.Filter.SHUFFLE)
 
 
 @define_app

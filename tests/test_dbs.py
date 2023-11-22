@@ -1,3 +1,5 @@
+import pickle
+
 import numpy
 import pytest
 
@@ -88,3 +90,10 @@ def test_homology_db(hom_dir):
     db.close()
     got = HomologyDb(source=outpath)
     assert len(got) == 2
+
+
+def test_pickling_db(db_align):
+    # should not fail
+    pkl = pickle.dumps(db_align)
+    upkl = pickle.loads(pkl)
+    assert db_align.source == upkl.source

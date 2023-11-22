@@ -1,12 +1,14 @@
 import typing
 
 from cogent3 import make_seq
+from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite._homologydb import species_genes
 from ensembl_lite.util import elt_compress_it, elt_decompress_it
 
 
@@ -187,6 +189,10 @@ class Genome:
                 raise TypeError(msg)
             yield from seq.get_features(**kwargs)
 
+    def close(self):
+        self._seqs.close()
+        self._annotdb.db.close()
+
 
 def load_genome(*, cfg: InstalledConfig, species: str):
     """returns the Genome with bound seqs and features"""
@@ -225,4 +231,25 @@ def get_seqs_for_ids(
             seq.name = f"{species}-{name}"
         seq.info["species"] = species
         seq.info["name"] = name
+        # disconnect from annotation so the closure of the genome
+        # does not cause issues when run in parallel
+        seq.annotation_db = None
         yield seq
+
+    genome.close()
+    del genome
+
+
+@define_app
+def get_selected_seqs(species_gene_ids: species_genes, config: InstalledConfig) -> list:
+    """return gene sequences when given a species_gene_id instance
+
+    Notes
+    -----
+    This function becomes a class, created using config. Calling the class
+    instance with a species_genes instance is used to extract the list of gene
+    ID's from the species.
+    """
+    species = species_gene_ids.species
+    gene_ids = species_gene_ids.gene_ids
+    return list(get_seqs_for_ids(cfg=config, species=species, names=gene_ids))

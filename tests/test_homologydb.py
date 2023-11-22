@@ -148,10 +148,9 @@ def test_grouped_by_species(hom_hdb):
     got_species, got_gene_map = id_by_species_group(
         hom_hdb.get_related_groups("ortholog_one2one")
     )
-    for k, v in got_species.items():
-        got_species[k] = set(v)
+    sp_map = {sp.species: set(sp.gene_ids) for sp in got_species}
     expected_species = {"a": {"1", "4"}, "b": {"2", "5"}, "c": {"3"}}
-    assert got_species == expected_species
+    assert sp_map == expected_species
     expected_groups = {("1", "2", "3"), ("4", "5")}
     got_groups = {}
     for g, i in got_gene_map.items():
