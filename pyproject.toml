@@ -102,8 +102,8 @@ exclude = ["doc/*.html"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     ]
-
-addopts = ["--strict-config", "-ra"]
+norecursedirs = ["doc", ".nox", "working"]
+addopts = ["--strict-config"]
 testpaths = "tests"
 
 [tool.black]

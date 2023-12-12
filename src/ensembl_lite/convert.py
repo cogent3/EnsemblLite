@@ -1,3 +1,5 @@
+import typing
+
 import numpy
 
 from cogent3 import Sequence
@@ -5,11 +7,14 @@ from cogent3.core.alignment import Aligned
 from cogent3.core.location import LostSpan, Map, Span
 
 
-def seq_to_gap_coords(seq: Sequence) -> numpy.ndarray:
+O = typing.Tuple[numpy.ndarray, Sequence]
+
+
+def seq_to_gap_coords(seq: Sequence) -> O:
     """returns coordinates of sequence gaps"""
-    m, x = seq.parse_out_gaps()
+    m, s = seq.parse_out_gaps()
     # Assuming the maximum integer is < 2^31
-    return numpy.array(m.get_gap_coordinates(), dtype=numpy.int32)
+    return numpy.array(m.get_gap_coordinates(), dtype=numpy.int32), s
 
 
 def gap_coords_to_seq(coords: numpy.ndarray, ungapped: Sequence) -> Aligned:

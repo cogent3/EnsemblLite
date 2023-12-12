@@ -38,8 +38,10 @@ def compressed_array_to_sqlite(data):
 
 def decompressed_sqlite_to_array(data):
     result = numpy.frombuffer(_decompressor(data), dtype=numpy.int32)
-    dim = result.shape[0] // 2
-    return result.reshape((dim, 2))
+    if len(result):
+        dim = result.shape[0] // 2
+        result = result.reshape((dim, 2))
+    return result
 
 
 # registering the conversion functions with sqlite
