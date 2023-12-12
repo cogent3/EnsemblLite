@@ -133,7 +133,7 @@ def local_install_genomes(
 
 def seq2gaps(record: dict):
     seq = make_seq(record.pop("seq"))
-    record["gap_spans"] = seq_to_gap_coords(seq)
+    record["gap_spans"], _ = seq_to_gap_coords(seq)
     return record
 
 
