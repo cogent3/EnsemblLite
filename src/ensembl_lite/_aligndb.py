@@ -147,7 +147,6 @@ def get_alignment(
         for record in block:
             species = record["species"]
             genome = genomes[species]
-            # need to be consistent about stop / end!
             s = genome.get_seq(
                 coord_name=record["coord_name"],
                 start=record["start"],

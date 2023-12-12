@@ -144,7 +144,7 @@ class Genome:
         self._seqs = seqs
         self._annotdb = annots
 
-    def get_seq(self, *, seqid: str, start: OptInt = None, stop: OptInt = None) -> str:
+    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
         """
 
         Parameters
@@ -154,11 +154,11 @@ class Genome:
         start
             starting position of slice in python coordinates, defaults
             to 0
-        stop
+        end
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
-        seq = self._seqs.get_seq(coord_name=seqid, start=start, end=stop)
+        seq = self._seqs.get_seq(coord_name=seqid, start=start, end=end)
         seq = make_seq(seq, name=seqid, moltype="dna")
         seq.annotation_offset = start or 0
         seq.annotation_db = self._annotdb
