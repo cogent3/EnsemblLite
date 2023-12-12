@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import typing
 
+from collections import defaultdict
+from dataclasses import dataclass
+
 import numpy
 
 from cogent3 import make_aligned_seqs, make_seq
@@ -155,3 +158,34 @@ def get_alignment(
             seqs.append(aligned)
 
     return Alignment(seqs)
+
+
+@dataclass
+class GapPositions:
+    # 2D numpy int array,
+    # each row is a gap
+    # column 0 is gap index
+    # column 1 is gap length
+    gaps: numpy.ndarray
+    seq_length: int
+
+    def from_seq_to_align_index(self, index: int) -> int:
+        """convert a sequence index into an alignment index"""
+        # TODO edge cases that should raise an IndexError
+        #  when the index is invalid given gaps and align length
+        #  when the result lies outside the alignment
+        #  negative indices
+
+        first = numpy.argmax(self.gaps[:, 0] > index)
+        return self.gaps[:first, 1].sum(axis=0) + index
+
+    def from_align_to_seq_index(self, index: int) -> int:
+        """converts alignment index to sequence index"""
+        # TODO edge cases that should raise an IndexError
+        #  if the result falls within a gap run at the sequence start
+        #  OR end
+        #  negative indices
+
+        new_index = numpy.argmax(self.gaps.sum(axis=1).cumsum() > index)
+        sub = self.gaps[:new_index, 1].sum()
+        return index - sub

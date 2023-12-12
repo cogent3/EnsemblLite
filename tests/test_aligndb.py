@@ -5,6 +5,7 @@ from cogent3 import make_seq
 from ensembl_lite._aligndb import (
     AlignDb,
     AlignRecordType,
+    GapPositions,
     get_alignment,
 )
 from ensembl_lite.convert import seq_to_gap_coords
@@ -61,6 +62,23 @@ def test_aligndb_records_match_input(small_records):
         o_spans = o.pop("gap_spans")
         assert g == o
         assert (g_spans == o_spans).all()
+
+
+@pytest.mark.parametrize("data", ("AC---GT--TT", "---GT--TT", "AC---GT--"))
+def test_gapped_convert_seq2aln(data):
+    seq = make_seq(data, moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    idx = gaps.from_seq_to_align_index(3)
+    assert seq[idx] == data[idx]
+
+
+def test_gapped_convert_aln2seq():
+    seq = make_seq("AC---GT--TT", moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    idx = gaps.from_align_to_seq_index(6)
+    assert idx == 3
 
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
