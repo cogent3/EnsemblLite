@@ -47,7 +47,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
     ) -> str:
         """
 
@@ -58,7 +58,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        stop
+        end
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
@@ -67,15 +67,15 @@ class GenomeSeqsDb(SqliteDbMixin):
         else:
             start = 1
 
-        if stop is None:
+        if end is None:
             sql = f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where coord_name = ?"
             values = start, coord_name
         else:
-            stop -= start - 1
+            end -= start - 1
             sql = (
                 f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where coord_name = ?"
             )
-            values = start, stop, coord_name
+            values = start, end, coord_name
 
         return self._execute_sql(sql, values).fetchone()[0]
 
@@ -105,7 +105,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         self.db.commit()
 
     def get_seq(
-        self, *, coord_name: str, start: OptInt = None, stop: OptInt = None
+        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
     ) -> str:
         """
 
@@ -116,14 +116,14 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        stop
+        end
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
         sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
 
         seq = elt_decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
-        return seq[start:stop] if start or stop else seq
+        return seq[start:end] if start or end else seq
 
 
 # todo: this wrapping class is required for memory efficiency because
@@ -158,7 +158,7 @@ class Genome:
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
-        seq = self._seqs.get_seq(coord_name=seqid, start=start, stop=stop)
+        seq = self._seqs.get_seq(coord_name=seqid, start=start, end=stop)
         seq = make_seq(seq, name=seqid, moltype="dna")
         seq.annotation_offset = start or 0
         seq.annotation_db = self._annotdb

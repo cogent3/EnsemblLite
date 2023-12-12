@@ -5,7 +5,7 @@
 # EnsemblLite
 
 > **Warning**
-> EnsemblLite is not ready for use! We will remove this notice when we are ready to post to PyPi at which point it will be ready for trialling.
+> EnsemblLite is not ready for use! We will remove this notice when we are ready to post to PyPi at which point it will be ready for trialling. In the meantime, you can check the project progress towards being usable via the [EnsemblLite roadmap](https://github.com/cogent3/EnsemblLite/issues/38).
 
 ## A screencast of an early prototype
 

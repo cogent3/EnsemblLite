@@ -76,7 +76,7 @@ def compressed_small_genome(small_data):
 def test_get_seq(genome, request, name, start, end):
     genome, seqs = request.getfixturevalue(genome)
     expect = seqs[name][start:end]
-    assert genome.get_seq(coord_name=name, start=start, stop=end) == expect
+    assert genome.get_seq(coord_name=name, start=start, end=end) == expect
 
 
 @pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
