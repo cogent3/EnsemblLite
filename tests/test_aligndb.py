@@ -103,7 +103,16 @@ def genomedbs_aligndb(small_records):
 
 def test_building_alignment(genomedbs_aligndb):
     genomes, align_db = genomedbs_aligndb
-    # todo add test for incorrect species name, incorrect coord name
     got = get_alignment(align_db, genomes, species="mouse", coord_name="s2")
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    (dict(species="dodo", coord_name="s2"), dict(species="mouse", coord_name="s222")),
+)
+def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
+    genomes, align_db = genomedbs_aligndb
+    with pytest.raises(ValueError):
+        get_alignment(align_db, genomes, **kwargs)
