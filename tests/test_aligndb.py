@@ -1,3 +1,4 @@
+import numpy
 import pytest
 
 from cogent3 import make_seq
@@ -73,12 +74,23 @@ def test_gapped_convert_seq2aln(data):
     assert seq[idx] == data[idx]
 
 
-def test_gapped_convert_aln2seq():
-    seq = make_seq("AC---GT--TT", moltype="dna")
+@pytest.mark.parametrize("data", ("AC--GTA-TG", "--GTA-TGAA", "AC--GTA---"))
+@pytest.mark.parametrize("index", range(10))
+def test_gapped_convert_aln2seq(data, index):
+    seq = make_seq(data, moltype="dna")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_align_to_seq_index(6)
-    assert idx == 3
+    expect = data[:index].replace("-", "")
+    idx = gaps.from_align_to_seq_index(index)
+    assert idx == len(expect)
+
+
+def test_gapped_convert_aln2seq_invalid():
+    seq = make_seq("AC--GTA-TG", moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    with pytest.raises(NotImplementedError):
+        gaps.from_align_to_seq_index(-1)
 
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
@@ -103,7 +115,26 @@ def genomedbs_aligndb(small_records):
 
 def test_building_alignment(genomedbs_aligndb):
     genomes, align_db = genomedbs_aligndb
-    # todo add test for incorrect species name, incorrect coord name
     got = get_alignment(align_db, genomes, species="mouse", coord_name="s2")
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    (dict(species="dodo", coord_name="s2"), dict(species="mouse", coord_name="s222")),
+)
+def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
+    genomes, align_db = genomedbs_aligndb
+    with pytest.raises(ValueError):
+        get_alignment(align_db, genomes, **kwargs)
+
+
+def test_len_gapped():
+    seq_length = 20
+    gap_length = 5
+
+    gp = GapPositions(
+        gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
+    )
+    assert len(gp) == (seq_length + gap_length)

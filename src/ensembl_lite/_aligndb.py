@@ -168,6 +168,10 @@ class GapPositions:
     gaps: numpy.ndarray
     seq_length: int
 
+    def __len__(self):
+        total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
+        return total_gaps + self.seq_length
+
     def from_seq_to_align_index(self, index: int) -> int:
         """convert a sequence index into an alignment index"""
         # TODO edge cases that should raise an IndexError
@@ -180,11 +184,24 @@ class GapPositions:
 
     def from_align_to_seq_index(self, index: int) -> int:
         """converts alignment index to sequence index"""
-        # TODO edge cases that should raise an IndexError
-        #  if the result falls within a gap run at the sequence start
-        #  OR end
-        #  negative indices
+        if index < 0:
+            raise NotImplementedError(f"{index} negative index not supported")
 
-        new_index = numpy.argmax(self.gaps.sum(axis=1).cumsum() > index)
-        sub = self.gaps[:new_index, 1].sum()
-        return index - sub
+        # TODO convert this to numba function
+        gaps = self.gaps
+        total_gaps = 0
+        for gap_index, gap_length in gaps:
+            gap_start = gap_index + total_gaps
+            gap_end = gap_start + gap_length
+            if index < gap_start:
+                seq_index = index - total_gaps
+                break
+            if gap_start <= index <= gap_end:
+                # index between gaps
+                seq_index = gap_index
+                break
+            total_gaps += gap_length
+        else:
+            # index is after the last gap
+            seq_index = index - total_gaps
+        return seq_index
