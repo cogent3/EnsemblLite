@@ -73,12 +73,23 @@ def test_gapped_convert_seq2aln(data):
     assert seq[idx] == data[idx]
 
 
-def test_gapped_convert_aln2seq():
-    seq = make_seq("AC---GT--TT", moltype="dna")
+@pytest.mark.parametrize("data", ("AC--GTA-TG", "--GTA-TGAA", "AC--GTA---"))
+@pytest.mark.parametrize("index", range(10))
+def test_gapped_convert_aln2seq(data, index):
+    seq = make_seq(data, moltype="dna")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_align_to_seq_index(6)
-    assert idx == 3
+    expect = data[:index].replace("-", "")
+    idx = gaps.from_align_to_seq_index(index)
+    assert idx == len(expect)
+
+
+def test_gapped_convert_aln2seq_invalid():
+    seq = make_seq("AC--GTA-TG", moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    with pytest.raises(NotImplementedError):
+        gaps.from_align_to_seq_index(-1)
 
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
