@@ -1,3 +1,4 @@
+import numpy
 import pytest
 
 from cogent3 import make_seq
@@ -127,3 +128,13 @@ def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
     genomes, align_db = genomedbs_aligndb
     with pytest.raises(ValueError):
         get_alignment(align_db, genomes, **kwargs)
+
+
+def test_len_gapped():
+    seq_length = 20
+    gap_length = 5
+
+    gp = GapPositions(
+        gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
+    )
+    assert len(gp) == (seq_length + gap_length)

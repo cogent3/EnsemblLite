@@ -168,6 +168,10 @@ class GapPositions:
     gaps: numpy.ndarray
     seq_length: int
 
+    def __len__(self):
+        total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
+        return total_gaps + self.seq_length
+
     def from_seq_to_align_index(self, index: int) -> int:
         """convert a sequence index into an alignment index"""
         # TODO edge cases that should raise an IndexError
