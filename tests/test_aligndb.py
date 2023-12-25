@@ -65,13 +65,16 @@ def test_aligndb_records_match_input(small_records):
         assert (g_spans == o_spans).all()
 
 
-@pytest.mark.parametrize("data", ("AC---GT--TT", "---GT--TT", "AC---GT--"))
-def test_gapped_convert_seq2aln(data):
-    seq = make_seq(data, moltype="dna")
+@pytest.mark.parametrize("data", ("AB---CD--EF", "---ABCD--EF", "ABCD---EF--"))
+@pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
+def test_gapped_convert_seq2aln(data, index):
+    # converting a sequence index to alignment index
+    ungapped = data.replace("-", "")
+    seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_seq_to_align_index(3)
-    assert seq[idx] == data[idx]
+    idx = gaps.from_seq_to_align_index(index)
+    assert data[idx] == ungapped[index]
 
 
 @pytest.mark.parametrize("data", ("AC--GTA-TG", "--GTA-TGAA", "AC--GTA---"))
