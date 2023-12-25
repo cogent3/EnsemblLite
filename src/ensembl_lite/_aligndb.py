@@ -182,10 +182,12 @@ class GapPositions:
         first = numpy.argmax(self.gaps[:, 0] > index)
         return self.gaps[:first, 1].sum(axis=0) + index
 
-    def from_align_to_seq_index(self, index: int) -> int:
+    def from_align_to_seq_index(self, align_index: int) -> int:
         """converts alignment index to sequence index"""
-        if index < 0:
-            raise NotImplementedError(f"{index} negative index not supported")
+        if align_index < 0:
+            raise NotImplementedError(
+                f"{align_index} negative align_index not supported"
+            )
 
         # TODO convert this to numba function
         gaps = self.gaps
@@ -193,15 +195,15 @@ class GapPositions:
         for gap_index, gap_length in gaps:
             gap_start = gap_index + total_gaps
             gap_end = gap_start + gap_length
-            if index < gap_start:
-                seq_index = index - total_gaps
+            if align_index < gap_start:
+                seq_index = align_index - total_gaps
                 break
-            if gap_start <= index <= gap_end:
-                # index between gaps
+            if gap_start <= align_index <= gap_end:
+                # align_index between gaps
                 seq_index = gap_index
                 break
             total_gaps += gap_length
         else:
-            # index is after the last gap
-            seq_index = index - total_gaps
+            # align_index is after the last gap
+            seq_index = align_index - total_gaps
         return seq_index
