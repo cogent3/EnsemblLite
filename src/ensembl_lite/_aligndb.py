@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 import numpy
 
-from cogent3 import make_aligned_seqs, make_seq
-from cogent3.core.alignment import Aligned, Alignment
+from cogent3 import make_seq
+from cogent3.core.alignment import Alignment
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 
@@ -159,14 +159,136 @@ def get_alignment(
     return Alignment(seqs)
 
 
+def _adjust_gap_starts(gaps: numpy.ndarray, new_start: int) -> numpy.ndarray:
+    return numpy.array([gaps.T[0] - new_start, gaps.T[1]], dtype=gaps.dtype).T
+
+
+def _ends_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
+    """
+    return the gaps array ending at align_index
+
+    Parameters
+    ----------
+    gaps
+        gaps are [[seq index, gap length], ...]
+    align_index
+        position to seek
+    """
+    assert gaps[0, 0] <= align_index  # must fall within the gaps
+    total_gaps = 0
+    for i, (gap_index, gap_length) in enumerate(gaps):
+        gap_start = gap_index + total_gaps
+        gap_end = gap_start + gap_length
+        # align index can fall between gaps or within a gap
+        if gap_start == align_index:
+            new_gaps = gaps[:i]
+            break
+        elif align_index == gap_end:
+            new_gaps = gaps[: i + 1]
+            break
+        elif align_index < gap_start:
+            # align_index is before this gap
+            new_gaps = gaps[:i]
+            break
+
+        total_gaps += gap_length
+    else:
+        # align_index is after the last gap, so result has all gaps
+        raise RuntimeError(f"{gaps=}  {align_index=}")  # not copying! bad idea?
+
+    return new_gaps
+
+
+def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
+    """
+    return the gaps array starting with align_index
+
+    Parameters
+    ----------
+    gaps
+        gaps are [[seq index, gap length], ...]
+    align_index
+        position to seek
+    """
+    assert gaps[0, 0] <= align_index  # must fall within the gaps
+    total_gaps = 0
+    for i, (gap_index, gap_length) in enumerate(gaps):
+        gap_start = gap_index + total_gaps
+        gap_end = gap_start + gap_length
+        # align index can fall between gaps or within a gap
+        if gap_start <= align_index < gap_end:
+            new_gaps = gaps[i:]
+            gap_start_diff = align_index - gap_index
+            new_gaps[0, 1] = gap_length - gap_start_diff
+            break
+        elif align_index == gap_end or align_index < gap_start:
+            new_gaps = gaps[i + 1 :]
+            break
+        total_gaps += gap_length
+    else:
+        # align_index is after the last gap, so result has all gaps
+        raise RuntimeError(f"{gaps=}  {align_index=}")
+
+    return new_gaps
+
+
 @dataclass
 class GapPositions:
     # 2D numpy int array,
     # each row is a gap
-    # column 0 is gap index
+    # column 0 is sequence index of gap
     # column 1 is gap length
     gaps: numpy.ndarray
     seq_length: int
+
+    def __post_init__(self):
+        # make gap array immutable
+        self.gaps.flags.writeable = False
+
+    def __getitem__(self, item: slice) -> typing.Self:
+        if item.step:
+            raise NotImplementedError(
+                f"{type(self).__name__!r} does not support strides"
+            )
+        start = item.start or 0
+        stop = item.stop or len(self)
+        gaps = self.gaps.copy()
+        if start < 0 or stop < 0:
+            raise NotImplementedError(
+                f"{type(self).__name__!r} does not support negative indexes"
+            )
+        # slice is before first gap or after last gap
+        if stop < gaps[0, 0] or start > gaps[-1].sum():
+            gaps = numpy.empty(shape=(0, 0), dtype=gaps.dtype)
+            return type(self)(gaps=gaps, seq_length=stop - start)
+
+        total_gaps = gaps[:, 1].sum()
+        if start < gaps[0, 0] and stop > gaps[-1, 0] + total_gaps:
+            # slice result contains all gaps, so we shift gaps left
+            gaps = _adjust_gap_starts(gaps, start)
+            seq_length = self.from_align_to_seq_index(stop) - start
+            return type(self)(gaps=gaps, seq_length=seq_length)
+
+        if start < gaps[0, 0]:
+            # start is in seq coords, ends within gaps
+            seq_length = self.from_align_to_seq_index(stop) - start
+            gaps = _ends_within_gap(gaps, stop)
+            gaps = _adjust_gap_starts(gaps, start)
+        elif stop > total_gaps + gaps[-1, 0]:
+            # slice starts within gaps
+            gaps = _starts_within_gap(gaps, start)
+            seq_start = self.from_align_to_seq_index(start)
+            gaps = _adjust_gap_starts(gaps, seq_start)
+            seq_length = self.from_align_to_seq_index(stop) - seq_start
+        else:
+            # slice is within the gaps
+            gaps = _ends_within_gap(gaps, stop)
+            gaps = _starts_within_gap(gaps, start)
+            seq_start = self.from_align_to_seq_index(start)
+            gaps = _adjust_gap_starts(gaps, seq_start)
+            seq_length = self.from_align_to_seq_index(stop) - seq_start
+
+        return type(self)(gaps=gaps, seq_length=seq_length)
 
     def __len__(self):
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
@@ -195,7 +317,7 @@ class GapPositions:
             )
 
         # TODO convert this to numba function
-        gaps = self.gaps
+        gaps = self.gaps.copy()
         total_gaps = 0
         for gap_index, gap_length in gaps:
             gap_start = gap_index + total_gaps

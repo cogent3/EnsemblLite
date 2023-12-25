@@ -133,6 +133,37 @@ def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
         get_alignment(align_db, genomes, **kwargs)
 
 
+@pytest.mark.parametrize(
+    "invalid_slice",
+    (slice(None, None, -1), slice(None, -1, None), slice(-1, None, None)),
+)
+def test_gap_pos_invalid_slice(invalid_slice):
+    gp = GapPositions(numpy.array([[1, 3]], dtype=numpy.int32), 20)
+    with pytest.raises(NotImplementedError):
+        gp[invalid_slice]
+
+
+@pytest.mark.parametrize(
+    "slice",
+    (
+        slice(3, 7),
+        slice(20, None),
+    ),
+)
+def test_no_gaps_in_slice(slice):
+    # aligned length is 25
+    seq_length = 20
+    gap_length = 5
+    gp = GapPositions(
+        gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
+    )
+    got = gp[slice]
+    assert not len(got.gaps)
+    start = slice.start or 0
+    stop = slice.stop or (seq_length + gap_length)
+    assert len(got) == stop - start
+
+
 def test_len_gapped():
     seq_length = 20
     gap_length = 5
@@ -141,3 +172,47 @@ def test_len_gapped():
         gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
     )
     assert len(gp) == (seq_length + gap_length)
+
+
+def test_all_gaps_in_slice():
+    # slicing GapPositions
+    # sample seq 1
+    # AC--GTA-TG -> gp = GapPositions(gaps=[[2,2],[5,1]], seq_length=7)
+    gp = GapPositions(
+        gaps=numpy.array([[2, 2], [5, 1]], dtype=numpy.int32), seq_length=7
+    )
+    got = gp[1:9]
+    expect_gaps = numpy.array([[1, 2], [4, 1]], dtype=numpy.int32)
+    assert (got.gaps == expect_gaps).all()
+    assert got.seq_length == 5
+    # gp[1:9] -> C--GTA-T -> GapPositions(gaps=[[1,2],[4,1]], seq_length=5)
+
+
+@pytest.mark.parametrize(
+    "slice",
+    (
+        slice(1, 9),  # slice spans all gaps
+        slice(0, 7),  # slice ends within a gap
+        slice(0, 8),  # slice ends within a gap
+        slice(0, 5),  # slice ends within a gap
+        slice(2, 9),  # slice starts within a gap
+        slice(3, 9),  # variant starts within gap
+        slice(4, 9),  # variant starts within gap
+        slice(6, 9),  # variant starts within gap
+        slice(3, 8),  # slice starts & ends within a gap
+        slice(2, 4),  # result is all gaps
+    ),
+)
+def test_variant_slices(slice):
+    data = "AC--GTA-TG"
+    seq = make_seq(data, moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    orig = gaps.gaps.copy()
+    got = gaps[slice]
+
+    expect_gaps, expect_seq = seq_to_gap_coords(make_seq(data[slice], moltype="dna"))
+    assert got.seq_length == len(expect_seq)
+    assert (got.gaps == expect_gaps).all()
+    # make sure original data unmodified
+    assert (orig == gaps.gaps).all()
