@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 import numpy
 
-from cogent3 import make_aligned_seqs, make_seq
-from cogent3.core.alignment import Aligned, Alignment
+from cogent3 import make_seq
+from cogent3.core.alignment import Alignment
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 
