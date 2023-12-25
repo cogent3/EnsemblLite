@@ -316,8 +316,6 @@ def _simple_check(align_parts: str, tree_parts: str) -> int:
 
 
 def trees_for_aligns(aligns, trees) -> dict[str, str]:
-    from cogent3.maths.distance_transform import jaccard
-
     aligns = {p: _name_parts(p) for p in aligns}
     trees = {p: _name_parts(p) for p in trees}
     result = {}

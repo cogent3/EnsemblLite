@@ -11,8 +11,6 @@ from ensembl_lite._config import (
     write_installed_cfg,
 )
 from ensembl_lite.util import (
-    blosc_compress_it,
-    blosc_decompress_it,
     elt_compress_it,
     elt_decompress_it,
     get_resource_path,
