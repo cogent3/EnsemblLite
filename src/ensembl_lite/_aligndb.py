@@ -172,15 +172,20 @@ class GapPositions:
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
         return total_gaps + self.seq_length
 
-    def from_seq_to_align_index(self, index: int) -> int:
+    def from_seq_to_align_index(self, seq_index: int) -> int:
         """convert a sequence index into an alignment index"""
-        # TODO edge cases that should raise an IndexError
-        #  when the index is invalid given gaps and align length
-        #  when the result lies outside the alignment
-        #  negative indices
+        if seq_index < 0:
+            raise NotImplementedError(f"{seq_index} negative align_index not supported")
+        # TODO convert this to numba function
 
-        first = numpy.argmax(self.gaps[:, 0] > index)
-        return self.gaps[:first, 1].sum(axis=0) + index
+        total_gaps = 0
+        for gap_index, gap_length in self.gaps:
+            if seq_index < gap_index:
+                break
+
+            total_gaps += gap_length
+
+        return seq_index + total_gaps
 
     def from_align_to_seq_index(self, align_index: int) -> int:
         """converts alignment index to sequence index"""
