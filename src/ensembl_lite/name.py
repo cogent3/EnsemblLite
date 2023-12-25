@@ -31,14 +31,8 @@ _name_delim = re.compile("_")
 
 def get_dbtype_from_name(name):
     """returns the data base type from the name"""
-    try:
-        name = _release.split(name)
-        name = [s for s in _name_delim.split(name[0]) if s]
-    except TypeError as msg:
-        print("Error:")
-        print(name, type(name), msg)
-        raise
-
+    name = _release.split(name)
+    name = [s for s in _name_delim.split(name[0]) if s]
     return name[1] if name[0] == "ensembl" else name[-1]
 
 
@@ -51,18 +45,16 @@ def get_db_prefix(name):
     elif len(name) > 2:
         prefix = "_".join(name[:-1])
     else:
-        raise RuntimeError(f"Unknown name structure: {'_'.join(name)}")
+        raise ValueError(f"Unknown name structure: {'_'.join(name)}")
     return prefix
 
 
-class EnsemblDbName(object):
+class EnsemblDbName:
     """container for a db name, inferring different attributes from the name,
     such as species, version, build"""
 
     def __init__(self, db_name):
         """db_name: and Emsembl database name"""
-        if isinstance(db_name, EnsemblDbName):
-            db_name = db_name.name
         self.name = db_name
         self.type = get_dbtype_from_name(db_name)
         self.prefix = get_db_prefix(db_name)
@@ -71,29 +63,21 @@ class EnsemblDbName(object):
         self.release = release
         self.general_release = self.release
 
+        self.build = None
         if build and len(build) == 1:
             if self.type != "compara":
                 self.build = build[0]
             else:
-                self.build = None
                 self.general_release = build[0]
         elif build:
             self.build = build[1]
             self.general_release = build[0]
-        else:
-            self.build = None
 
-        self.species = None
         self.species = Species.get_species_name(self.prefix)
 
     def __repr__(self):
-        build = ["", f"; build='{self.build}'"][self.build is not None]
-        return "db(prefix='%s'; type='%s'; release='%s'%s)" % (
-            self.prefix,
-            self.type,
-            self.release,
-            build,
-        )
+        build = f"; build='{self.build}'" if self.build is not None else ""
+        return f"db(prefix='{self.prefix}'; type='{self.type}'; release='{self.release}'{build})"
 
     def __str__(self):
         return self.name
