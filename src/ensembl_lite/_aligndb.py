@@ -168,6 +168,10 @@ class GapPositions:
     gaps: numpy.ndarray
     seq_length: int
 
+    def __post_init__(self):
+        # make gap array immutable
+        self.gaps.flags.writeable = False
+
     def __len__(self):
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
         return total_gaps + self.seq_length
@@ -195,7 +199,7 @@ class GapPositions:
             )
 
         # TODO convert this to numba function
-        gaps = self.gaps
+        gaps = self.gaps.copy()
         total_gaps = 0
         for gap_index, gap_length in gaps:
             gap_start = gap_index + total_gaps
