@@ -177,15 +177,16 @@ def test_len_gapped():
 def test_all_gaps_in_slice():
     # slicing GapPositions
     # sample seq 1
-    # AC--GTA-TG -> gp = GapPositions(gaps=[[2,2],[5,1]], seq_length=7)
-    gp = GapPositions(
-        gaps=numpy.array([[2, 2], [5, 1]], dtype=numpy.int32), seq_length=7
-    )
-    got = gp[1:9]
-    expect_gaps = numpy.array([[1, 2], [4, 1]], dtype=numpy.int32)
+    data = "AC--GTA-TG"
+    seq = make_seq(data, moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gp = GapPositions(g, len(data.replace("-", "")))
+    sl = slice(1, 9)
+
+    got = gp[sl]
+    expect_gaps, expect_seq = seq_to_gap_coords(make_seq(data[sl], moltype="dna"))
     assert (got.gaps == expect_gaps).all()
     assert got.seq_length == 5
-    # gp[1:9] -> C--GTA-T -> GapPositions(gaps=[[1,2],[4,1]], seq_length=5)
 
 
 @pytest.mark.parametrize(
