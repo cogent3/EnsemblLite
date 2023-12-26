@@ -48,4 +48,4 @@ def test_exportrc(tmp_dir):
 
 def test_install(tmp_config):
     runner = CliRunner()
-    r = runner.invoke(install, [f"-c{tmp_config}"])
+    _ = runner.invoke(install, [f"-c{tmp_config}"])

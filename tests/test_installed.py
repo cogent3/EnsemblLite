@@ -53,7 +53,7 @@ def test_get_genes(one_genome, make_seq_name):
     cds_name = "CDS:B0019.1"
     if make_seq_name:
         # silly hack to make sure function applied
-        make_seq_name = lambda x: x.name * 2
+        make_seq_name = lambda x: x.name * 2  # noqa: E731
 
     gene = list(
         get_seqs_for_ids(
