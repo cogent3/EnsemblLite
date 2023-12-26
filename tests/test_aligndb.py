@@ -189,26 +189,29 @@ def test_all_gaps_in_slice():
     assert got.seq_length == 5
 
 
+@pytest.mark.parametrize("data", ("----GTA-TG", "AC--GTA---", "AC--GTA-TG"))
 @pytest.mark.parametrize(
     "slice",
     (
-        slice(1, 9),  # slice spans all gaps
-        slice(0, 7),  # slice ends within a gap
-        slice(0, 8),  # slice ends within a gap
-        slice(0, 5),  # slice ends within a gap
-        slice(2, 9),  # slice starts within a gap
-        slice(3, 9),  # variant starts within gap
-        slice(4, 9),  # variant starts within gap
-        slice(6, 9),  # variant starts within gap
-        slice(3, 8),  # slice starts & ends within a gap
-        slice(2, 4),  # result is all gaps
+        slice(0, 2),
+        slice(8, 10),
+        slice(1, 9),
+        slice(0, 7),
+        slice(0, 8),
+        slice(0, 5),
+        slice(2, 9),
+        slice(3, 9),
+        slice(4, 9),
+        slice(6, 9),
+        slice(3, 8),
+        slice(4, 6),
+        slice(2, 4),
     ),
 )
-def test_variant_slices(slice):
-    data = "AC--GTA-TG"
+def test_variant_slices(data, slice):
     seq = make_seq(data, moltype="dna")
     g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
+    gaps = GapPositions(g, len(s))
     orig = gaps.gaps.copy()
     got = gaps[slice]
 

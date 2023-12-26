@@ -180,15 +180,13 @@ def _ends_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
         gap_start = gap_index + total_gaps
         gap_end = gap_start + gap_length
         # align index can fall between gaps or within a gap
-        if gap_start == align_index:
+        if align_index <= gap_start:
             new_gaps = gaps[:i]
             break
-        elif align_index == gap_end:
+        elif gap_start < align_index <= gap_end:
+            # we end within a gap, so adjust the length of that gap
             new_gaps = gaps[: i + 1]
-            break
-        elif align_index < gap_start:
-            # align_index is before this gap
-            new_gaps = gaps[:i]
+            new_gaps[-1, 1] = align_index - gap_start
             break
 
         total_gaps += gap_length
@@ -221,7 +219,10 @@ def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
             gap_start_diff = align_index - gap_index
             new_gaps[0, 1] = gap_length - gap_start_diff
             break
-        elif align_index == gap_end or align_index < gap_start:
+        elif align_index < gap_start:
+            new_gaps = gaps[i:]
+            break
+        elif align_index == gap_end:
             new_gaps = gaps[i + 1 :]
             break
         total_gaps += gap_length
@@ -230,6 +231,26 @@ def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
         raise RuntimeError(f"{gaps=}  {align_index=}")
 
     return new_gaps
+
+
+def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
+    """return True if start/stop fall within a gap
+
+    Parameters
+    ----------
+    gaps
+        numpy 2D array
+    start, stop
+        start and stop are align indices
+    """
+    # todo convert to numba
+    cumsum_gap_length = 0
+    for gap_start, gap_length in gaps:
+        gap_start += cumsum_gap_length
+        if gap_start <= start < stop <= gap_start + gap_length:
+            return True
+        cumsum_gap_length += gap_length
+    return False
 
 
 @dataclass
@@ -264,28 +285,31 @@ class GapPositions:
                 f"{type(self).__name__!r} does not support negative indexes"
             )
         # slice is before first gap or after last gap
-        if stop < gaps[0, 0] or start > gaps[-1].sum():
+        total_gap_length = gaps[:, 1].sum()
+        if stop <= gaps[0, 0] or start > gaps[-1][0] + total_gap_length:
             gaps = numpy.empty(shape=(0, 0), dtype=gaps.dtype)
             return type(self)(gaps=gaps, seq_length=stop - start)
 
-        total_gaps = gaps[:, 1].sum()
-        if start < gaps[0, 0] and stop > gaps[-1, 0] + total_gaps:
-            # slice result contains all gaps, so we shift gaps left
+        if start < gaps[0, 0] and stop > gaps[-1, 0] + total_gap_length:
+            # slice result contains all gaps and shift gap left
             gaps = _adjust_gap_starts(gaps, start)
             seq_length = self.from_align_to_seq_index(stop) - start
             return type(self)(gaps=gaps, seq_length=seq_length)
-
-        if start < gaps[0, 0]:
+        elif start < gaps[0, 0]:
             # start is in seq coords, ends within gaps
             seq_length = self.from_align_to_seq_index(stop) - start
             gaps = _ends_within_gap(gaps, stop)
             gaps = _adjust_gap_starts(gaps, start)
-        elif stop > total_gaps + gaps[-1, 0]:
+        elif stop > total_gap_length + gaps[-1, 0]:
             # slice starts within gaps
             gaps = _starts_within_gap(gaps, start)
             seq_start = self.from_align_to_seq_index(start)
             gaps = _adjust_gap_starts(gaps, seq_start)
             seq_length = self.from_align_to_seq_index(stop) - seq_start
+        elif _within_a_gap(gaps, start, stop):
+            # falls within a gap
+            gaps = numpy.array([[0, stop - start]], dtype=gaps.dtype)
+            return type(self)(gaps=gaps, seq_length=0)
         else:
             # slice is within the gaps
             gaps = _ends_within_gap(gaps, stop)
