@@ -177,37 +177,41 @@ def test_len_gapped():
 def test_all_gaps_in_slice():
     # slicing GapPositions
     # sample seq 1
-    # AC--GTA-TG -> gp = GapPositions(gaps=[[2,2],[5,1]], seq_length=7)
-    gp = GapPositions(
-        gaps=numpy.array([[2, 2], [5, 1]], dtype=numpy.int32), seq_length=7
-    )
-    got = gp[1:9]
-    expect_gaps = numpy.array([[1, 2], [4, 1]], dtype=numpy.int32)
-    assert (got.gaps == expect_gaps).all()
-    assert got.seq_length == 5
-    # gp[1:9] -> C--GTA-T -> GapPositions(gaps=[[1,2],[4,1]], seq_length=5)
-
-
-@pytest.mark.parametrize(
-    "slice",
-    (
-        slice(1, 9),  # slice spans all gaps
-        slice(0, 7),  # slice ends within a gap
-        slice(0, 8),  # slice ends within a gap
-        slice(0, 5),  # slice ends within a gap
-        slice(2, 9),  # slice starts within a gap
-        slice(3, 9),  # variant starts within gap
-        slice(4, 9),  # variant starts within gap
-        slice(6, 9),  # variant starts within gap
-        slice(3, 8),  # slice starts & ends within a gap
-        slice(2, 4),  # result is all gaps
-    ),
-)
-def test_variant_slices(slice):
     data = "AC--GTA-TG"
     seq = make_seq(data, moltype="dna")
     g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
+    gp = GapPositions(g, len(data.replace("-", "")))
+    sl = slice(1, 9)
+
+    got = gp[sl]
+    expect_gaps, expect_seq = seq_to_gap_coords(make_seq(data[sl], moltype="dna"))
+    assert (got.gaps == expect_gaps).all()
+    assert got.seq_length == 5
+
+
+@pytest.mark.parametrize("data", ("----GTA-TG", "AC--GTA---", "AC--GTA-TG"))
+@pytest.mark.parametrize(
+    "slice",
+    (
+        slice(0, 2),
+        slice(8, 10),
+        slice(1, 9),
+        slice(0, 7),
+        slice(0, 8),
+        slice(0, 5),
+        slice(2, 9),
+        slice(3, 9),
+        slice(4, 9),
+        slice(6, 9),
+        slice(3, 8),
+        slice(4, 6),
+        slice(2, 4),
+    ),
+)
+def test_variant_slices(data, slice):
+    seq = make_seq(data, moltype="dna")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(s))
     orig = gaps.gaps.copy()
     got = gaps[slice]
 
