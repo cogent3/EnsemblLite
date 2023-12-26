@@ -242,6 +242,12 @@ class GapPositions:
     seq_length: int
 
     def __post_init__(self):
+        if not len(self.gaps):
+            # can get have a zero length array with shape != (0, 0)
+            # e.g. by slicing gaps[:0], but since there's no data
+            # we force it to have zero elements on both dimensions
+            self.gaps = self.gaps.reshape((0, 0))
+
         # make gap array immutable
         self.gaps.flags.writeable = False
 
