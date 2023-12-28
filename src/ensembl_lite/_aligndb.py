@@ -284,9 +284,13 @@ class GapPositions:
             raise NotImplementedError(
                 f"{type(self).__name__!r} does not support negative indexes"
             )
-        # slice is before first gap or after last gap
-        total_gap_length = gaps[:, 1].sum()
-        if stop <= gaps[0, 0] or start > gaps[-1][0] + total_gap_length:
+        total_gap_length = gaps[:, 1].sum() if len(gaps) else 0
+        if (
+            not total_gap_length
+            or stop <= gaps[0, 0]
+            or start > gaps[-1][0] + total_gap_length
+        ):
+            # no gaps or slice is before first gap or after last gap
             gaps = numpy.empty(shape=(0, 0), dtype=gaps.dtype)
             return type(self)(gaps=gaps, seq_length=stop - start)
 
