@@ -190,7 +190,16 @@ def test_all_gaps_in_slice():
 
 
 @pytest.mark.parametrize(
-    "data", ("----GTA-TG", "AC--GTA---", "AC--GTA-TG", "A-C-G-T-A-", "-A-C-G-T-A")
+    "data",
+    (
+        "----GTA-TG",
+        "AC--GTA---",
+        "AC--GTA-TG",
+        "A-C-G-T-A-",
+        "-A-C-G-T-A",
+        "ACGTAACGTA",
+        "----------",
+    ),
 )
 @pytest.mark.parametrize(
     "slice",
