@@ -216,7 +216,7 @@ def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
         # align index can fall between gaps or within a gap
         if gap_start <= align_index < gap_end:
             new_gaps = gaps[i:]
-            gap_start_diff = align_index - gap_index
+            gap_start_diff = align_index - gap_start
             new_gaps[0, 1] = gap_length - gap_start_diff
             break
         elif align_index < gap_start:
