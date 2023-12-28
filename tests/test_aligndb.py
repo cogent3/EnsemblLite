@@ -9,6 +9,7 @@ from ensembl_lite._aligndb import (
     GapPositions,
     get_alignment,
 )
+from ensembl_lite._genomedb import CompressedGenomeSeqsDb
 from ensembl_lite.convert import seq_to_gap_coords
 
 
@@ -28,9 +29,7 @@ def small_seqs():
     )
 
 
-@pytest.fixture
-def small_records():
-    start, end = 1, 5
+def make_records(start, end):
     aln = small_seqs()[start:end]
     records = []
     species = aln.info.species
@@ -48,6 +47,12 @@ def small_records():
             gap_spans=c,
         )
         records.append(record)
+    return records
+
+
+@pytest.fixture
+def small_records():
+    records = make_records(1, 5)
     return records
 
 
@@ -100,8 +105,6 @@ def test_gapped_convert_aln2seq_invalid():
 # based on a given alignment
 @pytest.fixture
 def genomedbs_aligndb(small_records):
-    from ensembl_lite._genomedb import CompressedGenomeSeqsDb
-
     align_db = AlignDb(source=":memory:")
     align_db.add_records(records=small_records)
     seqs = small_seqs().degap()
@@ -234,6 +237,49 @@ def test_variant_slices(data, slice):
     assert (orig == gaps.gaps).all()
 
 
-# todo write a test of get_alignment() that selects a genomic region that
-#  is a subset of an alignment. We need to consider cases of plus / reverse
-#  strand
+def make_sample():
+    seqs = small_seqs()
+    # we will reverse complement the s2 genome compared to the original
+    # this means our coordinates for alignment records from that genome
+    # also need to be rc'ed
+    species = seqs.info.species
+    genomes = {}
+    for seq in seqs.seqs:
+        name = seq.name
+        seq = seq.data.degap()
+        if seq.name == "s2":
+            seq = seq.rc()
+            s2_genome = str(seq)
+        genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
+        genome.add_records(records=[(name, str(seq))])
+        genomes[species[name]] = genome
+
+    # define a slice
+    start, end = 1, 12
+    align_records = make_records(start, end)
+    # identify the rc segment for s2, which will be reverse complemented
+    # relative to "genome"
+    s2 = seqs.get_gapped_seq("s2")
+    selected = s2[start:end].rc().degap()
+    start = s2_genome.find(str(selected))
+    end = start + len(selected)
+    for record in align_records:
+        if record["coord_name"] == "s2":
+            record["start"] = start
+            record["end"] = end
+            record["strand"] = "-"
+            break
+    align_db = AlignDb(source=":memory:")
+    align_db.add_records(records=align_records)
+
+    return genomes, align_db
+
+
+def test_select_alignment_rc():
+    expect = small_seqs()[1:12]
+    # one sequence is stored in reverse complement
+    genomes, align_db = make_sample()
+    got = get_alignment(
+        align_db=align_db, genomes=genomes, species="human", coord_name="s1"
+    )
+    assert got.to_dict() == expect.to_dict()

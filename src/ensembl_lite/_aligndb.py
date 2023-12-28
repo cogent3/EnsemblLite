@@ -144,6 +144,12 @@ def get_alignment(
     # sample the sequences
     seqs = []
     for block in align_records:
+        # todo we get the gaps corresponding to the reference sequence
+        #  and convert them to a GapPosition instance. We then convert
+        #  the start, end into align_start, align_end. Those values are
+        #  used for all other species -- they are converted into sequence
+        #  coordinates for a species -- selecting their sequence and,
+        #  building the aligned instance, selecting the annotation subset.
         for record in block:
             species = record["species"]
             genome = genomes[species]
@@ -153,6 +159,8 @@ def get_alignment(
                 end=record["end"],
             )
             s = make_seq(s, name=record["coord_name"], moltype="dna")
+            if record["strand"] == "-":
+                s = s.rc()
             aligned = gap_coords_to_seq(record["gap_spans"], s)
             seqs.append(aligned)
 
