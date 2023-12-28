@@ -189,7 +189,9 @@ def test_all_gaps_in_slice():
     assert got.seq_length == 5
 
 
-@pytest.mark.parametrize("data", ("----GTA-TG", "AC--GTA---", "AC--GTA-TG"))
+@pytest.mark.parametrize(
+    "data", ("----GTA-TG", "AC--GTA---", "AC--GTA-TG", "A-C-G-T-A-", "-A-C-G-T-A")
+)
 @pytest.mark.parametrize(
     "slice",
     (
@@ -206,6 +208,7 @@ def test_all_gaps_in_slice():
         slice(3, 8),
         slice(4, 6),
         slice(2, 4),
+        slice(2, 3),
     ),
 )
 def test_variant_slices(data, slice):
@@ -220,3 +223,8 @@ def test_variant_slices(data, slice):
     assert (got.gaps == expect_gaps).all()
     # make sure original data unmodified
     assert (orig == gaps.gaps).all()
+
+
+# todo write a test of get_alignment() that selects a genomic region that
+#  is a subset of an alignment. We need to consider cases of plus / reverse
+#  strand
