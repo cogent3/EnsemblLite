@@ -335,7 +335,7 @@ def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
 class GapPositions:
     # 2D numpy int array,
     # each row is a gap
-    # column 0 is sequence index of gap
+    # column 0 is sequence index of gap **relative to the alignment**
     # column 1 is gap length
     gaps: numpy.ndarray
     seq_length: int
