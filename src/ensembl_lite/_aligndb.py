@@ -115,7 +115,7 @@ class AlignDb(SqliteDbMixin):
             )
         ]
 
-        values = " ".join("?" * len(block_ids))
+        values = ", ".join("?" * len(block_ids))
         sql = f"SELECT * from {self.table_name} WHERE block_id IN ({values})"
         results = defaultdict(list)
         for record in self.db.execute(sql, block_ids).fetchall():
