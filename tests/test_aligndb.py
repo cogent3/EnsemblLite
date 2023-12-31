@@ -2,6 +2,7 @@ import numpy
 import pytest
 
 from cogent3 import make_seq
+from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._aligndb import (
     AlignDb,
@@ -21,15 +22,35 @@ def small_seqs():
         "s2": "GTG------GTAGAAGTTCCAAATAATGAA",
         "s3": "GCTGAAGTAGTGGAAGTTGCAAAT---GAA",
     }
-    return make_aligned_seqs(
+    seqs = make_aligned_seqs(
         data=seqs,
         moltype="dna",
         array_align=False,
         info=dict(species=dict(s1="human", s2="mouse", s3="dog")),
     )
+    annot_db = GffAnnotationDb(source=":memory:")
+    annot_db.add_feature(
+        seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)], on_alignment=False
+    )
+    annot_db.add_feature(
+        seqid="s2",
+        biotype="gene",
+        name="includes-s2-gap",
+        spans=[(2, 6)],
+        on_alignment=False,
+    )
+    annot_db.add_feature(
+        seqid="s3",
+        biotype="gene",
+        name="includes-s3-gap",
+        spans=[(22, 27)],
+        on_alignment=False,
+    )
+    seqs.annotation_db = annot_db
+    return seqs
 
 
-def make_records(start, end):
+def make_records(start, end, block_id):
     aln = small_seqs()[start:end]
     records = []
     species = aln.info.species
@@ -39,7 +60,7 @@ def make_records(start, end):
         record = AlignRecordType(
             source="blah",
             species=species[seq.name],
-            block_id=0,
+            block_id=block_id,
             coord_name=seq.name,
             start=seq.map.start,
             end=seq.map.end,
@@ -52,7 +73,7 @@ def make_records(start, end):
 
 @pytest.fixture
 def small_records():
-    records = make_records(1, 5)
+    records = make_records(1, 5, 0)
     return records
 
 
@@ -121,19 +142,19 @@ def genomedbs_aligndb(small_records):
 
 def test_building_alignment(genomedbs_aligndb):
     genomes, align_db = genomedbs_aligndb
-    got = get_alignment(align_db, genomes, species="mouse", coord_name="s2")
+    got = list(get_alignment(align_db, genomes, species="mouse", coord_name="s2"))[0]
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
 
 
 @pytest.mark.parametrize(
     "kwargs",
-    (dict(species="dodo", coord_name="s2"), dict(species="mouse", coord_name="s222")),
+    (dict(species="dodo", coord_name="s2"),),
 )
 def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
     genomes, align_db = genomedbs_aligndb
     with pytest.raises(ValueError):
-        get_alignment(align_db, genomes, **kwargs)
+        list(get_alignment(align_db, genomes, **kwargs))
 
 
 @pytest.mark.parametrize(
@@ -237,14 +258,14 @@ def test_variant_slices(data, slice):
     assert (orig == gaps.gaps).all()
 
 
-def make_sample():
-    seqs = small_seqs()
+def make_sample(two_aligns=False):
+    aln = small_seqs()
     # we will reverse complement the s2 genome compared to the original
     # this means our coordinates for alignment records from that genome
     # also need to be rc'ed
-    species = seqs.info.species
+    species = aln.info.species
     genomes = {}
-    for seq in seqs.seqs:
+    for seq in aln.seqs:
         name = seq.name
         seq = seq.data.degap()
         if seq.name == "s2":
@@ -254,13 +275,34 @@ def make_sample():
         genome.add_records(records=[(name, str(seq))])
         genomes[species[name]] = genome
 
-    # define a slice
-    start, end = 1, 12
-    align_records = make_records(start, end)
-    # identify the rc segment for s2, which will be reverse complemented
-    # relative to "genome"
-    s2 = seqs.get_gapped_seq("s2")
-    selected = s2[start:end].rc().degap()
+    # make annotation db's
+    annot_dbs = {}
+    for name in aln.names:
+        feature_db = aln.annotation_db.subset(seqid=name)
+        annot_dbs[species[name]] = feature_db
+
+    # define two alignment blocks that incorporate features
+    align_records = _update_records(s2_genome, aln, 0, 1, 12)
+    if two_aligns:
+        align_records += _update_records(s2_genome, aln, 1, 22, 30)
+    align_db = AlignDb(source=":memory:")
+    align_db.add_records(records=align_records)
+
+    return genomes, align_db
+
+
+def _update_records(s2_genome, aln, block_id, start, end):
+    # start, end are the coordinates used to slice the alignment
+    align_records = make_records(start, end, block_id)
+    # in the alignment, s2 is in reverse complement relative to its genome
+    # In order to be sure what "genome" coordinates are for s2, we first slice
+    # the alignment
+    aln = aln[start:end]
+    # then get the ungapped sequence
+    s2 = aln.get_seq("s2")
+    # and reverse complement it ...
+    selected = s2.rc()
+    # so we can get the genome coordinates for this segment on the s2 genome
     start = s2_genome.find(str(selected))
     end = start + len(selected)
     for record in align_records:
@@ -269,20 +311,98 @@ def make_sample():
             record["end"] = end
             record["strand"] = "-"
             break
-    align_db = AlignDb(source=":memory:")
-    align_db.add_records(records=align_records)
-
-    return genomes, align_db
+    return align_records
 
 
-def test_select_alignment_rc():
-    expect = small_seqs()[1:12]
+@pytest.mark.parametrize(
+    "start_end",
+    (
+        (None, None),
+        (None, 11),
+        (3, None),
+        (3, 13),
+    ),
+)
+@pytest.mark.parametrize(
+    "species_coord",
+    (
+        ("human", "s1"),
+        ("dog", "s3"),
+    ),
+)
+def test_select_alignment_plus_strand(species_coord, start_end):
+    species, coord_name = species_coord
+    start, end = start_end
+    aln = small_seqs()
+    expect = aln[max(1, start or 1) : min(end or 12, 12)]
     # one sequence is stored in reverse complement
     genomes, align_db = make_sample()
-    got = get_alignment(
-        align_db=align_db, genomes=genomes, species="human", coord_name="s1"
+    got = list(
+        get_alignment(
+            align_db=align_db,
+            genomes=genomes,
+            species=species,
+            coord_name=coord_name,
+            start=start,
+            end=end,
+        )
     )
-    assert got.to_dict() == expect.to_dict()
+    assert len(got) == 1
+    assert got[0].to_dict() == expect.to_dict()
+
+
+@pytest.mark.parametrize(
+    "start_end",
+    (
+        (None, None),
+        (None, 5),
+        (2, None),
+        (2, 7),
+    ),
+)
+def test_select_alignment_minus_strand(start_end):
+    species, coord_name = "mouse", "s2"
+    start, end = start_end
+    aln = small_seqs()
+    ft = aln.add_feature(
+        biotype="custom",
+        name="selected",
+        seqid="s2",
+        on_alignment=False,
+        spans=[(max(1, start or 0), min(end or 12, 12))],
+    )
+    expect = aln[ft.map.start : min(ft.map.end, 12)]
+
+    # mouse sequence is on minus strand, so need to adjust
+    # coordinates for query
+    s2 = aln.get_seq("s2")
+    s2_ft = list(s2.get_features(name="selected"))[0]
+    if not any([start is None, end is None]):
+        start = len(s2) - s2_ft.map.end
+        end = len(s2) - s2_ft.map.start
+    elif start == None != end:  # noqa E711
+        start = len(s2) - s2_ft.map.end
+        end = None
+    elif start != None == end:  # noqa E711
+        end = len(s2) - s2_ft.map.start
+        start = None
+
+    # mouse sequence is on minus strand, so need to adjust
+    # coordinates for query
+
+    genomes, align_db = make_sample(two_aligns=False)
+    got = list(
+        get_alignment(
+            align_db=align_db,
+            genomes=genomes,
+            species=species,
+            coord_name=coord_name,
+            start=start,
+            end=end,
+        )
+    )
+    assert len(got) == 1
+    assert got[0].to_dict() == expect.to_dict()
 
 
 @pytest.mark.parametrize(
