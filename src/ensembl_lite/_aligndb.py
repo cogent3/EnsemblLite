@@ -81,15 +81,18 @@ class AlignDb(SqliteDbMixin):
     ) -> list[int]:
         sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND coord_name = ?"
         values = species, coord_name
-        if start and end:
-            sql = f"{sql} AND start > ? AND end < ?"
-            values += (start, end)
-        elif start:
-            sql = f"{sql} AND start > ?"
-            values += (start,)
-        elif end:
-            sql = f"{sql} AND end < ?"
-            values += (end,)
+        if start is not None and end is not None:
+            # as long as start or end are within the record start/end, it's a match
+            sql = f"{sql} AND ((start <= ? AND ? < end) OR (start <= ? AND ? < end))"
+            values += (start, start, end, end)
+        elif start is not None:
+            # the aligned segment overlaps start
+            sql = f"{sql} AND start <= ? AND ? < end"
+            values += (start, start)
+        elif end is not None:
+            # the aligned segment overlaps end
+            sql = f"{sql} AND start <= ? AND ? < end"
+            values += (end, end)
 
         return self.db.execute(sql, values).fetchall()
 

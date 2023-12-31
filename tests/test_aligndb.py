@@ -283,3 +283,53 @@ def test_select_alignment_rc():
         align_db=align_db, genomes=genomes, species="human", coord_name="s1"
     )
     assert got.to_dict() == expect.to_dict()
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1", None, 11),  # finish within
+        ("human", "s1", 3, None),  # start within
+        ("human", "s1", 3, 9),  # within
+        ("human", "s1", 3, 13),  # extends past
+    ),
+)
+def test_align_db_get_records(coord):
+    kwargs = dict(zip(("species", "coord_name", "start", "end"), coord))
+    # records are, we should get a single hit from each query
+    # [('blah', 0, 'human', 's1', 1, 12, '+', array([], dtype=int32)),
+    _, align_db = make_sample(two_aligns=True)
+    got = list(align_db.get_records_matching(**kwargs))
+    assert len(got) == 1
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1"),
+        ("mouse", "s2"),
+        ("dog", "s3"),
+    ),
+)
+def test_align_db_get_records_required_only(coord):
+    kwargs = dict(zip(("species", "coord_name"), coord))
+    # two hits for each species
+    _, align_db = make_sample(two_aligns=True)
+    got = list(align_db.get_records_matching(**kwargs))
+    assert len(got) == 2
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s2"),
+        ("mouse", "xx"),
+        ("blah", "s3"),
+    ),
+)
+def test_align_db_get_records_no_matches(coord):
+    kwargs = dict(zip(("species", "coord_name"), coord))
+    # no hits at all
+    _, align_db = make_sample()
+    got = list(align_db.get_records_matching(**kwargs))
+    assert not len(got)
