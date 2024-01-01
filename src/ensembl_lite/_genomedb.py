@@ -12,9 +12,6 @@ from ensembl_lite._homologydb import species_genes
 from ensembl_lite.util import elt_compress_it, elt_decompress_it
 
 
-OptInt = typing.Optional[int]
-OptionalStr = typing.Optional[str]
-
 _SEQDB_NAME = "genome_sequence.seqdb"
 _ANNOTDB_NAME = "features.gff3db"
 # todo: make a variant that wraps a directory of compressed sequence files
@@ -46,7 +43,9 @@ class GenomeSeqsDb(SqliteDbMixin):
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
         self.db.commit()
 
-    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
+    def get_seq(
+        self, *, seqid: str, start: int | None = None, end: int | None = None
+    ) -> str:
         """
 
         Parameters
@@ -102,7 +101,9 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
         self.db.commit()
 
-    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
+    def get_seq(
+        self, *, seqid: str, start: int | None = None, end: int | None = None
+    ) -> str:
         """
 
         Parameters
@@ -140,8 +141,10 @@ class Genome:
         self._seqs = seqs
         self._annotdb = annots
 
-    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
-        """
+    def get_seq(
+        self, *, seqid: str, start: int | None = None, end: int | None = None
+    ) -> str:
+        """returns annotated sequence
 
         Parameters
         ----------

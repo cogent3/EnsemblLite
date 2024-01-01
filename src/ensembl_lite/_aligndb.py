@@ -25,8 +25,6 @@ class AlignRecordType(typing.TypedDict):
 
 
 ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
-OptInt = typing.Optional[int]
-OptStr = typing.Optional[int]
 
 
 class AlignDb(SqliteDbMixin):
@@ -101,8 +99,8 @@ class AlignDb(SqliteDbMixin):
         *,
         species,
         seqid: str,
-        start: OptInt = None,
-        end: OptInt = None,
+        start: int | None = None,
+        end: int | None = None,
     ):
         # We need the block IDs for all records for a species whose coordinates
         # lie in the range (start, end).

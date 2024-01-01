@@ -9,9 +9,6 @@ from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 
 
-NoneType = type(None)
-OptionalStr = typing.Optional[str]
-
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
 
 
@@ -87,7 +84,7 @@ class HomologyDb(SqliteDbMixin):
         *,
         records: typing.Sequence,
         col_order: typing.Sized[str],
-    ) -> NoneType:
+    ) -> None:
         # bulk insert
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
