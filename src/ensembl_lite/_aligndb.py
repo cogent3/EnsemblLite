@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 import numpy
 
-from cogent3 import make_seq
 from cogent3.core.alignment import Alignment
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
@@ -220,7 +219,6 @@ def get_alignment(
             # we now trim the gaps for this sequence to the sub-alignment
             gaps = gaps[align_start:align_end]
 
-            s = make_seq(s, name=seqid, moltype="dna")
             if align_record["strand"] == "-":
                 s = s.rc()
 
