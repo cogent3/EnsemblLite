@@ -19,7 +19,7 @@ class AlignRecordType(typing.TypedDict):
     source: str
     block_id: str
     species: str
-    coord_name: str
+    seqid: str
     start: int
     end: int
     strand: str

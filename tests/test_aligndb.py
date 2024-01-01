@@ -61,7 +61,7 @@ def make_records(start, end, block_id):
             source="blah",
             species=species[seq.name],
             block_id=block_id,
-            coord_name=seq.name,
+            seqid=seq.name,
             start=seq.map.start,
             end=seq.map.end,
             strand="+",
@@ -83,7 +83,7 @@ def test_aligndb_records_match_input(small_records):
     orig_records = copy.deepcopy(small_records)
     db = AlignDb(source=":memory:")
     db.add_records(records=small_records)
-    got = list(db.get_records_matching(species="human", coord_name="s1"))[0]
+    got = list(db.get_records_matching(species="human", seqid="s1"))[0]
     for g, o in zip(got, orig_records):
         g_spans = g.pop("gap_spans")
         o_spans = o.pop("gap_spans")
@@ -142,14 +142,14 @@ def genomedbs_aligndb(small_records):
 
 def test_building_alignment(genomedbs_aligndb):
     genomes, align_db = genomedbs_aligndb
-    got = list(get_alignment(align_db, genomes, species="mouse", coord_name="s2"))[0]
+    got = list(get_alignment(align_db, genomes, species="mouse", seqid="s2"))[0]
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
 
 
 @pytest.mark.parametrize(
     "kwargs",
-    (dict(species="dodo", coord_name="s2"),),
+    (dict(species="dodo", seqid="s2"),),
 )
 def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
     genomes, align_db = genomedbs_aligndb
@@ -260,10 +260,16 @@ def test_variant_slices(data, slice):
 
 def make_sample(two_aligns=False):
     aln = small_seqs()
+    species = aln.info.species
+    # make annotation db's
+    annot_dbs = {}
+    for name in aln.names:
+        feature_db = aln.annotation_db.subset(seqid=name)
+        annot_dbs[species[name]] = feature_db
+
     # we will reverse complement the s2 genome compared to the original
     # this means our coordinates for alignment records from that genome
     # also need to be rc'ed
-    species = aln.info.species
     genomes = {}
     for seq in aln.seqs:
         name = seq.name
@@ -274,12 +280,6 @@ def make_sample(two_aligns=False):
         genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
         genome.add_records(records=[(name, str(seq))])
         genomes[species[name]] = genome
-
-    # make annotation db's
-    annot_dbs = {}
-    for name in aln.names:
-        feature_db = aln.annotation_db.subset(seqid=name)
-        annot_dbs[species[name]] = feature_db
 
     # define two alignment blocks that incorporate features
     align_records = _update_records(s2_genome, aln, 0, 1, 12)
@@ -306,7 +306,7 @@ def _update_records(s2_genome, aln, block_id, start, end):
     start = s2_genome.find(str(selected))
     end = start + len(selected)
     for record in align_records:
-        if record["coord_name"] == "s2":
+        if record["seqid"] == "s2":
             record["start"] = start
             record["end"] = end
             record["strand"] = "-"
@@ -331,7 +331,7 @@ def _update_records(s2_genome, aln, block_id, start, end):
     ),
 )
 def test_select_alignment_plus_strand(species_coord, start_end):
-    species, coord_name = species_coord
+    species, seqid = species_coord
     start, end = start_end
     aln = small_seqs()
     expect = aln[max(1, start or 1) : min(end or 12, 12)]
@@ -342,7 +342,7 @@ def test_select_alignment_plus_strand(species_coord, start_end):
             align_db=align_db,
             genomes=genomes,
             species=species,
-            coord_name=coord_name,
+            seqid=seqid,
             start=start,
             end=end,
         )
@@ -361,7 +361,7 @@ def test_select_alignment_plus_strand(species_coord, start_end):
     ),
 )
 def test_select_alignment_minus_strand(start_end):
-    species, coord_name = "mouse", "s2"
+    species, seqid = "mouse", "s2"
     start, end = start_end
     aln = small_seqs()
     ft = aln.add_feature(
@@ -396,7 +396,7 @@ def test_select_alignment_minus_strand(start_end):
             align_db=align_db,
             genomes=genomes,
             species=species,
-            coord_name=coord_name,
+            seqid=seqid,
             start=start,
             end=end,
         )
@@ -415,7 +415,7 @@ def test_select_alignment_minus_strand(start_end):
     ),
 )
 def test_align_db_get_records(coord):
-    kwargs = dict(zip(("species", "coord_name", "start", "end"), coord))
+    kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
     # records are, we should get a single hit from each query
     # [('blah', 0, 'human', 's1', 1, 12, '+', array([], dtype=int32)),
     _, align_db = make_sample(two_aligns=True)
@@ -432,7 +432,7 @@ def test_align_db_get_records(coord):
     ),
 )
 def test_align_db_get_records_required_only(coord):
-    kwargs = dict(zip(("species", "coord_name"), coord))
+    kwargs = dict(zip(("species", "seqid"), coord))
     # two hits for each species
     _, align_db = make_sample(two_aligns=True)
     got = list(align_db.get_records_matching(**kwargs))
@@ -448,7 +448,7 @@ def test_align_db_get_records_required_only(coord):
     ),
 )
 def test_align_db_get_records_no_matches(coord):
-    kwargs = dict(zip(("species", "coord_name"), coord))
+    kwargs = dict(zip(("species", "seqid"), coord))
     # no hits at all
     _, align_db = make_sample()
     got = list(align_db.get_records_matching(**kwargs))

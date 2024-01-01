@@ -106,7 +106,7 @@ class EmfName:
     """stores information from EMF SEQ records"""
 
     species: str
-    coord_name: str
+    seqid: str
     start: int
     end: int
     strand: str
@@ -118,7 +118,7 @@ class EmfName:
         self.end = int(self.end)
 
     def __str__(self):
-        attrs = "species", "coord_name", "start", "end", "strand"
+        attrs = "species", "seqid", "start", "end", "strand"
         n = [str(getattr(self, attr)) for attr in attrs]
         return ":".join(n)
 
@@ -126,7 +126,7 @@ class EmfName:
         return hash(str(self))
 
     def to_dict(self) -> dict:
-        attrs = "species", "coord_name", "start", "end", "strand"
+        attrs = "species", "seqid", "start", "end", "strand"
         return {attr: getattr(self, attr) for attr in attrs}
 
 
@@ -135,7 +135,7 @@ class MafName:
     """stores source information from Maf records"""
 
     species: str
-    coord_name: str
+    seqid: str
     start: int
     end: int
     strand: str
@@ -148,7 +148,7 @@ class MafName:
         self.coord_length = int(self.coord_length) if self.coord_length else None
 
     def __str__(self):
-        attrs = "species", "coord_name", "start", "end", "strand"
+        attrs = "species", "seqid", "start", "end", "strand"
         n = [str(getattr(self, attr)) for attr in attrs]
         return ":".join(n)
 
@@ -156,5 +156,5 @@ class MafName:
         return hash(str(self))
 
     def to_dict(self) -> dict:
-        attrs = "species", "coord_name", "start", "end", "strand"
+        attrs = "species", "seqid", "start", "end", "strand"
         return {attr: getattr(self, attr) for attr in attrs}

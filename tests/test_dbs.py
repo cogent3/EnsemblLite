@@ -35,7 +35,7 @@ def test_db_align_add_records(db_align):
             source="blah",
             block_id=42,
             species="human",
-            coord_name="1",
+            seqid="1",
             start=22,
             end=42,
             strand="-",

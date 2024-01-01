@@ -29,13 +29,13 @@ def _get_seqs(lines: list[str]) -> dict[MafName, str]:
     for line in lines:
         if not line.startswith("s") or "ancestral" in line[:100]:
             continue
-        # after the s token we have src.coord_name, start, size, strand, src_size, seq
+        # after the s token we have src.seqid, start, size, strand, src_size, seq
         _, src_coord, start, size, strand, coord_length, seq = line.strip().split()
         species, coord = src_coord.split(".", maxsplit=1)
         start, size, coord_length = int(start), int(size), int(coord_length)
         n = MafName(
             species=species,
-            coord_name=coord,
+            seqid=coord,
             start=start,
             end=start + start,
             strand=strand,
