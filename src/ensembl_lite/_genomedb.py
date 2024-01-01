@@ -156,11 +156,18 @@ class Genome:
         end
             ending position of slice in python coordinates, defaults
             to length of coordinate
+
+        Notes
+        -----
+        Annotations partially within region are included.
         """
         seq = self._seqs.get_seq(seqid=seqid, start=start, end=end)
         seq = make_seq(seq, name=seqid, moltype="dna")
-        seq.annotation_offset = start or 0
-        seq.annotation_db = self._annotdb
+        if self._annotdb:
+            seq.annotation_offset = start or 0
+            seq.annotation_db = self._annotdb.subset(
+                seqid=seq.name, start=start, end=end, allow_partial=True
+            )
         return seq
 
     def get_features(
