@@ -103,9 +103,8 @@ class AlignDb(SqliteDbMixin):
         end: int | None = None,
     ):
         # We need the block IDs for all records for a species whose coordinates
-        # lie in the range (start, end).
-        # We then search for all records with each block id.
-        # We return full records.
+        # lie in the range (start, end). We then search for all records with
+        # each block id. We return full records.
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
 
