@@ -10,7 +10,7 @@ from ensembl_lite._aligndb import (
     GapPositions,
     get_alignment,
 )
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb
+from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
 from ensembl_lite.convert import seq_to_gap_coords
 
 
@@ -135,7 +135,7 @@ def genomedbs_aligndb(small_records):
     for name, seq in data.items():
         genome = CompressedGenomeSeqsDb(source=":memory:", species=name)
         genome.add_records(records=[(name, seq)])
-        genomes[species[name]] = genome
+        genomes[species[name]] = Genome(seqs=genome, annots=None, species=species[name])
 
     return genomes, align_db
 
@@ -279,7 +279,9 @@ def make_sample(two_aligns=False):
             s2_genome = str(seq)
         genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
         genome.add_records(records=[(name, str(seq))])
-        genomes[species[name]] = genome
+        genomes[species[name]] = Genome(
+            seqs=genome, annots=annot_dbs[name], species=species[name]
+        )
 
     # define two alignment blocks that incorporate features
     align_records = _update_records(s2_genome, aln, 0, 1, 12)
