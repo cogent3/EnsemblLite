@@ -101,6 +101,10 @@ class AlignDb(SqliteDbMixin):
         start: int | None = None,
         end: int | None = None,
     ):
+        # make sure python, not numpy, integers
+        start = start if start is None else int(start)
+        end = end if end is None else int(end)
+
         # We need the block IDs for all records for a species whose coordinates
         # lie in the range (start, end). We then search for all records with
         # each block id. We return full records.
@@ -137,13 +141,6 @@ def get_alignment(
     if species not in genomes:
         raise ValueError(f"unknown species {species!r}")
 
-    if start is not None:  # deal with case where numpy scalars are input
-        start = int(start)
-    if end is not None:
-        end = int(end)
-
-    # todo connect to annotation db that has been filtered for all records for
-    #  each species that fall within the coordinates of the records
     align_records = align_db.get_records_matching(
         species=species, seqid=seqid, start=start, end=end
     )
@@ -211,6 +208,7 @@ def get_alignment(
             if align_record["strand"] == "-":
                 # if it's neg strand, the alignment start is the genome end
                 seq_start = gaps.seq_length - seq_end
+
             s = genome.get_seq(
                 seqid=seqid,
                 start=genome_start + seq_start,
@@ -225,7 +223,6 @@ def get_alignment(
             aligned = gap_coords_to_seq(gaps.gaps, s)
             seqs.append(aligned)
 
-        # todo need to add annotation_db
         yield Alignment(seqs)
 
 

@@ -265,7 +265,7 @@ def make_sample(two_aligns=False):
     annot_dbs = {}
     for name in aln.names:
         feature_db = aln.annotation_db.subset(seqid=name)
-        annot_dbs[species[name]] = feature_db
+        annot_dbs[name] = feature_db
 
     # we will reverse complement the s2 genome compared to the original
     # this means our coordinates for alignment records from that genome
