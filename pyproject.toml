@@ -12,7 +12,7 @@ authors = [
 keywords = ["biology", "genomics", "evolution", "bioinformatics"]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8,<3.12"
+requires-python = ">3.10,<3.12"
 dependencies = ["blosc2",
         "click",
         "scitrack",
@@ -32,8 +32,6 @@ classifiers = [
         "Topic :: Scientific/Engineering :: Bio-Informatics",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ]
@@ -108,7 +106,7 @@ testpaths = "tests"
 
 [tool.black]
 line-length = 88
-target-version = ["py38", "py39", "py310"]
+target-version = ["py310"]
 exclude = '''
 /(
     \.eggs
