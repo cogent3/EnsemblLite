@@ -19,6 +19,9 @@ _ANNOTDB_NAME = "features.gff3db"
 
 
 class GenomeSeqsDb(SqliteDbMixin):
+    """class to be replaced by cogent3 sequence collection when that
+    has been modernised"""
+
     table_name = "genome"
     _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
     _metadata_schema = {"species": "TEXT"}
@@ -78,6 +81,9 @@ class GenomeSeqsDb(SqliteDbMixin):
 
 
 class CompressedGenomeSeqsDb(GenomeSeqsDb):
+    """class to be replaced by cogent3 sequence collection when that
+    has been modernised"""
+
     _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
     def __hash__(self):
@@ -128,7 +134,8 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
 # collections, either large sequences or large numbers of sequences. The
 # correct solution is to improve that.
 class Genome:
-    """connecting sequences and their annotations"""
+    """class to be replaced by cogent3 sequence collection when that
+    has been modernised"""
 
     def __init__(
         self,
