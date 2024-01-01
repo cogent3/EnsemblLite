@@ -416,6 +416,22 @@ def test_select_alignment_minus_strand(start_end):
         ("human", "s1", 3, 13),  # extends past
     ),
 )
+def test_get_alignment_features(coord):
+    kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
+    genomes, align_db = make_sample(two_aligns=False)
+    got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    assert len(got.annotation_db) == 1
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1", None, 11),  # finish within
+        ("human", "s1", 3, None),  # start within
+        ("human", "s1", 3, 9),  # within
+        ("human", "s1", 3, 13),  # extends past
+    ),
+)
 def test_align_db_get_records(coord):
     kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
     # records are, we should get a single hit from each query
