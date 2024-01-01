@@ -76,7 +76,7 @@ def compressed_small_genome(small_data):
 def test_get_seq(genome, request, name, start, end):
     genome, seqs = request.getfixturevalue(genome)
     expect = seqs[name][start:end]
-    assert genome.get_seq(coord_name=name, start=start, end=end) == expect
+    assert genome.get_seq(seqid=name, start=start, end=end) == expect
 
 
 @pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
@@ -84,15 +84,15 @@ def test_get_seq(genome, request, name, start, end):
 def test_get_fullseq(genome, request, name):
     genome, seqs = request.getfixturevalue(genome)
     expect = seqs[name]
-    assert genome.get_seq(coord_name=name) == expect
+    assert genome.get_seq(seqid=name) == expect
 
 
 def test_add_compressed(small_data):
     db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
     data = {k: elt_compress_it(s) for k, s in small_data.items()}
     db.add_compressed_records(records=data.items())
-    assert db.get_seq(coord_name="s1") == small_data["s1"]
-    assert db.get_seq(coord_name="s2") == small_data["s2"]
+    assert db.get_seq(seqid="s1") == small_data["s1"]
+    assert db.get_seq(seqid="s2") == small_data["s2"]
 
 
 def test_annodb(small_annotdb):

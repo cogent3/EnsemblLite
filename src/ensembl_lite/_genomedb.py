@@ -23,7 +23,7 @@ _ANNOTDB_NAME = "features.gff3db"
 
 class GenomeSeqsDb(SqliteDbMixin):
     table_name = "genome"
-    _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
+    _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
     _metadata_schema = {"species": "TEXT"}
 
     def __init__(self, *, source: str = ":memory:", species: str = None):
@@ -36,24 +36,22 @@ class GenomeSeqsDb(SqliteDbMixin):
     def __hash__(self):
         return id(self)
 
-    def add_record(self, *, coord_name: str, seq: str):
-        sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
-        self._execute_sql(sql, (coord_name, seq, len(seq)))
+    def add_record(self, *, seqid: str, seq: str):
+        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
+        self._execute_sql(sql, (seqid, seq, len(seq)))
         self.db.commit()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
-        sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
+        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
         self.db.commit()
 
-    def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
-    ) -> str:
+    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
         """
 
         Parameters
         ----------
-        coord_name
+        seqid
             name of chromosome etc..
         start
             starting position of slice in python coordinates, defaults
@@ -68,27 +66,27 @@ class GenomeSeqsDb(SqliteDbMixin):
             start = 1
 
         if end is None:
-            sql = f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where coord_name = ?"
-            values = start, coord_name
+            sql = (
+                f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where seqid = ?"
+            )
+            values = start, seqid
         else:
             end -= start - 1
-            sql = (
-                f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where coord_name = ?"
-            )
-            values = start, end, coord_name
+            sql = f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where seqid = ?"
+            values = start, end, seqid
 
         return self._execute_sql(sql, values).fetchone()[0]
 
 
 class CompressedGenomeSeqsDb(GenomeSeqsDb):
-    _genome_schema = {"coord_name": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
+    _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
 
     def __hash__(self):
         return id(self)
 
-    def add_record(self, *, coord_name: str, seq: str):
-        sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
-        self._execute_sql(sql, (coord_name, elt_compress_it(seq), len(seq)))
+    def add_record(self, *, seqid: str, seq: str):
+        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
+        self._execute_sql(sql, (seqid, elt_compress_it(seq), len(seq)))
         self.db.commit()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
@@ -99,19 +97,17 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
     def add_compressed_records(self, *, records: typing.Iterable[list[str, bytes]]):
         """sequences already compressed"""
 
-        sql = f"INSERT INTO {self.table_name}(coord_name, seq, length) VALUES (?, ?, ?)"
+        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
 
         self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
         self.db.commit()
 
-    def get_seq(
-        self, *, coord_name: str, start: OptInt = None, end: OptInt = None
-    ) -> str:
+    def get_seq(self, *, seqid: str, start: OptInt = None, end: OptInt = None) -> str:
         """
 
         Parameters
         ----------
-        coord_name
+        seqid
             name of chromosome etc..
         start
             starting position of slice in python coordinates, defaults
@@ -120,9 +116,9 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
-        sql = f"SELECT seq FROM {self.table_name} where coord_name = ?"
+        sql = f"SELECT seq FROM {self.table_name} where seqid = ?"
 
-        seq = elt_decompress_it(self._execute_sql(sql, (coord_name,)).fetchone()[0])
+        seq = elt_decompress_it(self._execute_sql(sql, (seqid,)).fetchone()[0])
         return seq[start:end] if start or end else seq
 
 
@@ -158,7 +154,7 @@ class Genome:
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
-        seq = self._seqs.get_seq(coord_name=seqid, start=start, end=end)
+        seq = self._seqs.get_seq(seqid=seqid, start=start, end=end)
         seq = make_seq(seq, name=seqid, moltype="dna")
         seq.annotation_offset = start or 0
         seq.annotation_db = self._annotdb

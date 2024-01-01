@@ -17,7 +17,7 @@ class AlignRecordType(typing.TypedDict):
     source: str
     block_id: int
     species: str
-    coord_name: str
+    seqid: str
     start: int
     end: int
     strand: str
@@ -36,7 +36,7 @@ class AlignDb(SqliteDbMixin):
         "source": "TEXT",  # the file path
         "block_id": "INT",  # an alignment number
         "species": "TEXT",
-        "coord_name": "TEXT",
+        "seqid": "TEXT",
         "start": "INTEGER",
         "end": "INTEGER",
         "strand": "TEXT",
@@ -75,12 +75,12 @@ class AlignDb(SqliteDbMixin):
         self,
         *,
         species,
-        coord_name: str,
+        seqid: str,
         start: int | None,
         end: int | None,
     ) -> list[int]:
-        sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND coord_name = ?"
-        values = species, coord_name
+        sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND seqid = ?"
+        values = species, seqid
         if start is not None and end is not None:
             # as long as start or end are within the record start/end, it's a match
             sql = f"{sql} AND ((start <= ? AND ? < end) OR (start <= ? AND ? < end))"
@@ -100,7 +100,7 @@ class AlignDb(SqliteDbMixin):
         self,
         *,
         species,
-        coord_name: str,
+        seqid: str,
         start: OptInt = None,
         end: OptInt = None,
     ):
@@ -114,7 +114,7 @@ class AlignDb(SqliteDbMixin):
         block_ids = [
             r["block_id"]
             for r in self._get_block_id(
-                species=species, coord_name=coord_name, start=start, end=end
+                species=species, seqid=seqid, start=start, end=end
             )
         ]
 
@@ -131,7 +131,7 @@ def get_alignment(
     align_db: AlignDb,
     genomes: dict,
     species: str,
-    coord_name: str,
+    seqid: str,
     start: int | None = None,
     end: int | None = None,
 ) -> typing.Generator[Alignment]:
@@ -149,7 +149,7 @@ def get_alignment(
     # todo connect to annotation db that has been filtered for all records for
     #  each species that fall within the coordinates of the records
     align_records = align_db.get_records_matching(
-        species=species, coord_name=coord_name, start=start, end=end
+        species=species, seqid=seqid, start=start, end=end
     )
 
     # sample the sequences
@@ -162,10 +162,7 @@ def get_alignment(
         # coordinates for each species -- selecting their sequence and,
         # building the aligned instance, selecting the annotation subset.
         for align_record in block:
-            if (
-                align_record["species"] == species
-                and align_record["coord_name"] == coord_name
-            ):
+            if align_record["species"] == species and align_record["seqid"] == seqid:
                 # start, end are genomic positions and the align_record
                 # start / end are also genomic positions
                 genome_start = align_record["start"]
@@ -201,7 +198,7 @@ def get_alignment(
         for align_record in block:
             species = align_record["species"]
             genome = genomes[species]
-            coord_name = align_record["coord_name"]
+            seqid = align_record["seqid"]
             # We need to convert the alignment coordinates into sequence
             # coordinates for this species.
             genome_start = align_record["start"]
@@ -219,14 +216,14 @@ def get_alignment(
                 # if it's neg strand, the alignment start is the genome end
                 seq_start = gaps.seq_length - seq_end
             s = genome.get_seq(
-                coord_name=coord_name,
+                seqid=seqid,
                 start=genome_start + seq_start,
                 end=genome_start + seq_start + seq_length,
             )
             # we now trim the gaps for this sequence to the sub-alignment
             gaps = gaps[align_start:align_end]
 
-            s = make_seq(s, name=coord_name, moltype="dna")
+            s = make_seq(s, name=seqid, moltype="dna")
             if align_record["strand"] == "-":
                 s = s.rc()
 
