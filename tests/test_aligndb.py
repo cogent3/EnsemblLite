@@ -10,7 +10,7 @@ from ensembl_lite._aligndb import (
     GapPositions,
     get_alignment,
 )
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb
+from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
 from ensembl_lite.convert import seq_to_gap_coords
 
 
@@ -135,7 +135,7 @@ def genomedbs_aligndb(small_records):
     for name, seq in data.items():
         genome = CompressedGenomeSeqsDb(source=":memory:", species=name)
         genome.add_records(records=[(name, seq)])
-        genomes[species[name]] = genome
+        genomes[species[name]] = Genome(seqs=genome, annots=None, species=species[name])
 
     return genomes, align_db
 
@@ -265,7 +265,7 @@ def make_sample(two_aligns=False):
     annot_dbs = {}
     for name in aln.names:
         feature_db = aln.annotation_db.subset(seqid=name)
-        annot_dbs[species[name]] = feature_db
+        annot_dbs[name] = feature_db
 
     # we will reverse complement the s2 genome compared to the original
     # this means our coordinates for alignment records from that genome
@@ -279,7 +279,9 @@ def make_sample(two_aligns=False):
             s2_genome = str(seq)
         genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
         genome.add_records(records=[(name, str(seq))])
-        genomes[species[name]] = genome
+        genomes[species[name]] = Genome(
+            seqs=genome, annots=annot_dbs[name], species=species[name]
+        )
 
     # define two alignment blocks that incorporate features
     align_records = _update_records(s2_genome, aln, 0, 1, 12)
@@ -403,6 +405,22 @@ def test_select_alignment_minus_strand(start_end):
     )
     assert len(got) == 1
     assert got[0].to_dict() == expect.to_dict()
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1", None, 11),  # finish within
+        ("human", "s1", 3, None),  # start within
+        ("human", "s1", 3, 9),  # within
+        ("human", "s1", 3, 13),  # extends past
+    ),
+)
+def test_get_alignment_features(coord):
+    kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
+    genomes, align_db = make_sample(two_aligns=False)
+    got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    assert len(got.annotation_db) == 1
 
 
 @pytest.mark.parametrize(

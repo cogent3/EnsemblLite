@@ -67,9 +67,6 @@ class SiteMapABC(ABC):
         return self._trees_path
 
 
-OptStr = typing.Optional[str]
-
-
 @dataclass
 class SiteMap:
     """records the locations of specific attributes relative to an Ensembl release"""
@@ -77,9 +74,9 @@ class SiteMap:
     site: str
     _seqs_path: str = "fasta"
     _annotations_path: str = "gff3"
-    _alignments_path: OptStr = None
-    _homologies_path: OptStr = None
-    _trees_path: OptStr = None
+    _alignments_path: str | None = None
+    _homologies_path: str | None = None
+    _trees_path: str | None = None
 
 
 class EnsemblPrimary(SiteMapABC, SiteMap):

@@ -1,5 +1,6 @@
 import pytest
 
+from cogent3 import make_unaligned_seqs
 from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome, GenomeSeqsDb
@@ -42,7 +43,7 @@ def small_annots():
             name="gene-02",
             biotype="gene",
             spans=[(2, 4), (6, 8)],
-            strand="+",
+            strand="-",
         ),
     ]
 
@@ -60,6 +61,13 @@ def small_genome(small_data):
     db = GenomeSeqsDb(source=":memory:", species="dodo")
     db.add_records(records=small_data.items())
     return db, small_data
+
+
+@pytest.fixture(scope="function")
+def small_coll(small_data, small_annotdb):
+    seqs = make_unaligned_seqs(data=small_data, moltype="dna")
+    seqs.annotation_db = small_annotdb
+    return seqs
 
 
 @pytest.fixture(scope="function")
@@ -103,7 +111,7 @@ def test_selected_seq_is_annotated(small_genome, small_annotdb):
     gen_seqs_db, _ = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1")
-    assert seq.annotation_db == small_annotdb
+    assert len(seq.annotation_db) == 3
     gene = list(genome.get_features(seqid="s1", biotype="gene"))[0]
     gene_seq = gene.get_slice()
     assert str(gene_seq) == "AAAA"
@@ -126,3 +134,36 @@ def test_genome_close(small_genome, small_annotdb):
     genome.close()
     with pytest.raises(sqlite3.ProgrammingError):
         genome.get_seq(seqid="s1")
+
+
+@pytest.mark.parametrize("seqid", ("s1", "s2"))
+def test_get_seq_num_annotations_correct(
+    small_genome, small_annotdb, small_coll, seqid
+):
+    gen_seqs_db, small_data = small_genome
+    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    seq = genome.get_seq(seqid=seqid)
+    expect = list(small_coll.get_features(seqid=seqid))
+    assert len(seq.annotation_db) == len(expect)
+
+
+@pytest.mark.parametrize(
+    "seqid,feature_name,start,end",
+    (
+        ("s1", None, None, None),
+        ("s1", "gene-01", 2, 8),
+        ("s2", "gene-02", 1, 8),
+    ),
+)
+def test_get_seq_feature_seq_correct(
+    small_genome, small_annotdb, small_coll, seqid, feature_name, start, end
+):
+    gen_seqs_db, small_data = small_genome
+    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    seq = genome.get_seq(seqid=seqid, start=start, end=end)
+    coll_seq = small_coll.get_seq(seqid)
+    assert seq == coll_seq[start:end]
+    expect = list(coll_seq[start:end].get_features(allow_partial=True))[0]
+    got = list(seq.get_features(allow_partial=True))[0]
+    # should also get the same slice
+    assert got.get_slice() == expect.get_slice()
