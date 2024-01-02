@@ -52,22 +52,3 @@ def parse(path: os.PathLike) -> dict[MafName, str]:
     blocks = _get_alignment_block_indices(data)
     for block_start, block_end in blocks:
         yield _get_seqs(data[block_start:block_end])
-
-
-def demo(path):
-    with open_(path) as infile:
-        data = infile.readlines()
-
-    blocks = _get_alignment_block_indices(data)
-    _, end = blocks[3]
-    lines = [l[:1000] for l in data[:end]]
-    # we now shorten the sequences to the exact same length
-    for i, line in enumerate(lines):
-        if line.startswith("s"):
-            seq = line.split()[-1]
-            line = line.replace(seq, seq[:50])
-
-        lines[i] = line.strip() + "\n"
-
-    with open_("~/Desktop/Outbox/sample.maf", "w") as out:
-        out.writelines(lines)
