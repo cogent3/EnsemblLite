@@ -33,7 +33,7 @@ def md5sum(data: bytes, *args) -> str:
 # based on https://www.reddit.com/r/learnpython/comments/9bpgjl/implementing_bsd_16bit_checksum/
 # and https://www.gnu.org/software/coreutils/manual/html_node/sum-invocation.html#sum-invocation
 @numba.jit(nopython=True)
-def checksum(data: bytes, size: int):
+def checksum(data: bytes, size: int):  # pragma: no cover
     """computes BSD style checksum"""
     # equivalent to command line BSD sum
     nb = numpy.ceil(size / 1024)
@@ -56,7 +56,7 @@ def _get_resource_dir() -> os.PathLike:
 
     path = pathlib.Path(path).expanduser().absolute()
     if not path.exists():
-        raise ValueError("ENSEMBLDBRC directory '%s' does not exist")
+        raise ValueError(f"ENSEMBLDBRC directory {str(path)!r} does not exist")
 
     return pathlib.Path(path)
 
@@ -258,8 +258,9 @@ def _(path: str) -> bool:
 
 
 @functools.singledispatch
-def get_sig_calc_func(sig_path: os.PathLike) -> Callable:
-    return _sig_calc_funcs[sig_path.name]
+def get_sig_calc_func(sig_path) -> Callable:
+    """returns signature calculating function based on Ensembl path name"""
+    raise NotImplementedError(f"{type(sig_path)} not supported")
 
 
 @get_sig_calc_func.register
