@@ -13,7 +13,10 @@ from ensembl_lite._config import (
 from ensembl_lite.util import (
     elt_compress_it,
     elt_decompress_it,
+    exec_command,
     get_resource_path,
+    get_sig_calc_func,
+    is_signature,
     load_ensembl_checksum,
     load_ensembl_md5sum,
     trees_for_aligns,
@@ -218,3 +221,22 @@ def test_blosc_array():
     z = compressed_array_to_sqlite(arr)
     got = decompressed_sqlite_to_array(z)
     assert numpy.allclose(got, data)
+
+
+def test_get_sig_calc_func_invalid():
+    with pytest.raises(NotImplementedError):
+        get_sig_calc_func(2)
+
+
+def test_is_signature():
+    assert not is_signature("blah")
+
+
+def test_exec_command():
+    got = exec_command("ls")
+    assert isinstance(got, str)
+
+
+def test_exec_command_fail(capsys):
+    with pytest.raises(SystemExit):
+        exec_command("qwertyuiop")
