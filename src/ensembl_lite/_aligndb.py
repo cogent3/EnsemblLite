@@ -126,6 +126,10 @@ class AlignDb(SqliteDbMixin):
             results[record["block_id"]].append(AlignRecordType(**record))
         return results.values()
 
+    def get_species_names(self) -> typing.List[str]:
+        """return the list of species names"""
+        return list(self.get_distinct("species"))
+
 
 def get_alignment(
     align_db: AlignDb,

@@ -471,3 +471,8 @@ def test_align_db_get_records_no_matches(coord):
     _, align_db = make_sample()
     got = list(align_db.get_records_matching(**kwargs))
     assert not len(got)
+
+
+def test_get_species():
+    _, align_db = make_sample()
+    assert set(align_db.get_species_names()) == {"dog", "human", "mouse"}
