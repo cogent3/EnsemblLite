@@ -24,23 +24,32 @@ def _get_alignment_block_indices(data: list[str]) -> list[tuple[int]]:
     return blocks
 
 
+def process_maf_line(line: str) -> tuple[MafName, str]:
+    # after the s token we have src.seqid, start, size, strand, src_size, seq
+    _, src_coord, start, size, strand, coord_length, seq = line.strip().split()
+    species, coord = src_coord.split(".", maxsplit=1)
+    start, size, coord_length = int(start), int(size), int(coord_length)
+    if strand == "-":
+        start = coord_length - (start + size)
+
+    end = start + size
+    n = MafName(
+        species=species,
+        seqid=coord,
+        start=start,
+        end=end,
+        strand=strand,
+        coord_length=coord_length,
+    )
+    return n, seq
+
+
 def _get_seqs(lines: list[str]) -> dict[MafName, str]:
     alignment = {}
     for line in lines:
         if not line.startswith("s") or "ancestral" in line[:100]:
             continue
-        # after the s token we have src.seqid, start, size, strand, src_size, seq
-        _, src_coord, start, size, strand, coord_length, seq = line.strip().split()
-        species, coord = src_coord.split(".", maxsplit=1)
-        start, size, coord_length = int(start), int(size), int(coord_length)
-        n = MafName(
-            species=species,
-            seqid=coord,
-            start=start,
-            end=start + start,
-            strand=strand,
-            coord_length=coord_length,
-        )
+        n, seq = process_maf_line(line)
         alignment[n] = seq
     return alignment
 
