@@ -26,6 +26,8 @@ class AlignRecordType(typing.TypedDict):
 ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
 
 
+# todo add a table and methods to support storing the species tree used
+#  for the alignment and for getting the species tree
 class AlignDb(SqliteDbMixin):
     # table schema for user provided annotations
     table_name = "align"
@@ -125,6 +127,10 @@ class AlignDb(SqliteDbMixin):
             record = {k: record[k] for k in record.keys()}
             results[record["block_id"]].append(AlignRecordType(**record))
         return results.values()
+
+    def get_species_names(self) -> typing.List[str]:
+        """return the list of species names"""
+        return list(self.get_distinct("species"))
 
 
 def get_alignment(
