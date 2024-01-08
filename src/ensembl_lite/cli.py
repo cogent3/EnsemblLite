@@ -66,7 +66,24 @@ _installed = click.option(
     callback=_get_installed_config_path,
     help="string pointing to installation",
 )
-
+_outpath = click.option(
+    "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
+)
+_outdir = click.option(
+    "-od", "--outdir", required=True, type=pathlib.Path, help="path to write files"
+)
+_align_name = click.option(
+    "--align_name",
+    default=None,
+    help="Ensembl name of the alignment or a glob pattern, e.g. '*primates*'",
+)
+_ref = click.option("--ref", default=None, help="Reference species.")
+_ref_genes_file = click.option(
+    "--ref_genes_file",
+    default=None,
+    type=click.Path(resolve_path=True, exists=True),
+    help=".csv or .tsv file with a header containing a stableid column",
+)
 _limit = click.option(
     "--limit",
     type=int,
@@ -158,7 +175,7 @@ def download(configpath, debug, verbose):
 
     config = read_config(configpath)
     if not any((config.species_dbs, config.align_names)):
-        click.secho("No genomes, no alignments specified")
+        click.secho("No genomes, no alignments specified", fg="red")
         exit(1)
 
     if not config.species_dbs:
@@ -258,9 +275,105 @@ def installed(installed):
 
 @main.command(no_args_is_help=True)
 @_installed
-@click.option(
-    "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
-)
+@_outdir
+@_align_name
+@_ref
+@_ref_genes_file
+@_limit
+@_force
+@_verbose
+def alignments(
+    installed, outdir, align_name, ref, ref_genes_file, limit, force_overwrite, verbose
+):
+    """dump alignments for named genes"""
+    # todo support genomic coordinates, e.g. coord_name:start-end:strand, for
+    #  a reference species
+    from cogent3 import load_table
+
+    from ensembl_lite._aligndb import AlignDb, get_alignment
+    from ensembl_lite._genomedb import load_genome
+    from ensembl_lite.species import Species
+
+    if not ref:
+        click.secho(
+            "ERROR: must specify a reference genome",
+            fg="red",
+        )
+        exit(1)
+
+    if force_overwrite:
+        shutil.rmtree(outdir, ignore_errors=True)
+
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    config = read_installed_cfg(installed)
+    align_path = config.path_to_alignment(align_name)
+    if align_path is None:
+        click.secho(
+            f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
+            fg="red",
+        )
+        exit(1)
+    align_db = AlignDb(source=align_path)
+    ref_species = Species.get_ensembl_db_prefix(ref)
+    if ref_species not in align_db.get_species_names():
+        click.secho(
+            f"species {ref!r} does not in the alignment",
+            fg="red",
+        )
+        exit(1)
+
+    # load the gene stable ID's
+    table = load_table(ref_genes_file)
+    if "stableid" not in table.columns:
+        click.secho(
+            f"'stableid' column missing from {str(ref_genes_file)!r}",
+            fg="red",
+        )
+        exit(1)
+
+    stableids = table.columns["stableid"]
+
+    # get all the genomes
+    genomes = {
+        sp: load_genome(cfg=config, species=sp) for sp in align_db.get_species_names()
+    }
+    # then the coordinates for the id's
+    ref_genome = genomes[ref_species]
+    locations = []
+    for stableid in stableids:
+        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        if not record:
+            continue
+        elif len(record) == 1:
+            record = record[0]
+        locations.append(
+            (
+                stableid,
+                ref_species,
+                record["seqid"],
+                record["start"],
+                record["end"],
+            )
+        )
+
+    for stableid, species, seqid, start, end in locations:
+        alignments = list(get_alignment(align_db, genomes, species, seqid, start, end))
+        if alignments == 1:
+            # todo name the sequences by species common name?
+            outpath = outdir / f"{stableid}.fa.gz"
+            alignments[0].write(outpath)
+        elif len(alignments) > 1:
+            for i, aln in enumerate(alignments):
+                outpath = outdir / f"{stableid}-{i}.fa.gz"
+                aln.write(outpath)
+
+    click.secho("Done!", fg="green")
+
+
+@main.command(no_args_is_help=True)
+@_installed
+@_outpath
 @click.option(
     "-r",
     "--relationship",
