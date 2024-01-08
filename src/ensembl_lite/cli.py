@@ -26,6 +26,19 @@ from ensembl_lite.download import (
 )
 
 
+def _get_installed_config_path(ctx, param, path):
+    """path to installed.cfg"""
+    path = pathlib.Path(path)
+    if path.name == INSTALLED_CONFIG_NAME:
+        return path
+
+    path = path / INSTALLED_CONFIG_NAME
+    if not path.exists():
+        click.secho(f"{str(path)} missing", fg="red")
+        exit(1)
+    return path
+
+
 # defining some of the options
 _cfgpath = click.option(
     "-c",
@@ -45,6 +58,21 @@ _installation = click.option(
     "--installation",
     type=pathlib.Path,
     help="path to local installation directory",
+)
+_installed = click.option(
+    "-i",
+    "--installed",
+    required=True,
+    callback=_get_installed_config_path,
+    help="string pointing to installation",
+)
+
+_limit = click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Limit to this number of genes.",
+    show_default=True,
 )
 
 _verbose = click.option(
@@ -94,6 +122,27 @@ _nprocs = click.option(
 def main():
     """tools for obtaining and interrogating subsets of https://ensembl.org genomic data"""
     pass
+
+
+@main.command(no_args_is_help=True)
+@_dbrc_out
+def exportrc(outpath):
+    """exports sample config and species table to the nominated path
+
+    setting an environment variable ENSEMBLDBRC with this path
+    will force its contents to override the default ensembl_lite settings"""
+    from ensembl_lite.util import ENSEMBLDBRC
+
+    shutil.copytree(ENSEMBLDBRC, outpath)
+    # we assume all files starting with alphabetical characters are valid
+    for fn in pathlib.Path(outpath).glob("*"):
+        if not fn.stem.isalpha():
+            if fn.is_file():
+                fn.unlink()
+            else:
+                # __pycache__ directory
+                shutil.rmtree(fn)
+    click.secho(f"Contents written to {outpath}", fg="green")
 
 
 @main.command(no_args_is_help=True)
@@ -171,54 +220,40 @@ def install(download, num_procs, force_overwrite, verbose):
 
 
 @main.command(no_args_is_help=True)
-@_dbrc_out
-def exportrc(outpath):
-    """exports sample config and species table to the nominated path
+@_installed
+def installed(installed):
+    """show what is installed"""
+    from cogent3 import make_table
 
-    setting an environment variable ENSEMBLDBRC with this path
-    will force its contents to override the default ensembl_lite settings"""
-    from ensembl_lite.util import ENSEMBLDBRC
+    from ensembl_lite.species import Species
+    from ensembl_lite.util import rich_display
 
-    shutil.copytree(ENSEMBLDBRC, outpath)
-    # we assume all files starting with alphabetical characters are valid
-    for fn in pathlib.Path(outpath).glob("*"):
-        if not fn.stem.isalpha():
-            if fn.is_file():
-                fn.unlink()
-            else:
-                # __pycache__ directory
-                shutil.rmtree(fn)
-    click.secho(f"Contents written to {outpath}", fg="green")
+    config = read_installed_cfg(installed)
 
+    genome_dir = config.genomes_path
+    if genome_dir.exists():
+        species = [fn.name for fn in genome_dir.glob("*")]
+        data = {"species": [], "common name": []}
+        for name in species:
+            cn = Species.get_common_name(name, level="ignore")
+            if not cn:
+                continue
+            data["species"].append(name)
+            data["common name"].append(cn)
 
-def _get_installed_config_path(ctx, param, path):
-    """path to installed.cfg"""
-    path = pathlib.Path(path)
-    if path.name == INSTALLED_CONFIG_NAME:
-        return path
+        table = make_table(data=data, title="Installed genomes")
+        rich_display(table)
 
-    path = path / INSTALLED_CONFIG_NAME
-    if not path.exists():
-        click.secho(f"{str(path)} missing", fg="red")
-        exit(1)
-    return path
-
-
-_installed = click.option(
-    "-i",
-    "--installed",
-    required=True,
-    callback=_get_installed_config_path,
-    help="string pointing to installation",
-)
-
-_limit = click.option(
-    "--limit",
-    type=int,
-    default=None,
-    help="Limit to this number of genes.",
-    show_default=True,
-)
+    # TODO as above
+    compara_aligns = config.aligns_path
+    if compara_aligns.exists():
+        align_names = [
+            fn.stem for fn in compara_aligns.glob("*") if not fn.name.startswith(".")
+        ]
+        table = make_table(
+            data={"align name": align_names}, title="Installed whole genome alignments"
+        )
+        rich_display(table)
 
 
 @main.command(no_args_is_help=True)
@@ -294,43 +329,6 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
         outname = outpath / f"seqcoll-{group}.fasta"
         with outname.open(mode="w") as outfile:
             outfile.write("".join(txt))
-
-
-@main.command(no_args_is_help=True)
-@_installed
-def installed(installed):
-    """show what is installed"""
-    from cogent3 import make_table
-
-    from ensembl_lite.species import Species
-    from ensembl_lite.util import rich_display
-
-    config = read_installed_cfg(installed)
-
-    genome_dir = config.genomes_path
-    if genome_dir.exists():
-        species = [fn.name for fn in genome_dir.glob("*")]
-        data = {"species": [], "common name": []}
-        for name in species:
-            cn = Species.get_common_name(name, level="ignore")
-            if not cn:
-                continue
-            data["species"].append(name)
-            data["common name"].append(cn)
-
-        table = make_table(data=data, title="Installed genomes")
-        rich_display(table)
-
-    # TODO as above
-    compara_aligns = config.aligns_path
-    if compara_aligns.exists():
-        align_names = [
-            fn.stem for fn in compara_aligns.glob("*") if not fn.name.startswith(".")
-        ]
-        table = make_table(
-            data={"align name": align_names}, title="Installed whole genome alignments"
-        )
-        rich_display(table)
 
 
 def _species_names_from_csv(ctx, param, species):
