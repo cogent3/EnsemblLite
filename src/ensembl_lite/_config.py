@@ -1,4 +1,5 @@
 import configparser
+import fnmatch
 import os
 import pathlib
 
@@ -139,6 +140,27 @@ class InstalledConfig:
     def list_genomes(self):
         """returns list of installed genomes"""
         return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
+
+    def path_to_alignment(self, pattern: str) -> os.PathLike | None:
+        """returns the full path to alignment matching the name
+
+        Parameters
+        ----------
+        pattern
+            glob pattern for the Ensembl alignment name
+        """
+        align_dirs = [
+            d for d in self.aligns_path.glob("*") if fnmatch.fnmatch(d.name, pattern)
+        ]
+        if not align_dirs:
+            return None
+
+        if len(align_dirs) > 1:
+            raise ValueError(
+                f"{pattern!r} matches too many directories in {self.aligns_path}"
+            )
+
+        return align_dirs[0]
 
 
 def write_installed_cfg(config: Config) -> os.PathLike:
