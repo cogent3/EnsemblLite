@@ -5,7 +5,7 @@ from cogent3 import load_table
 from ensembl_lite._homologydb import (
     _HOMOLOGYDB_NAME,
     HomologyDb,
-    HomologyRecordType,
+    HomologyRecord,
     grouped_related,
     id_by_species_group,
 )
@@ -74,13 +74,13 @@ def test_hdb(o2o_db, gene_id):
 def orth_records():
     common = dict(relationship="ortholog_one2one")
     return [
-        HomologyRecordType(
+        HomologyRecord(
             species_1="a", gene_id_1="1", species_2="b", gene_id_2="2", **common
         ),  # grp 1
-        HomologyRecordType(
+        HomologyRecord(
             species_1="b", gene_id_1="2", species_2="c", gene_id_2="3", **common
         ),  # grp 1
-        HomologyRecordType(
+        HomologyRecord(
             species_1="a", gene_id_1="4", species_2="b", gene_id_2="5", **common
         ),
     ]
@@ -89,7 +89,7 @@ def orth_records():
 @pytest.fixture
 def hom_records(orth_records):
     return orth_records + [
-        HomologyRecordType(
+        HomologyRecord(
             species_1="a",
             gene_id_1="6",
             species_2="e",
