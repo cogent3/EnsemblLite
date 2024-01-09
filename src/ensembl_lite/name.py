@@ -101,7 +101,7 @@ class EnsemblDbName:
         return hash(self.name)
 
 
-@dataclass
+@dataclass(slots=True)
 class EmfName:
     """stores information from EMF SEQ records"""
 
@@ -130,7 +130,7 @@ class EmfName:
         return {attr: getattr(self, attr) for attr in attrs}
 
 
-@dataclass
+@dataclass(slots=True)
 class MafName:
     """stores source information from Maf records"""
 

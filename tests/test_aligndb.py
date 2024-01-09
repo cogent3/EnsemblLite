@@ -6,7 +6,7 @@ from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._aligndb import (
     AlignDb,
-    AlignRecordType,
+    AlignRecord,
     GapPositions,
     get_alignment,
 )
@@ -57,7 +57,7 @@ def make_records(start, end, block_id):
     for seq in aln.seqs:
         gs = seq.get_gapped_seq()
         c, s = seq_to_gap_coords(gs)
-        record = AlignRecordType(
+        record = AlignRecord(
             source="blah",
             species=species[seq.name],
             block_id=block_id,
@@ -85,10 +85,7 @@ def test_aligndb_records_match_input(small_records):
     db.add_records(records=small_records)
     got = list(db.get_records_matching(species="human", seqid="s1"))[0]
     for g, o in zip(got, orig_records):
-        g_spans = g.pop("gap_spans")
-        o_spans = o.pop("gap_spans")
         assert g == o
-        assert (g_spans == o_spans).all()
 
 
 @pytest.mark.parametrize("data", ("AB---CD--EF", "---ABCD--EF", "ABCD---EF--"))
@@ -310,10 +307,10 @@ def _update_records(s2_genome, aln, block_id, start, end):
     start = s2_genome.find(str(selected))
     end = start + len(selected)
     for record in align_records:
-        if record["seqid"] == "s2":
-            record["start"] = start
-            record["end"] = end
-            record["strand"] = "-"
+        if record.seqid == "s2":
+            record.start = start
+            record.end = end
+            record.strand = "-"
             break
     return align_records
 

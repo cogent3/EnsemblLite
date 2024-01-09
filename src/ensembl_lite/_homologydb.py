@@ -12,20 +12,27 @@ from ensembl_lite._db_base import SqliteDbMixin
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
 
 
-class HomologyRecordType(typing.TypedDict):
-    source: str
-    species_1: str
-    gene_id_1: str
-    prot_id_1: str
-    species_2: str
-    gene_id_2: str
-    prot_id_2: str
-    relationship: str
+@dataclasses.dataclass(slots=True, eq=True)
+class HomologyRecord:
+    source: str | None = None
+    species_1: str | None = None
+    gene_id_1: str | None = None
+    prot_id_1: str | None = None
+    species_2: str | None = None
+    gene_id_2: str | None = None
+    prot_id_2: str | None = None
+    relationship: str | None = None
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __setitem__(self, item, value):
+        setattr(self, item, value)
 
 
 def grouped_related(
-    data: list[HomologyRecordType],
-) -> typing.Iterable[tuple[tuple[str, str]]]:
+    data: list[HomologyRecord],
+) -> set[frozenset[tuple[str, str]]]:
     """determines related groups of genes
 
     Parameters
@@ -46,17 +53,18 @@ def grouped_related(
     # group have the same value
     grouped = {}
     for record in track(data, description="Grouping related...", transient=True):
-        sp1, id1 = record["species_1"], record["gene_id_1"]
-        sp2, id2 = record["species_2"], record["gene_id_2"]
-        pair = [(sp1, id1), (sp2, id2)]
-        if id1 in grouped:
-            val = grouped[id1]
-        elif id2 in grouped:
-            val = grouped[id2]
+        pair = [
+            (record.species_1, record.gene_id_1),
+            (record.species_2, record.gene_id_2),
+        ]
+        if record.gene_id_1 in grouped:
+            val = grouped[record.gene_id_1]
+        elif record.gene_id_2 in grouped:
+            val = grouped[record.gene_id_2]
         else:
             val = set()
         val.update(pair)
-        grouped[id1] = grouped[id2] = val
+        grouped[record.gene_id_1] = grouped[record.gene_id_2] = val
     return {frozenset(v) for v in grouped.values()}
 
 
@@ -111,12 +119,12 @@ class HomologyDb(SqliteDbMixin):
 
     def get_related_groups(
         self, relationship_type: str
-    ) -> typing.Iterable[tuple[tuple[str, str]]]:
+    ) -> set[frozenset[tuple[str, str]]]:
         """returns all groups of relationship type"""
         # get all gene ID's first
         sql = f"SELECT * from {self.table_name} WHERE relationship=?"
         results = [
-            HomologyRecordType(iter(zip(r.keys(), r)))
+            HomologyRecord(**dict(zip(r.keys(), r)))
             for r in self._execute_sql(sql, (relationship_type,)).fetchall()
         ]
         return grouped_related(results)
@@ -124,12 +132,12 @@ class HomologyDb(SqliteDbMixin):
 
 def load_homology_db(
     *,
-    cfg: InstalledConfig,
+    config: InstalledConfig,
 ) -> HomologyDb:
-    return HomologyDb(source=cfg.homologies_path / _HOMOLOGYDB_NAME)
+    return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class species_genes:
     """contains gene IDs for species"""
 

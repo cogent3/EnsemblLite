@@ -12,9 +12,18 @@ from cogent3.core.alignment import Alignment
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 
 
-class AlignRecordType(typing.TypedDict):
+@dataclass(slots=True)
+class AlignRecord:
+    """a record from an AlignDb
+
+    Notes
+    -----
+    Can return fields as attributes or like a dict using the field name as
+    a string.
+    """
+
     source: str
-    block_id: int
+    block_id: str
     species: str
     seqid: str
     start: int
@@ -22,8 +31,21 @@ class AlignRecordType(typing.TypedDict):
     strand: str
     gap_spans: numpy.ndarray
 
+    def __getitem__(self, item):
+        return getattr(self, item)
 
-ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
+    def __setitem__(self, item, value):
+        setattr(self, item, value)
+
+    def __eq__(self, other):
+        attrs = "source", "block_id", "species", "seqid", "start", "end", "strand"
+        for attr in attrs:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+        return (self.gap_spans == other.gap_spans).all()
+
+
+ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 
 # todo add a table and methods to support storing the species tree used
@@ -54,7 +76,7 @@ class AlignDb(SqliteDbMixin):
         self._db = None
         self._init_tables()
 
-    def add_records(self, records: typing.Sequence[AlignRecordType]):
+    def add_records(self, records: typing.Sequence[AlignRecord]):
         # bulk insert
         col_order = [
             row[1]
@@ -63,7 +85,7 @@ class AlignDb(SqliteDbMixin):
             ).fetchall()
         ]
         for i in range(len(records)):
-            records[i]["gap_spans"] = _compressed_array_proxy(records[i]["gap_spans"])
+            records[i].gap_spans = _compressed_array_proxy(records[i].gap_spans)
             records[i] = [records[i][c] for c in col_order]
 
         val_placeholder = ", ".join("?" * len(col_order))
@@ -77,7 +99,7 @@ class AlignDb(SqliteDbMixin):
         seqid: str,
         start: int | None,
         end: int | None,
-    ) -> list[int]:
+    ) -> list[str]:
         sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND seqid = ?"
         values = species, seqid
         if start is not None and end is not None:
@@ -102,10 +124,10 @@ class AlignDb(SqliteDbMixin):
         seqid: str,
         start: int | None = None,
         end: int | None = None,
-    ):
+    ) -> typing.Iterable[AlignRecord]:
         # make sure python, not numpy, integers
-        start = start if start is None else int(start)
-        end = end if end is None else int(end)
+        start = None if start is None else int(start)
+        end = None if end is None else int(end)
 
         # We need the block IDs for all records for a species whose coordinates
         # lie in the range (start, end). We then search for all records with
@@ -125,10 +147,11 @@ class AlignDb(SqliteDbMixin):
         results = defaultdict(list)
         for record in self.db.execute(sql, block_ids).fetchall():
             record = {k: record[k] for k in record.keys()}
-            results[record["block_id"]].append(AlignRecordType(**record))
+            results[record["block_id"]].append(AlignRecord(**record))
+
         return results.values()
 
-    def get_species_names(self) -> typing.List[str]:
+    def get_species_names(self) -> list[str]:
         """return the list of species names"""
         return list(self.get_distinct("species"))
 
@@ -158,19 +181,16 @@ def get_alignment(
         # and convert them to a GapPosition instance. We then convert
         # the ref_start, ref_end into align_start, align_end. Those values are
         # used for all other species -- they are converted into sequence
-        # coordinates for each species -- selecting their sequence and,
-        # building the aligned instance, selecting the annotation subset.
+        # coordinates for each species -- selecting their sequence,
+        # building the Aligned instance, and selecting the annotation subset.
         for align_record in block:
-            if (
-                align_record["species"] == ref_species
-                and align_record["seqid"] == seqid
-            ):
+            if align_record.species == ref_species and align_record.seqid == seqid:
                 # ref_start, ref_end are genomic positions and the align_record
                 # start / end are also genomic positions
-                genome_start = align_record["start"]
-                genome_end = align_record["end"]
+                genome_start = align_record.start
+                genome_end = align_record.end
                 gaps = GapPositions(
-                    align_record["gap_spans"], seq_length=genome_end - genome_start
+                    align_record.gap_spans, seq_length=genome_end - genome_start
                 )
 
                 # We use the GapPosition object to identify the alignment
@@ -183,7 +203,7 @@ def get_alignment(
                 seq_start = max(ref_start or genome_start, genome_start)
                 seq_end = min(ref_end or genome_end, genome_end)
                 # make these coordinates relative to the aligned segment
-                if align_record["strand"] == "-":
+                if align_record.strand == "-":
                     # if record is on minus strand, then genome end is
                     # the alignment start
                     seq_start, seq_end = genome_end - seq_end, genome_end - seq_start
@@ -199,15 +219,14 @@ def get_alignment(
 
         seqs = []
         for align_record in block:
-            record_species = align_record["species"]
+            record_species = align_record.species
             genome = genomes[record_species]
-            seqid = align_record["seqid"]
             # We need to convert the alignment coordinates into sequence
             # coordinates for this species.
-            genome_start = align_record["start"]
-            genome_end = align_record["end"]
+            genome_start = align_record.start
+            genome_end = align_record.end
             gaps = GapPositions(
-                align_record["gap_spans"], seq_length=genome_end - genome_start
+                align_record.gap_spans, seq_length=genome_end - genome_start
             )
 
             # We use the alignment indices derived for the reference sequence
@@ -215,12 +234,12 @@ def get_alignment(
             seq_start = gaps.from_align_to_seq_index(align_start)
             seq_end = gaps.from_align_to_seq_index(align_end)
             seq_length = seq_end - seq_start
-            if align_record["strand"] == "-":
+            if align_record.strand == "-":
                 # if it's neg strand, the alignment start is the genome end
                 seq_start = gaps.seq_length - seq_end
 
             s = genome.get_seq(
-                seqid=seqid,
+                seqid=align_record.seqid,
                 start=genome_start + seq_start,
                 end=genome_start + seq_start + seq_length,
                 namer=namer,
@@ -228,7 +247,7 @@ def get_alignment(
             # we now trim the gaps for this sequence to the sub-alignment
             gaps = gaps[align_start:align_end]
 
-            if align_record["strand"] == "-":
+            if align_record.strand == "-":
                 s = s.rc()
 
             aligned = gap_coords_to_seq(gaps.gaps, s)
@@ -238,6 +257,7 @@ def get_alignment(
 
 
 def _adjust_gap_starts(gaps: numpy.ndarray, new_start: int) -> numpy.ndarray:
+    """shift gap insertion positions relative to new_start"""
     return numpy.array([gaps.T[0] - new_start, gaps.T[1]], dtype=gaps.dtype).T
 
 
@@ -286,6 +306,7 @@ def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
     align_index
         position to seek
     """
+    # todo use numpy.searchsorted (a bisect algorithm)?
     assert gaps[0, 0] <= align_index  # must fall within the gaps
     total_gaps = 0
     for i, (gap_index, gap_length) in enumerate(gaps):
@@ -331,18 +352,28 @@ def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
     return False
 
 
-@dataclass
+@dataclass(slots=True)
 class GapPositions:
+    """records gap insertion index and length
+
+    Notes
+    -----
+    This very closely parallels the cogent3.core.location.Map class,
+    but is more memory efficient. When that class has been updated,
+    this can be removed.
+    """
+
     # 2D numpy int array,
     # each row is a gap
     # column 0 is sequence index of gap **relative to the alignment**
     # column 1 is gap length
     gaps: numpy.ndarray
+    # length of the underlying sequence
     seq_length: int
 
     def __post_init__(self):
         if not len(self.gaps):
-            # can get have a zero length array with shape != (0, 0)
+            # can get a zero length array with shape != (0, 0)
             # e.g. by slicing gaps[:0], but since there's no data
             # we force it to have zero elements on both dimensions
             self.gaps = self.gaps.reshape((0, 0))

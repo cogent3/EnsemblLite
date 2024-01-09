@@ -1,32 +1,20 @@
 import dataclasses
 import inspect
 import sqlite3
-import typing
 
 import numpy
 
 from ensembl_lite.util import blosc_compress_it, blosc_decompress_it
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class _compressed_array_proxy:
     """this exists only to automate conversion of a customised sqlite type"""
 
     array: numpy.ndarray
 
 
-class AlignRecordType(typing.TypedDict):
-    source: str
-    block_id: str
-    species: str
-    seqid: str
-    start: int
-    end: int
-    strand: str
-    gap_spans: numpy.ndarray
-
-
-ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
+ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 _compressor = blosc_compress_it()
 _decompressor = blosc_decompress_it()

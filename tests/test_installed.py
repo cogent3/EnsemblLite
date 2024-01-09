@@ -57,7 +57,7 @@ def test_get_genes(one_genome, make_seq_name):
 
     gene = list(
         get_seqs_for_ids(
-            cfg=config, species=species, names=[name], make_seq_name=make_seq_name
+            config=config, species=species, names=[name], make_seq_name=make_seq_name
         )
     )[0]
     expect = [ft.get_slice() for ft in seq.get_features(name=cds_name)][0]

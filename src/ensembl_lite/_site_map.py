@@ -67,7 +67,7 @@ class SiteMapABC(ABC):
         return self._trees_path
 
 
-@dataclass
+@dataclass(slots=True)
 class SiteMap:
     """records the locations of specific attributes relative to an Ensembl release"""
 
