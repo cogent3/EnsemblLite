@@ -19,6 +19,7 @@ from ensembl_lite.util import (
     is_signature,
     load_ensembl_checksum,
     load_ensembl_md5sum,
+    sanitise_stableid,
     trees_for_aligns,
 )
 
@@ -240,3 +241,11 @@ def test_exec_command():
 def test_exec_command_fail(capsys):
     with pytest.raises(SystemExit):
         exec_command("qwertyuiop")
+
+
+@pytest.mark.parametrize("biotype", ("gene", "exon"))
+def test_sanitise_stableid(biotype):
+    identifier = "ENSG00012"
+    stableid = f"{biotype}:{identifier}"
+    got = sanitise_stableid(stableid)
+    assert got == identifier

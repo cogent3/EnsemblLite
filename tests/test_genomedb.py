@@ -107,10 +107,10 @@ def test_annodb(small_annotdb):
     list(small_annotdb.get_features_matching(seqid="s1", biotype="gene"))
 
 
-def test_selected_seq_is_annotated(small_genome, small_annotdb):
+def test_selected_seq_is_annotated(small_genome, small_annotdb, namer):
     gen_seqs_db, _ = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
-    seq = genome.get_seq(seqid="s1")
+    seq = genome.get_seq(seqid="s1", namer=namer)
     assert len(seq.annotation_db) == 3
     gene = list(genome.get_features(seqid="s1", biotype="gene"))[0]
     gene_seq = gene.get_slice()
@@ -124,12 +124,12 @@ def test_hashable_genome(cls):
     assert hash(genome) == id(genome)
 
 
-def test_genome_close(small_genome, small_annotdb):
+def test_genome_close(small_genome, small_annotdb, namer):
     import sqlite3
 
     gen_seqs_db, _ = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
-    seq = genome.get_seq(seqid="s1")
+    seq = genome.get_seq(seqid="s1", namer=namer)
     assert seq
     genome.close()
     with pytest.raises(sqlite3.ProgrammingError):
@@ -138,11 +138,11 @@ def test_genome_close(small_genome, small_annotdb):
 
 @pytest.mark.parametrize("seqid", ("s1", "s2"))
 def test_get_seq_num_annotations_correct(
-    small_genome, small_annotdb, small_coll, seqid
+    small_genome, small_annotdb, small_coll, seqid, namer
 ):
     gen_seqs_db, small_data = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
-    seq = genome.get_seq(seqid=seqid)
+    seq = genome.get_seq(seqid=seqid, namer=namer)
     expect = list(small_coll.get_features(seqid=seqid))
     assert len(seq.annotation_db) == len(expect)
 
@@ -156,11 +156,11 @@ def test_get_seq_num_annotations_correct(
     ),
 )
 def test_get_seq_feature_seq_correct(
-    small_genome, small_annotdb, small_coll, seqid, feature_name, start, end
+    small_genome, small_annotdb, small_coll, seqid, feature_name, start, end, namer
 ):
     gen_seqs_db, small_data = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
-    seq = genome.get_seq(seqid=seqid, start=start, end=end)
+    seq = genome.get_seq(seqid=seqid, start=start, end=end, namer=namer)
     coll_seq = small_coll.get_seq(seqid)
     assert seq == coll_seq[start:end]
     expect = list(coll_seq[start:end].get_features(allow_partial=True))[0]

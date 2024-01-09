@@ -358,3 +358,16 @@ def blosc_decompress_it(data: bytes, as_bytearray=True) -> bytes:
 
 elt_compress_it = _str_to_bytes() + blosc_compress_it()
 elt_decompress_it = blosc_decompress_it() + _bytes_to_str()
+
+_biotypes = re.compile(r"(gene|transcript|exon|mRNA|rRNA|protein):")
+
+
+def sanitise_stableid(stableid: str) -> str:
+    """remove <biotype>:E.. from Ensembl stable ID
+
+    Notes
+    -----
+    The GFF3 files from Ensembl store identifiers as <biotype>:<identifier>,
+    this function removes redundant biotype component.
+    """
+    return _biotypes.sub("", stableid)

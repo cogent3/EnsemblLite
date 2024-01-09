@@ -73,7 +73,7 @@ def make_records(start, end, block_id):
 
 @pytest.fixture
 def small_records():
-    records = make_records(1, 5, 0)
+    records = make_records(1, 5, "0")
     return records
 
 
@@ -140,16 +140,18 @@ def genomedbs_aligndb(small_records):
     return genomes, align_db
 
 
-def test_building_alignment(genomedbs_aligndb):
+def test_building_alignment(genomedbs_aligndb, namer):
     genomes, align_db = genomedbs_aligndb
-    got = list(get_alignment(align_db, genomes, species="mouse", seqid="s2"))[0]
+    got = list(
+        get_alignment(align_db, genomes, ref_species="mouse", seqid="s2", namer=namer)
+    )[0]
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
 
 
 @pytest.mark.parametrize(
     "kwargs",
-    (dict(species="dodo", seqid="s2"),),
+    (dict(ref_species="dodo", seqid="s2"),),
 )
 def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
     genomes, align_db = genomedbs_aligndb
@@ -284,9 +286,9 @@ def make_sample(two_aligns=False):
         )
 
     # define two alignment blocks that incorporate features
-    align_records = _update_records(s2_genome, aln, 0, 1, 12)
+    align_records = _update_records(s2_genome, aln, "0", 1, 12)
     if two_aligns:
-        align_records += _update_records(s2_genome, aln, 1, 22, 30)
+        align_records += _update_records(s2_genome, aln, "1", 22, 30)
     align_db = AlignDb(source=":memory:")
     align_db.add_records(records=align_records)
 
@@ -332,7 +334,7 @@ def _update_records(s2_genome, aln, block_id, start, end):
         ("dog", "s3"),
     ),
 )
-def test_select_alignment_plus_strand(species_coord, start_end):
+def test_select_alignment_plus_strand(species_coord, start_end, namer):
     species, seqid = species_coord
     start, end = start_end
     aln = small_seqs()
@@ -343,10 +345,11 @@ def test_select_alignment_plus_strand(species_coord, start_end):
         get_alignment(
             align_db=align_db,
             genomes=genomes,
-            species=species,
+            ref_species=species,
             seqid=seqid,
-            start=start,
-            end=end,
+            ref_start=start,
+            ref_end=end,
+            namer=namer,
         )
     )
     assert len(got) == 1
@@ -362,7 +365,7 @@ def test_select_alignment_plus_strand(species_coord, start_end):
         (2, 7),
     ),
 )
-def test_select_alignment_minus_strand(start_end):
+def test_select_alignment_minus_strand(start_end, namer):
     species, seqid = "mouse", "s2"
     start, end = start_end
     aln = small_seqs()
@@ -397,10 +400,11 @@ def test_select_alignment_minus_strand(start_end):
         get_alignment(
             align_db=align_db,
             genomes=genomes,
-            species=species,
+            ref_species=species,
             seqid=seqid,
-            start=start,
-            end=end,
+            ref_start=start,
+            ref_end=end,
+            namer=namer,
         )
     )
     assert len(got) == 1
@@ -417,7 +421,7 @@ def test_select_alignment_minus_strand(start_end):
     ),
 )
 def test_get_alignment_features(coord):
-    kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
+    kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
     genomes, align_db = make_sample(two_aligns=False)
     got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
     assert len(got.annotation_db) == 1
