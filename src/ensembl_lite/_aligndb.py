@@ -181,8 +181,8 @@ def get_alignment(
         # and convert them to a GapPosition instance. We then convert
         # the ref_start, ref_end into align_start, align_end. Those values are
         # used for all other species -- they are converted into sequence
-        # coordinates for each species -- selecting their sequence and,
-        # building the aligned instance, selecting the annotation subset.
+        # coordinates for each species -- selecting their sequence,
+        # building the Aligned instance, and selecting the annotation subset.
         for align_record in block:
             if align_record.species == ref_species and align_record.seqid == seqid:
                 # ref_start, ref_end are genomic positions and the align_record
@@ -257,6 +257,7 @@ def get_alignment(
 
 
 def _adjust_gap_starts(gaps: numpy.ndarray, new_start: int) -> numpy.ndarray:
+    """shift gap insertion positions relative to new_start"""
     return numpy.array([gaps.T[0] - new_start, gaps.T[1]], dtype=gaps.dtype).T
 
 
@@ -305,6 +306,7 @@ def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
     align_index
         position to seek
     """
+    # todo use numpy.searchsorted (a bisect algorithm)?
     assert gaps[0, 0] <= align_index  # must fall within the gaps
     total_gaps = 0
     for i, (gap_index, gap_length) in enumerate(gaps):
@@ -352,16 +354,26 @@ def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
 
 @dataclass(slots=True)
 class GapPositions:
+    """records gap insertion index and length
+
+    Notes
+    -----
+    This very closely parallels the cogent3.core.location.Map class,
+    but is more memory efficient. When that class has been updated,
+    this can be removed.
+    """
+
     # 2D numpy int array,
     # each row is a gap
     # column 0 is sequence index of gap **relative to the alignment**
     # column 1 is gap length
     gaps: numpy.ndarray
+    # length of the underlying sequence
     seq_length: int
 
     def __post_init__(self):
         if not len(self.gaps):
-            # can get have a zero length array with shape != (0, 0)
+            # can get a zero length array with shape != (0, 0)
             # e.g. by slicing gaps[:0], but since there's no data
             # we force it to have zero elements on both dimensions
             self.gaps = self.gaps.reshape((0, 0))
