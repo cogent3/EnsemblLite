@@ -15,17 +15,6 @@ class _compressed_array_proxy:
     array: numpy.ndarray
 
 
-class AlignRecordType(typing.TypedDict):
-    source: str
-    block_id: str
-    species: str
-    seqid: str
-    start: int
-    end: int
-    strand: str
-    gap_spans: numpy.ndarray
-
-
 ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
 
 _compressor = blosc_compress_it()
