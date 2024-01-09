@@ -221,23 +221,23 @@ class Genome:
         self.annotations.db.close()
 
 
-def load_genome(*, cfg: InstalledConfig, species: str):
+def load_genome(*, config: InstalledConfig, species: str):
     """returns the Genome with bound seqs and features"""
-    genome_path = cfg.installed_genome(species) / _SEQDB_NAME
+    genome_path = config.installed_genome(species) / _SEQDB_NAME
     seqs = CompressedGenomeSeqsDb(source=genome_path, species=species)
-    ann_path = cfg.installed_genome(species) / _ANNOTDB_NAME
+    ann_path = config.installed_genome(species) / _ANNOTDB_NAME
     ann = GffAnnotationDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
 
 
 def get_seqs_for_ids(
     *,
-    cfg: InstalledConfig,
+    config: InstalledConfig,
     species: str,
     names: list[str],
     make_seq_name: typing.Callable = None,
 ) -> typing.Iterable[Sequence]:
-    genome = load_genome(cfg=cfg, species=species)
+    genome = load_genome(config=config, species=species)
     # is it possible to do batch query for all names?
     for name in names:
         feature = list(genome.get_features(name=f"%{name}"))[0]
@@ -279,4 +279,4 @@ def get_selected_seqs(species_gene_ids: species_genes, config: InstalledConfig) 
     """
     species = species_gene_ids.species
     gene_ids = species_gene_ids.gene_ids
-    return list(get_seqs_for_ids(cfg=config, species=species, names=gene_ids))
+    return list(get_seqs_for_ids(config=config, species=species, names=gene_ids))

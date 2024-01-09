@@ -337,7 +337,8 @@ def alignments(
 
     # get all the genomes
     genomes = {
-        sp: load_genome(cfg=config, species=sp) for sp in align_db.get_species_names()
+        sp: load_genome(config=config, species=sp)
+        for sp in align_db.get_species_names()
     }
     # then the coordinates for the id's
     ref_genome = genomes[ref_species]
@@ -399,7 +400,7 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
     outpath.mkdir(parents=True, exist_ok=True)
 
     config = read_installed_cfg(installed)
-    db = load_homology_db(cfg=config)
+    db = load_homology_db(config=config)
     related = db.get_related_groups(relationship_type=relationship)
     if limit:
         related = list(related)[:limit]

@@ -124,9 +124,9 @@ class HomologyDb(SqliteDbMixin):
 
 def load_homology_db(
     *,
-    cfg: InstalledConfig,
+    config: InstalledConfig,
 ) -> HomologyDb:
-    return HomologyDb(source=cfg.homologies_path / _HOMOLOGYDB_NAME)
+    return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
 
 
 @dataclasses.dataclass
