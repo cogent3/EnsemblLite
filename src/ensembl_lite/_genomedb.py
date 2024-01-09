@@ -14,8 +14,6 @@ from ensembl_lite.util import elt_compress_it, elt_decompress_it
 
 _SEQDB_NAME = "genome_sequence.seqdb"
 _ANNOTDB_NAME = "features.gff3db"
-# todo: make a variant that wraps a directory of compressed sequence files
-# todo: or compresses sequence records on write into db, and just inflates then returns substring
 
 
 class GenomeSeqsDb(SqliteDbMixin):
