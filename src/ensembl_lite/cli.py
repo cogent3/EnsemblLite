@@ -24,6 +24,7 @@ from ensembl_lite.download import (
     download_species,
     get_species_for_alignments,
 )
+from ensembl_lite.util import sanitise_stableid
 
 
 def _get_installed_config_path(ctx, param, path):
@@ -357,10 +358,10 @@ def alignments(
             )
         )
 
-    for stableid, species, seqid, start, end in locations:
+    for stableid, species, seqid, start, end in track(locations):
         alignments = list(get_alignment(align_db, genomes, species, seqid, start, end))
-        if alignments == 1:
-            # todo name the sequences by species common name?
+        stableid = sanitise_stableid(stableid)
+        if len(alignments) == 1:
             outpath = outdir / f"{stableid}.fa.gz"
             alignments[0].write(outpath)
         elif len(alignments) > 1:
