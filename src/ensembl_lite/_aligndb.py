@@ -77,7 +77,7 @@ class AlignDb(SqliteDbMixin):
         seqid: str,
         start: int | None,
         end: int | None,
-    ) -> list[int]:
+    ) -> list[str]:
         sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND seqid = ?"
         values = species, seqid
         if start is not None and end is not None:
