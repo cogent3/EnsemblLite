@@ -149,7 +149,12 @@ class Genome:
         self.annotations = annots
 
     def get_seq(
-        self, *, seqid: str, start: int | None = None, end: int | None = None
+        self,
+        *,
+        seqid: str,
+        start: int | None = None,
+        end: int | None = None,
+        namer: typing.Callable | None = None,
     ) -> str:
         """returns annotated sequence
 
@@ -163,17 +168,24 @@ class Genome:
         end
             ending position of slice in python coordinates, defaults
             to length of coordinate
-
+        namer
+            callback for naming the sequence. Callback must take four
+            arguments: species, seqid,start, end. Default is
+            species:seqid:start-end.
         Notes
         -----
         Annotations partially within region are included.
         """
         seq = self._seqs.get_seq(seqid=seqid, start=start, end=end)
-        seq = make_seq(seq, name=seqid, moltype="dna")
+        if namer:
+            name = namer(self.species, seqid, start, end)
+        else:
+            name = f"{self.species}:{seqid}:{start}-{end}"
+        seq = make_seq(seq, name=name, moltype="dna")
         if self.annotations:
             seq.annotation_offset = start or 0
             seq.annotation_db = self.annotations.subset(
-                seqid=seq.name, start=start, end=end, allow_partial=True
+                seqid=seqid, start=start, end=end, allow_partial=True
             )
         return seq
 
@@ -200,6 +212,8 @@ class Genome:
             except TypeError:
                 msg = f"ERROR (report me): {self.species!r}, {seqid!r}"
                 raise TypeError(msg)
+            # because self.get_seq() automatically names seqs differently
+            seq.name = seqid
             yield from seq.get_features(**kwargs)
 
     def close(self):
