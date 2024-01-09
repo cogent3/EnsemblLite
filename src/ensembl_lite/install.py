@@ -143,7 +143,7 @@ def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
         converted = []
         for maf_name, seq in align.items():
             record = maf_name.to_dict()
-            record["block_id"] = block_id
+            record["block_id"] = f"{path.name}-{block_id}"
             record["source"] = path.name
             record["seq"] = seq
             converted.append(seq2gaps(record))

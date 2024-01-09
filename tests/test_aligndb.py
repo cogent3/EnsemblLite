@@ -73,7 +73,7 @@ def make_records(start, end, block_id):
 
 @pytest.fixture
 def small_records():
-    records = make_records(1, 5, 0)
+    records = make_records(1, 5, "0")
     return records
 
 
@@ -284,9 +284,9 @@ def make_sample(two_aligns=False):
         )
 
     # define two alignment blocks that incorporate features
-    align_records = _update_records(s2_genome, aln, 0, 1, 12)
+    align_records = _update_records(s2_genome, aln, "0", 1, 12)
     if two_aligns:
-        align_records += _update_records(s2_genome, aln, 1, 22, 30)
+        align_records += _update_records(s2_genome, aln, "1", 22, 30)
     align_db = AlignDb(source=":memory:")
     align_db.add_records(records=align_records)
 

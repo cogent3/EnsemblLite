@@ -33,7 +33,7 @@ class AlignDb(SqliteDbMixin):
     table_name = "align"
     _align_schema = {
         "source": "TEXT",  # the file path
-        "block_id": "INT",  # an alignment number
+        "block_id": "TEXT",  # <source file path>-<alignment number>
         "species": "TEXT",
         "seqid": "TEXT",
         "start": "INTEGER",
