@@ -32,3 +32,12 @@ def tmp_config(tmp_dir):
         parser.write(out)
 
     yield download_cfg
+
+
+def name_as_seqid(species, seqid, start, end):
+    return seqid
+
+
+@pytest.fixture
+def namer():
+    return name_as_seqid
