@@ -129,7 +129,7 @@ def load_homology_db(
     return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class species_genes:
     """contains gene IDs for species"""
 

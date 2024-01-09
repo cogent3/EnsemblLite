@@ -331,7 +331,7 @@ def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
     return False
 
 
-@dataclass
+@dataclass(slots=True)
 class GapPositions:
     # 2D numpy int array,
     # each row is a gap

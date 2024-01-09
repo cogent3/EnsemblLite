@@ -8,7 +8,7 @@ import numpy
 from ensembl_lite.util import blosc_compress_it, blosc_decompress_it
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class _compressed_array_proxy:
     """this exists only to automate conversion of a customised sqlite type"""
 
