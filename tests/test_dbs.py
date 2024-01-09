@@ -5,7 +5,7 @@ import pytest
 
 from cogent3 import load_table
 
-from ensembl_lite._aligndb import AlignDb, AlignRecordType
+from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite.install import LoadHomologies, _load_one_align
 
@@ -31,7 +31,7 @@ def test_db_align(db_align):
 def test_db_align_add_records(db_align):
     gap_spans = numpy.array([[2, 5], [7, 1]], dtype=int)
     records = [
-        AlignRecordType(
+        AlignRecord(
             source="blah",
             block_id=42,
             species="human",

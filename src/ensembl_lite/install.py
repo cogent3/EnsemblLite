@@ -13,7 +13,7 @@ from cogent3.util import parallel as PAR
 from rich.progress import Progress, track
 
 from ensembl_lite import maf
-from ensembl_lite._aligndb import AlignDb
+from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
@@ -134,7 +134,7 @@ def local_install_genomes(
 def seq2gaps(record: dict):
     seq = make_seq(record.pop("seq"))
     record["gap_spans"], _ = seq_to_gap_coords(seq)
-    return record
+    return AlignRecord(**record)
 
 
 def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
