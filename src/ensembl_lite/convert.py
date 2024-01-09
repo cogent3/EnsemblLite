@@ -1,5 +1,3 @@
-import typing
-
 import numpy
 
 from cogent3 import Sequence
@@ -7,7 +5,7 @@ from cogent3.core.alignment import Aligned
 from cogent3.core.location import LostSpan, Map, Span
 
 
-O = typing.Tuple[numpy.ndarray, Sequence]
+O = tuple[numpy.ndarray, Sequence]
 
 
 def seq_to_gap_coords(seq: Sequence) -> O:

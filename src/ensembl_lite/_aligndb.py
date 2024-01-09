@@ -151,7 +151,7 @@ class AlignDb(SqliteDbMixin):
 
         return results.values()
 
-    def get_species_names(self) -> typing.List[str]:
+    def get_species_names(self) -> list[str]:
         """return the list of species names"""
         return list(self.get_distinct("species"))
 

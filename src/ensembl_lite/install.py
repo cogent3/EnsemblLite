@@ -30,7 +30,7 @@ def _rename(label: str) -> str:
     return label.split()[0]
 
 
-def _get_seqs(src: os.PathLike) -> typing.List[typing.Tuple[str, bytes]]:
+def _get_seqs(src: os.PathLike) -> list[tuple[str, bytes]]:
     with open_(src) as infile:
         data = infile.read().splitlines()
     name_seqs = list(MinimalFastaParser(data))
@@ -60,7 +60,7 @@ def _make_src_dest_annotation_paths(
     return [(path, dest) for path in paths]
 
 
-T = typing.Tuple[os.PathLike, typing.List[typing.Tuple[str, bytes]]]
+T = tuple[os.PathLike, list[tuple[str, bytes]]]
 
 
 def _prepped_seqs(

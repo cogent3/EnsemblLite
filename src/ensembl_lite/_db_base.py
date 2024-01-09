@@ -1,7 +1,6 @@
 import dataclasses
 import inspect
 import sqlite3
-import typing
 
 import numpy
 
@@ -15,7 +14,7 @@ class _compressed_array_proxy:
     array: numpy.ndarray
 
 
-ReturnType = typing.Tuple[str, tuple]  # the sql statement and corresponding values
+ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 _compressor = blosc_compress_it()
 _decompressor = blosc_decompress_it()
