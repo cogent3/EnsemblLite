@@ -136,33 +136,36 @@ class AlignDb(SqliteDbMixin):
 def get_alignment(
     align_db: AlignDb,
     genomes: dict,
-    species: str,
+    ref_species: str,
     seqid: str,
-    start: int | None = None,
-    end: int | None = None,
+    ref_start: int | None = None,
+    ref_end: int | None = None,
+    namer: typing.Callable | None = None,
 ) -> typing.Generator[Alignment]:
     """yields cogent3 Alignments"""
     from ensembl_lite.convert import gap_coords_to_seq
 
-    if species not in genomes:
-        raise ValueError(f"unknown species {species!r}")
+    if ref_species not in genomes:
+        raise ValueError(f"unknown species {ref_species!r}")
 
     align_records = align_db.get_records_matching(
-        species=species, seqid=seqid, start=start, end=end
+        species=ref_species, seqid=seqid, start=ref_start, end=ref_end
     )
 
     # sample the sequences
     for block in align_records:
-        seqs = []
         # we get the gaps corresponding to the reference sequence
         # and convert them to a GapPosition instance. We then convert
-        # the start, end into align_start, align_end. Those values are
+        # the ref_start, ref_end into align_start, align_end. Those values are
         # used for all other species -- they are converted into sequence
         # coordinates for each species -- selecting their sequence and,
         # building the aligned instance, selecting the annotation subset.
         for align_record in block:
-            if align_record["species"] == species and align_record["seqid"] == seqid:
-                # start, end are genomic positions and the align_record
+            if (
+                align_record["species"] == ref_species
+                and align_record["seqid"] == seqid
+            ):
+                # ref_start, ref_end are genomic positions and the align_record
                 # start / end are also genomic positions
                 genome_start = align_record["start"]
                 genome_end = align_record["end"]
@@ -171,14 +174,14 @@ def get_alignment(
                 )
 
                 # We use the GapPosition object to identify the alignment
-                # positions the start / end correspond to. The alignment
+                # positions the ref_start / ref_end correspond to. The alignment
                 # positions are used below for slicing each sequence in the
                 # alignment.
 
                 # make sure the sequence start and end are within this
                 # aligned block
-                seq_start = max(start or genome_start, genome_start)
-                seq_end = min(end or genome_end, genome_end)
+                seq_start = max(ref_start or genome_start, genome_start)
+                seq_end = min(ref_end or genome_end, genome_end)
                 # make these coordinates relative to the aligned segment
                 if align_record["strand"] == "-":
                     # if record is on minus strand, then genome end is
@@ -192,11 +195,12 @@ def get_alignment(
                 align_end = gaps.from_seq_to_align_index(seq_end)
                 break
         else:
-            raise ValueError(f"no matching alignment record for {species!r}")
+            raise ValueError(f"no matching alignment record for {ref_species!r}")
 
+        seqs = []
         for align_record in block:
-            species = align_record["species"]
-            genome = genomes[species]
+            record_species = align_record["species"]
+            genome = genomes[record_species]
             seqid = align_record["seqid"]
             # We need to convert the alignment coordinates into sequence
             # coordinates for this species.
@@ -219,6 +223,7 @@ def get_alignment(
                 seqid=seqid,
                 start=genome_start + seq_start,
                 end=genome_start + seq_start + seq_length,
+                namer=namer,
             )
             # we now trim the gaps for this sequence to the sub-alignment
             gaps = gaps[align_start:align_end]
