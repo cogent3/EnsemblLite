@@ -1,3 +1,5 @@
+from itertools import combinations
+
 import numpy
 import pytest
 
@@ -155,9 +157,53 @@ def test_gapped_convert_aln2seq_nongap_char(data, seq_index):
     seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    expect = data[:index].replace("-", "")
-    idx = gaps.from_align_to_seq_index(index)
-    assert idx == len(expect)
+    idx = gaps.from_align_to_seq_index(align_index)
+    assert idx == seq_index
+
+
+def _find_nth_gap_index(data: str, n: int) -> int:
+    num = -1
+    for i, c in enumerate(data):
+        if c == "-":
+            num += 1
+        if num == n:
+            return i
+    raise ValueError(f"{data=}, {n=}")
+
+
+def _get_expected_seqindex(data: str, align_index: int) -> int:
+    # compute the expected seqindex
+    refseq = data.replace("-", "")
+    got = data[align_index:].lstrip("-")
+    return refseq.find(got[0]) if got else len(refseq)
+
+
+@pytest.mark.parametrize(
+    "data",
+    (
+        "AB-----CDE-F--G",
+        "----ABC-DEFG---",
+        "AB--CDE-FG-----",
+        "ABCDE--FG------",
+        "--------ABCDEFG",
+        "-A-B-C-D-E-F-G-",
+    ),
+)
+@pytest.mark.parametrize("gap_number", range(8))
+def test_gapped_convert_aln2seq_gapchar(data, gap_number):
+    # test alignment indexes when aligned position IS a gap
+    # in this case we expect the position of the next non-gap
+    # to be the result
+    # find the alignment index corresponding to the
+    align_index = _find_nth_gap_index(data, gap_number)
+    assert data[align_index] == "-", (data, gap_number)
+    # find nearest non-gap
+    seq_index = _get_expected_seqindex(data, align_index)
+    seq = make_seq(data, moltype="text")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    idx = gaps.from_align_to_seq_index(align_index)
+    assert idx == seq_index
 
 
 def test_gapped_convert_aln2seq_invalid():
@@ -275,22 +321,7 @@ def test_all_gaps_in_slice():
 )
 @pytest.mark.parametrize(
     "slice",
-    (
-        slice(0, 2, None),
-        slice(0, 5, None),
-        slice(0, 7, None),
-        slice(0, 8, None),
-        slice(1, 9, None),
-        slice(2, 3, None),
-        slice(2, 4, None),
-        slice(2, 9, None),
-        slice(3, 8, None),
-        slice(3, 9, None),
-        slice(4, 6, None),
-        slice(4, 9, None),
-        slice(6, 9, None),
-        slice(8, 10, None),
-    ),
+    [slice(i, j) for i, j in combinations(range(10), 2)],
 )
 def test_variant_slices(data, slice):
     seq = make_seq(data, moltype="dna")
@@ -384,6 +415,9 @@ def test_select_alignment_plus_strand(species_coord, start_end, namer):
     species, seqid = species_coord
     start, end = start_end
     aln = small_seqs()
+    # the sample alignment db has an alignment block that
+    # starts at 1 and ends at 12. The following slice is to
+    # get the expected answer
     expect = aln[max(1, start or 1) : min(end or 12, 12)]
     # one sequence is stored in reverse complement
     genomes, align_db = make_sample()
