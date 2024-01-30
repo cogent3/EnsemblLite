@@ -88,7 +88,19 @@ def test_aligndb_records_match_input(small_records):
         assert g == o
 
 
-@pytest.mark.parametrize("data", ("AB---CD--EF", "---ABCD--EF", "ABCD---EF--"))
+@pytest.mark.parametrize(
+    "data",
+    (
+        "AB---CD--EF",
+        "---ABCD--EF",
+        "ABCD---EF--",
+        "-----ABCDEF",
+        "ABCDEF-----",
+        "-ABCDEF----",
+        "-A-B-C-D-EF",
+        "A-B-C-D-EF-",
+    ),
+)
 @pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
 def test_gapped_convert_seq2aln(data, index):
     # converting a sequence index to alignment index
@@ -100,10 +112,29 @@ def test_gapped_convert_seq2aln(data, index):
     assert data[idx] == ungapped[index]
 
 
-@pytest.mark.parametrize("data", ("AC--GTA-TG", "--GTA-TGAA", "AC--GTA---"))
-@pytest.mark.parametrize("index", range(10))
-def test_gapped_convert_aln2seq(data, index):
-    seq = make_seq(data, moltype="dna")
+@pytest.mark.parametrize(
+    "data",
+    (
+        "AB---CD--EF",
+        "---ABCD--EF",
+        "ABCD---EF--",
+        "-----ABCDEF",
+        "ABCDEF-----",
+        "-ABCDEF----",
+        "-A-B-C-D-EF",
+        "A-B-C-D-EF-",
+    ),
+)
+@pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
+def test_gapped_convert_seq2aln2seq(data, index):
+    # round tripping seq to alignment to seq indices
+    seq = make_seq(data, moltype="text")
+    g, s = seq_to_gap_coords(seq)
+    gaps = GapPositions(g, len(seq))
+    align_index = gaps.from_seq_to_align_index(index)
+    got = gaps.from_align_to_seq_index(align_index)
+    assert got == index
+
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
     expect = data[:index].replace("-", "")
