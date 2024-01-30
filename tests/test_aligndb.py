@@ -135,6 +135,24 @@ def test_gapped_convert_seq2aln2seq(data, index):
     got = gaps.from_align_to_seq_index(align_index)
     assert got == index
 
+
+@pytest.mark.parametrize(
+    "data",
+    (
+        "AB--CDE-FG",
+        "--ABC-DEFG",
+        "AB--CDE-FG--",
+        "ABCDE--FG---",
+        "-----ABCDEFG",
+        "-A-B-C-D-E-F-G-",
+    ),
+)
+@pytest.mark.parametrize("seq_index", range(7))
+def test_gapped_convert_aln2seq_nongap_char(data, seq_index):
+    # test alignment indexes when aligned position is NOT a gap
+    ungapped = "ABCDEFG"
+    align_index = data.find(ungapped[seq_index])
+    seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
     expect = data[:index].replace("-", "")
