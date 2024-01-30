@@ -256,100 +256,27 @@ def get_alignment(
         yield Alignment(seqs)
 
 
-def _adjust_gap_starts(gaps: numpy.ndarray, new_start: int) -> numpy.ndarray:
-    """shift gap insertion positions relative to new_start"""
-    return numpy.array([gaps.T[0] - new_start, gaps.T[1]], dtype=gaps.dtype).T
+def _gap_spans_cum_lengths(
+    gaps: numpy.ndarray,
+) -> tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]:
+    """returns 1D arrays in alignment coordinates of
+    gap start, gap end, cumulative gap length"""
+    if not len(gaps):
+        r = numpy.array([], dtype=gaps.dtype)
+        return r, r, r
 
+    cumsum = gaps[:, 1].cumsum()
+    sum_to_prev = 0
+    gap_starts = numpy.empty(gaps.shape[0], dtype=gaps.dtype)
+    gap_ends = numpy.empty(gaps.shape[0], dtype=gaps.dtype)
+    for i, (p, l) in enumerate(gaps):
+        gap_start = sum_to_prev + p
+        gap_end = gap_start + l
+        sum_to_prev = cumsum[i]
+        gap_starts[i] = gap_start
+        gap_ends[i] = gap_end
 
-def _ends_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
-    """
-    return the gaps array ending at align_index
-
-    Parameters
-    ----------
-    gaps
-        gaps are [[seq index, gap length], ...]
-    align_index
-        position to seek
-    """
-    assert gaps[0, 0] <= align_index  # must fall within the gaps
-    total_gaps = 0
-    for i, (gap_index, gap_length) in enumerate(gaps):
-        gap_start = gap_index + total_gaps
-        gap_end = gap_start + gap_length
-        # align index can fall between gaps or within a gap
-        if align_index <= gap_start:
-            new_gaps = gaps[:i]
-            break
-        elif gap_start < align_index <= gap_end:
-            # we end within a gap, so adjust the length of that gap
-            new_gaps = gaps[: i + 1]
-            new_gaps[-1, 1] = align_index - gap_start
-            break
-
-        total_gaps += gap_length
-    else:
-        # align_index is after the last gap, so result has all gaps
-        raise RuntimeError(f"{gaps=}  {align_index=}")  # not copying! bad idea?
-
-    return new_gaps
-
-
-def _starts_within_gap(gaps: numpy.ndarray, align_index: int) -> numpy.ndarray:
-    """
-    return the gaps array starting with align_index
-
-    Parameters
-    ----------
-    gaps
-        gaps are [[seq index, gap length], ...]
-    align_index
-        position to seek
-    """
-    # todo use numpy.searchsorted (a bisect algorithm)?
-    assert gaps[0, 0] <= align_index  # must fall within the gaps
-    total_gaps = 0
-    for i, (gap_index, gap_length) in enumerate(gaps):
-        gap_start = gap_index + total_gaps
-        gap_end = gap_start + gap_length
-        # align index can fall between gaps or within a gap
-        if gap_start <= align_index < gap_end:
-            new_gaps = gaps[i:]
-            gap_start_diff = align_index - gap_start
-            new_gaps[0, 1] = gap_length - gap_start_diff
-            break
-        elif align_index < gap_start:
-            new_gaps = gaps[i:]
-            break
-        elif align_index == gap_end:
-            new_gaps = gaps[i + 1 :]
-            break
-        total_gaps += gap_length
-    else:
-        # align_index is after the last gap, so result has all gaps
-        raise RuntimeError(f"{gaps=}  {align_index=}")
-
-    return new_gaps
-
-
-def _within_a_gap(gaps: numpy.ndarray, start: int, stop: int) -> bool:
-    """return True if start/stop fall within a gap
-
-    Parameters
-    ----------
-    gaps
-        numpy 2D array
-    start, stop
-        start and stop are align indices
-    """
-    # todo convert to numba
-    cumsum_gap_length = 0
-    for gap_start, gap_length in gaps:
-        gap_start += cumsum_gap_length
-        if gap_start <= start < stop <= gap_start + gap_length:
-            return True
-        cumsum_gap_length += gap_length
-    return False
+    return numpy.array(gap_starts), numpy.array(gap_ends), cumsum
 
 
 @dataclass(slots=True)
@@ -382,6 +309,9 @@ class GapPositions:
         self.gaps.flags.writeable = False
 
     def __getitem__(self, item: slice) -> typing.Self:
+        # we're assuming that this gap object is associated with a sequence
+        # that will also be sliced. Hence, we need to shift the gap insertion
+        # positions relative to this newly sliced sequence.
         if item.step:
             raise NotImplementedError(
                 f"{type(self).__name__!r} does not support strides"
@@ -393,45 +323,58 @@ class GapPositions:
             raise NotImplementedError(
                 f"{type(self).__name__!r} does not support negative indexes"
             )
-        total_gap_length = gaps[:, 1].sum() if len(gaps) else 0
-        if (
-            not total_gap_length
-            or stop <= gaps[0, 0]
-            or start > gaps[-1][0] + total_gap_length
-        ):
-            # no gaps or slice is before first gap or after last gap
-            gaps = numpy.empty(shape=(0, 0), dtype=gaps.dtype)
-            return type(self)(gaps=gaps, seq_length=stop - start)
 
-        if start < gaps[0, 0] and stop > gaps[-1, 0] + total_gap_length:
-            # slice result contains all gaps and shift gap left
-            gaps = _adjust_gap_starts(gaps, start)
-            seq_length = self.from_align_to_seq_index(stop) - start
-            return type(self)(gaps=gaps, seq_length=seq_length)
-        elif start < gaps[0, 0]:
-            # start is in seq coords, ends within gaps
-            seq_length = self.from_align_to_seq_index(stop) - start
-            gaps = _ends_within_gap(gaps, stop)
-            gaps = _adjust_gap_starts(gaps, start)
-        elif stop > total_gap_length + gaps[-1, 0]:
-            # slice starts within gaps
-            gaps = _starts_within_gap(gaps, start)
-            seq_start = self.from_align_to_seq_index(start)
-            gaps = _adjust_gap_starts(gaps, seq_start)
-            seq_length = self.from_align_to_seq_index(stop) - seq_start
-        elif _within_a_gap(gaps, start, stop):
-            # falls within a gap
-            gaps = numpy.array([[0, stop - start]], dtype=gaps.dtype)
-            return type(self)(gaps=gaps, seq_length=0)
+        # spans is in alignment indices
+        # [(gap start, gap end), ...]
+        gap_starts, gap_ends, cum_lengths = _gap_spans_cum_lengths(gaps)
+
+        if not len(gaps) or stop < gap_starts[0] or start >= gap_ends[-1]:
+            return type(self)(
+                gaps=numpy.array([], dtype=gaps.dtype), seq_length=stop - start
+            )
+
+        # second column of spans is gap ends
+        # which gaps does it fall between
+        l = numpy.searchsorted(gap_ends, start, side="left")
+        if gap_starts[l] <= start < gap_ends[l]:
+            # start is within a gap
+            begin = l
+            begin_diff = start - gap_starts[l]
+            gaps[l, 1] -= begin_diff
+            shift = start - cum_lengths[l - 1] - begin_diff if l else gaps[l, 0]
+        elif start == gap_ends[l]:
+            # at gap boundary
+            begin = l + 1
+            shift = start - cum_lengths[l]
         else:
-            # slice is within the gaps
-            gaps = _ends_within_gap(gaps, stop)
-            gaps = _starts_within_gap(gaps, start)
-            seq_start = self.from_align_to_seq_index(start)
-            gaps = _adjust_gap_starts(gaps, seq_start)
-            seq_length = self.from_align_to_seq_index(stop) - seq_start
+            # not within a gap
+            begin = l
+            shift = start - cum_lengths[l - 1] if l else start
 
-        return type(self)(gaps=gaps, seq_length=seq_length)
+        # start search for end from l index
+        r = numpy.searchsorted(gap_ends[l:], stop, side="right") + l
+        if r == len(gaps):
+            # stop is after last gap
+            end = r
+        elif gap_starts[r] < stop <= gap_ends[r]:
+            # within gap
+            end = r + 1
+            end_diff = gap_ends[r] - stop
+            gaps[r, 1] -= end_diff
+        else:
+            end = r
+
+        result = gaps[begin:end]
+        result[:, 0] -= shift
+        if not len(result):
+            # no gaps
+            seq_length = stop - start
+        else:
+            seq_length = self.from_align_to_seq_index(
+                stop
+            ) - self.from_align_to_seq_index(start)
+
+        return type(self)(gaps=result, seq_length=seq_length)
 
     def __len__(self):
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
@@ -460,17 +403,16 @@ class GapPositions:
             )
 
         # TODO convert this to numba function
-        gaps = self.gaps.copy()
         total_gaps = 0
-        for gap_index, gap_length in gaps:
-            gap_start = gap_index + total_gaps
-            gap_end = gap_start + gap_length
-            if align_index < gap_start:
+        for seq_pos, gap_length in self.gaps:
+            aln_start = seq_pos + total_gaps
+            aln_end = aln_start + gap_length
+            if align_index < aln_start:
                 seq_index = align_index - total_gaps
                 break
-            if gap_start <= align_index <= gap_end:
+            if aln_start <= align_index <= aln_end:
                 # align_index between gaps
-                seq_index = gap_index
+                seq_index = seq_pos
                 break
             total_gaps += gap_length
         else:
