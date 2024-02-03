@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shutil
 
@@ -24,10 +25,11 @@ from ensembl_lite.download import (
     download_species,
     get_species_for_alignments,
 )
+from ensembl_lite.species import Species
 from ensembl_lite.util import sanitise_stableid
 
 
-def _get_installed_config_path(ctx, param, path):
+def _get_installed_config_path(ctx, param, path) -> os.PathLike:
     """path to installed.cfg"""
     path = pathlib.Path(path)
     if path.name == INSTALLED_CONFIG_NAME:
@@ -38,6 +40,25 @@ def _get_installed_config_path(ctx, param, path):
         click.secho(f"{str(path)} missing", fg="red")
         exit(1)
     return path
+
+
+def _species_names_from_csv(ctx, param, species) -> list[str] | None:
+    """returns species names"""
+    if species is None:
+        return
+
+    db_names = []
+    for name in species.split(","):
+        name = name.strip()
+        try:
+            db_name = Species.get_ensembl_db_prefix(name)
+        except ValueError:
+            click.secho(f"ERROR: unknown species {name!r}", fg="red")
+            exit(1)
+
+        db_names.append(db_name)
+
+    return db_names
 
 
 # defining some of the options
@@ -131,6 +152,22 @@ _nprocs = click.option(
     type=int,
     default=None,
     help="number of procs to use, defaults to all",
+)
+
+
+_outdir = click.option(
+    "--outdir",
+    type=pathlib.Path,
+    default=".",
+    help="Output directory name.",
+    show_default=True,
+)
+
+_species = click.option(
+    "--species",
+    required=True,
+    callback=_species_names_from_csv,
+    help="Single species name, or multiple (comma separated).",
 )
 
 
@@ -272,6 +309,29 @@ def installed(installed):
             data={"align name": align_names}, title="Installed whole genome alignments"
         )
         rich_display(table)
+
+
+@main.command(no_args_is_help=True)
+@_installed
+@_species
+def species_summary(installed, species):
+    """genome summary data for a species"""
+    from ._genomedb import get_annotations_for_species, get_species_summary
+    from .util import rich_display
+
+    config = read_installed_cfg(installed)
+    if species is None:
+        click.secho("ERROR: a species name is required", fg="red")
+        exit(1)
+
+    if len(species) > 1:
+        click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
+        exit(1)
+
+    species = species[0]
+    annot_db = get_annotations_for_species(config=config, species=species)
+    summary = get_species_summary(annot_db=annot_db, species=species)
+    rich_display(summary)
 
 
 @main.command(no_args_is_help=True)
@@ -446,28 +506,6 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
             outfile.write("".join(txt))
 
 
-def _species_names_from_csv(ctx, param, species):
-    """returns species names"""
-    if species is not None:
-        species = [s.strip().lower() for s in species.split(",")]
-    return species
-
-
-_species = click.option(
-    "--species",
-    required=True,
-    callback=_species_names_from_csv,
-    help="Single species name, or multiple (comma separated).",
-)
-_outdir = click.option(
-    "--outdir",
-    type=pathlib.Path,
-    required=True,
-    default="gene_metadata.tsv",
-    help="Output file name.",
-)
-
-
 @main.command(no_args_is_help=True)
 @_installed
 @_species
@@ -475,45 +513,27 @@ _outdir = click.option(
 @_limit
 def dump_genes(installed, species, outdir, limit):
     """Dump meta data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
-    from cogent3 import make_table
-    from cogent3.core.annotation_db import GffAnnotationDb
+    from ensembl_lite._genomedb import (
+        get_annotations_for_species,
+        get_gene_table_for_species,
+    )
 
     config = read_installed_cfg(installed)
-    species = species[0]
-    path = config.installed_genome(species=species)
-    if not path.exists():
-        click.secho(f"{species!r} not in {str(installed.parent)!r}", fg="red")
+    if species is None:
+        click.secho("ERROR: a species name is required", fg="red")
         exit(1)
 
-    # TODO: this filename should be defined in one place
-    path = path / "features.gff3db"
-    if not path.exists():
-        click.secho(f"{path.name!r} is missing", fg="red")
+    if len(species) > 1:
+        click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
         exit(1)
 
-    annot_db = GffAnnotationDb(source=path)
-    rows = []
-    columns = [
-        "name",
-        "seqid",
-        "source",
-        "biotype",
-        "start",
-        "end",
-        "score",
-        "strand",
-        "phase",
-    ]
-    for i, record in track(enumerate(annot_db.get_records_matching(biotype="gene"))):
-        rows.append([record[c] for c in columns])
-        if i == limit:
-            break
-
-    table = make_table(header=columns, data=rows)
+    annot_db = get_annotations_for_species(config=config, species=species[0])
+    path = annot_db.source
+    table = get_gene_table_for_species(annot_db=annot_db, limit=limit)
     outdir.mkdir(parents=True, exist_ok=True)
     outpath = outdir / f"{path.parent.stem}-{config.release}-gene_metadata.tsv"
     table.write(outpath)
-    click.secho(f"Finished wrote {str(outpath)!r}!", fg="green")
+    click.secho(f"Finished: wrote {str(outpath)!r}!", fg="green")
 
 
 if __name__ == "__main__":

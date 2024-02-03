@@ -3,7 +3,13 @@ import pytest
 from cogent3 import make_unaligned_seqs
 from cogent3.core.annotation_db import GffAnnotationDb
 
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome, GenomeSeqsDb
+from ensembl_lite._genomedb import (
+    CompressedGenomeSeqsDb,
+    Genome,
+    GenomeSeqsDb,
+    get_gene_table_for_species,
+    get_species_summary,
+)
 from ensembl_lite.util import elt_compress_it
 
 
@@ -167,3 +173,21 @@ def test_get_seq_feature_seq_correct(
     got = list(seq.get_features(allow_partial=True))[0]
     # should also get the same slice
     assert got.get_slice() == expect.get_slice()
+
+
+def test_get_gene_table_for_species(small_annotdb):
+    from cogent3.util.table import Table
+
+    # we do not check values here, only the Type and that we have > 0 records
+    got = get_gene_table_for_species(annot_db=small_annotdb, limit=None, species="none")
+    assert isinstance(got, Table)
+    assert len(got) > 0
+
+
+def test_get_species_summary(small_annotdb):
+    from cogent3.util.table import Table
+
+    got = get_species_summary(annot_db=small_annotdb, species="none")
+    # we do not check values here, only the Type and that we have > 0 records
+    assert isinstance(got, Table)
+    assert len(got) > 0
