@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shutil
 
@@ -24,10 +25,11 @@ from ensembl_lite.download import (
     download_species,
     get_species_for_alignments,
 )
+from ensembl_lite.species import Species
 from ensembl_lite.util import sanitise_stableid
 
 
-def _get_installed_config_path(ctx, param, path):
+def _get_installed_config_path(ctx, param, path) -> os.PathLike:
     """path to installed.cfg"""
     path = pathlib.Path(path)
     if path.name == INSTALLED_CONFIG_NAME:
@@ -38,6 +40,25 @@ def _get_installed_config_path(ctx, param, path):
         click.secho(f"{str(path)} missing", fg="red")
         exit(1)
     return path
+
+
+def _species_names_from_csv(ctx, param, species) -> list[str] | None:
+    """returns species names"""
+    if species is None:
+        return
+
+    db_names = []
+    for name in species.split(","):
+        name = name.strip()
+        try:
+            db_name = Species.get_ensembl_db_prefix(name)
+        except ValueError:
+            click.secho(f"ERROR: unknown species {name!r}", fg="red")
+            exit(1)
+
+        db_names.append(db_name)
+
+    return db_names
 
 
 # defining some of the options
