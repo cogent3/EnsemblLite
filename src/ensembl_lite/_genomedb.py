@@ -1,10 +1,13 @@
 import typing
 
-from cogent3 import make_seq
+import click
+
+from cogent3 import make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
+from cogent3.util.table import Table
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
@@ -278,3 +281,57 @@ def get_selected_seqs(species_gene_ids: species_genes, config: InstalledConfig) 
     species = species_gene_ids.species
     gene_ids = species_gene_ids.gene_ids
     return list(get_seqs_for_ids(config=config, species=species, names=gene_ids))
+
+
+def get_annotations_for_species(
+    *, config: InstalledConfig, species: str
+) -> GffAnnotationDb:
+    """returns the annotation Db for species"""
+    path = config.installed_genome(species=species)
+    if not path.exists():
+        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
+        exit(1)
+    # TODO: this filename should be defined in one place
+    path = path / "features.gff3db"
+    if not path.exists():
+        click.secho(f"{path.name!r} is missing", fg="red")
+        exit(1)
+    return GffAnnotationDb(source=path)
+
+
+def get_gene_table_for_species(
+    *, annot_db: GffAnnotationDb, limit: int | None, species: str | None = None
+) -> Table:
+    """
+    returns gene data from a GffDb
+
+    Parameters
+    ----------
+    annot_db
+        feature db
+    limit
+        limit number of records to
+    species
+        species name, overrides inference from annot_db.source
+    """
+    species = species or annot_db.source.parent.name
+
+    columns = (
+        "species",
+        "name",
+        "seqid",
+        "source",
+        "biotype",
+        "start",
+        "end",
+        "score",
+        "strand",
+        "phase",
+    )
+    rows = []
+    for i, record in enumerate(annot_db.get_records_matching(biotype="gene")):
+        rows.append([species] + [record.get(c, None) for c in columns[1:]])
+        if i == limit:
+            break
+
+    return make_table(header=columns, data=rows)
