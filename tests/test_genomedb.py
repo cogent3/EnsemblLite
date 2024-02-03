@@ -179,7 +179,7 @@ def test_get_gene_table_for_species(small_annotdb):
     from cogent3.util.table import Table
 
     # we do not check values here, only the Type and that we have > 0 records
-    got = get_gene_table_for_species(annot_db=small_annotdb, limit=None)
+    got = get_gene_table_for_species(annot_db=small_annotdb, limit=None, species="none")
     assert isinstance(got, Table)
     assert len(got) > 0
 
