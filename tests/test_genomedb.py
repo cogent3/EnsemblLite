@@ -8,6 +8,7 @@ from ensembl_lite._genomedb import (
     Genome,
     GenomeSeqsDb,
     get_gene_table_for_species,
+    get_species_summary,
 )
 from ensembl_lite.util import elt_compress_it
 
@@ -179,5 +180,14 @@ def test_get_gene_table_for_species(small_annotdb):
 
     # we do not check values here, only the Type and that we have > 0 records
     got = get_gene_table_for_species(annot_db=small_annotdb, limit=None)
+    assert isinstance(got, Table)
+    assert len(got) > 0
+
+
+def test_get_species_summary(small_annotdb):
+    from cogent3.util.table import Table
+
+    got = get_species_summary(annot_db=small_annotdb, species="none")
+    # we do not check values here, only the Type and that we have > 0 records
     assert isinstance(got, Table)
     assert len(got) > 0

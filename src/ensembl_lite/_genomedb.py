@@ -335,3 +335,33 @@ def get_gene_table_for_species(
             break
 
     return make_table(header=columns, data=rows)
+
+
+def get_species_summary(
+    *, annot_db: GffAnnotationDb, species: str | None = None
+) -> Table:
+    """
+    returns the Table summarising data for species_name
+
+    Parameters
+    ----------
+    annot_db
+        feature db
+    species
+        species name, overrides inference from annot_db.source
+    """
+    from .species import Species
+
+    # for now, just biotype
+    species = species or annot_db.source.parent.name
+    counts = annot_db.biotype_counts()
+    try:
+        common_name = Species.get_common_name(species)
+    except ValueError:
+        common_name = species
+
+    return Table(
+        header=("biotype", "count"),
+        data=list(counts.items()),
+        title=f"{common_name} features",
+    )
