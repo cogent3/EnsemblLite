@@ -42,14 +42,21 @@ def _get_installed_config_path(ctx, param, path) -> os.PathLike:
     return path
 
 
+def _values_from_csv(ctx, param, value) -> list[str] | None:
+    if value is None:
+        return
+
+    return [f.strip() for f in value.split(",")]
+
+
 def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     """returns species names"""
+    species = _values_from_csv(ctx, param, species)
     if species is None:
         return
 
     db_names = []
-    for name in species.split(","):
-        name = name.strip()
+    for name in species:
         try:
             db_name = Species.get_ensembl_db_prefix(name)
         except ValueError:
