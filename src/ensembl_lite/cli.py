@@ -426,7 +426,7 @@ def alignments(
     ref_genome = genomes[ref_species]
     locations = []
     for stableid in stableids:
-        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
         if not record:
             continue
         elif len(record) == 1:

@@ -147,7 +147,7 @@ class Genome:
     ) -> None:
         self.species = species
         self._seqs = seqs
-        self.annotations = annots
+        self.annotation_db = annots
 
     def get_seq(
         self,
@@ -183,9 +183,9 @@ class Genome:
         else:
             name = f"{self.species}:{seqid}:{start}-{end}"
         seq = make_seq(seq, name=name, moltype="dna")
-        if self.annotations:
+        if self.annotation_db:
             seq.annotation_offset = start or 0
-            seq.annotation_db = self.annotations.subset(
+            seq.annotation_db = self.annotation_db.subset(
                 seqid=seqid, start=start, end=end, allow_partial=True
             )
         return seq
@@ -205,7 +205,7 @@ class Genome:
             seqids = [seqid]
         else:
             seqids = {
-                ft["seqid"] for ft in self.annotations.get_features_matching(**kwargs)
+                ft["seqid"] for ft in self.annotation_db.get_features_matching(**kwargs)
             }
         for seqid in seqids:
             try:
@@ -219,7 +219,7 @@ class Genome:
 
     def close(self):
         self._seqs.close()
-        self.annotations.db.close()
+        self.annotation_db.db.close()
 
 
 def load_genome(*, config: InstalledConfig, species: str):
