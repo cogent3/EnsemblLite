@@ -42,14 +42,21 @@ def _get_installed_config_path(ctx, param, path) -> os.PathLike:
     return path
 
 
+def _values_from_csv(ctx, param, value) -> list[str] | None:
+    if value is None:
+        return
+
+    return [f.strip() for f in value.split(",")]
+
+
 def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     """returns species names"""
+    species = _values_from_csv(ctx, param, species)
     if species is None:
         return
 
     db_names = []
-    for name in species.split(","):
-        name = name.strip()
+    for name in species:
         try:
             db_name = Species.get_ensembl_db_prefix(name)
         except ValueError:
@@ -168,6 +175,12 @@ _species = click.option(
     required=True,
     callback=_species_names_from_csv,
     help="Single species name, or multiple (comma separated).",
+)
+
+_mask_features = click.option(
+    "--mask_features",
+    callback=_values_from_csv,
+    help="biotypes to mask (comma separated).",
 )
 
 
@@ -340,11 +353,20 @@ def species_summary(installed, species):
 @_align_name
 @_ref
 @_ref_genes_file
+@_mask_features
 @_limit
 @_force
 @_verbose
 def alignments(
-    installed, outdir, align_name, ref, ref_genes_file, limit, force_overwrite, verbose
+    installed,
+    outdir,
+    align_name,
+    ref,
+    ref_genes_file,
+    mask_features,
+    limit,
+    force_overwrite,
+    verbose,
 ):
     """dump alignments for named genes"""
     # todo support genomic coordinates, e.g. coord_name:start-end:strand, for
@@ -379,7 +401,7 @@ def alignments(
     ref_species = Species.get_ensembl_db_prefix(ref)
     if ref_species not in align_db.get_species_names():
         click.secho(
-            f"species {ref!r} does not in the alignment",
+            f"species {ref!r} not in the alignment",
             fg="red",
         )
         exit(1)
@@ -404,7 +426,7 @@ def alignments(
     ref_genome = genomes[ref_species]
     locations = []
     for stableid in stableids:
-        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
         if not record:
             continue
         elif len(record) == 1:
@@ -419,6 +441,9 @@ def alignments(
             )
         )
 
+    if limit:
+        locations = locations[:limit]
+
     for stableid, species, seqid, start, end in track(locations):
         alignments = list(get_alignment(align_db, genomes, species, seqid, start, end))
         stableid = sanitise_stableid(stableid)
@@ -427,6 +452,7 @@ def alignments(
             alignments[0].write(outpath)
         elif len(alignments) > 1:
             for i, aln in enumerate(alignments):
+                aln = aln.with_masked_annotations(biotypes=mask_features)
                 outpath = outdir / f"{stableid}-{i}.fa.gz"
                 aln.write(outpath)
 

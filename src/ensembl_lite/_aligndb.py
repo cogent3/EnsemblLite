@@ -51,7 +51,6 @@ ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 # todo add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
 class AlignDb(SqliteDbMixin):
-    # table schema for user provided annotations
     table_name = "align"
     _align_schema = {
         "source": "TEXT",  # the file path
