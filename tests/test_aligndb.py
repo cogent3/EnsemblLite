@@ -3,7 +3,7 @@ from itertools import combinations
 import numpy
 import pytest
 
-from cogent3 import make_seq
+from cogent3 import load_aligned_seqs, make_seq
 from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._aligndb import (
@@ -593,3 +593,6 @@ def test_write_alignments(tmp_path):
         ref_species="human",
         show_progress=False,
     )
+    aln_path = list(tmp_path.glob("*"))[0]
+    aln = load_aligned_seqs(aln_path, moltype="dna")
+    assert len(aln) == 3
