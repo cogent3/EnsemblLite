@@ -2,13 +2,14 @@
 # https://genome.ucsc.edu/FAQ/FAQformat.html#format5
 
 import os
+import typing
 
 from cogent3 import open_
 
-from ensembl_lite.name import MafName
+from ensembl_lite._name import MafName
 
 
-def _get_alignment_block_indices(data: list[str]) -> list[tuple[int]]:
+def _get_alignment_block_indices(data: list[str]) -> list[tuple[int, int]]:
     blocks = []
     start = None
     for i, line in enumerate(data):
@@ -54,7 +55,7 @@ def _get_seqs(lines: list[str]) -> dict[MafName, str]:
     return alignment
 
 
-def parse(path: os.PathLike) -> dict[MafName, str]:
+def parse(path: os.PathLike) -> typing.Iterable[dict[MafName, str]]:
     with open_(path) as infile:
         data = infile.readlines()
 

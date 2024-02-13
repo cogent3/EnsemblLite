@@ -10,7 +10,7 @@ from ensembl_lite._genomedb import (
     get_gene_table_for_species,
     get_species_summary,
 )
-from ensembl_lite.util import elt_compress_it
+from ensembl_lite._util import elt_compress_it
 
 
 @pytest.fixture(scope="function")

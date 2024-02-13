@@ -1,11 +1,11 @@
 import pytest
 
-from ensembl_lite import maf
+from ensembl_lite import _maf
 
 
 def test_read(DATA_DIR):
     path = DATA_DIR / "sample.maf"
-    blocks = list(maf.parse(path))
+    blocks = list(_maf.parse(path))
     assert len(blocks) == 4
 
 
@@ -17,7 +17,7 @@ def test_read(DATA_DIR):
     ),
 )
 def test_process_maf_line_plus(line):
-    n, s = maf.process_maf_line(line)
+    n, s = _maf.process_maf_line(line)
     assert s == "ACTCTCCAGATGA"
     # maf is zero based
     assert n.start == 2

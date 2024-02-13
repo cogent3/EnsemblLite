@@ -8,7 +8,7 @@ from cogent3 import load_table
 from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
-from .util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
+from ._util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 
 _invalid_chars = re.compile("[^a-zA-Z _]")

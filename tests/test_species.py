@@ -4,7 +4,7 @@ import pytest
 
 from cogent3.util.table import Table
 
-from ensembl_lite.species import Species
+from ensembl_lite._species import Species
 
 
 class TestSpeciesNamemaps(TestCase):

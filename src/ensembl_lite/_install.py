@@ -12,18 +12,18 @@ from cogent3.parse.table import FilteringParser
 from cogent3.util import parallel as PAR
 from rich.progress import Progress, track
 
-from ensembl_lite import maf
+from ensembl_lite import _maf
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._config import _COMPARA_NAME, Config
+from ensembl_lite._convert import seq_to_gap_coords
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
     CompressedGenomeSeqsDb,
 )
 from ensembl_lite._homologydb import HomologyDb
-from ensembl_lite.convert import seq_to_gap_coords
-from ensembl_lite.species import Species
-from ensembl_lite.util import elt_compress_it
+from ensembl_lite._species import Species
+from ensembl_lite._util import elt_compress_it
 
 
 def _rename(label: str) -> str:
@@ -139,7 +139,7 @@ def seq2gaps(record: dict):
 
 def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
     records = []
-    for block_id, align in enumerate(maf.parse(path)):
+    for block_id, align in enumerate(_maf.parse(path)):
         converted = []
         for maf_name, seq in align.items():
             record = maf_name.to_dict()

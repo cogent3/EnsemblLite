@@ -2,7 +2,7 @@ import pytest
 
 from cogent3 import make_seq
 
-from ensembl_lite.convert import gap_coords_to_seq, seq_to_gap_coords
+from ensembl_lite._convert import gap_coords_to_seq, seq_to_gap_coords
 
 
 @pytest.mark.parametrize(

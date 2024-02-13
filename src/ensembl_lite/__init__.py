@@ -1,6 +1,6 @@
 from warnings import filterwarnings
 
-from .species import Species
+from ._species import Species
 
 
 filterwarnings("ignore", message=".*MPI")
@@ -9,7 +9,7 @@ filterwarnings("ignore", message="Can't drop database.*")
 
 __all__ = [
     "name",
-    "species",
+    "_species",
     "util",
     "Species",
 ]
