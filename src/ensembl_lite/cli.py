@@ -426,6 +426,7 @@ def alignments(
     write_alignments(
         align_db=align_db,
         genomes=genomes,
+        limit=limit,
         mask_features=mask_features,
         outdir=outdir,
         ref_species=ref_species,

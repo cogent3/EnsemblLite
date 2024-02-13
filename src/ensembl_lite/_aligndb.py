@@ -448,7 +448,7 @@ class GapPositions:
 
 def write_alignments(
     *,
-    align_db: AlignDb.PathLike,
+    align_db: AlignDb,
     genomes: dict,
     limit: int | None,
     mask_features: list[str],
