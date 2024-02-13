@@ -11,6 +11,7 @@ from ensembl_lite._aligndb import (
     AlignRecord,
     GapPositions,
     get_alignment,
+    write_alignments,
 )
 from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
 from ensembl_lite.convert import seq_to_gap_coords
@@ -578,3 +579,17 @@ def test_align_db_get_records_no_matches(coord):
 def test_get_species():
     _, align_db = make_sample()
     assert set(align_db.get_species_names()) == {"dog", "human", "mouse"}
+
+
+def test_write_alignments(tmp_path):
+    genomes, align_db = make_sample(two_aligns=True)
+    write_alignments(
+        align_db=align_db,
+        genomes=genomes,
+        outdir=tmp_path,
+        limit=None,
+        mask_features=None,
+        stableids=["not-on-s2"],
+        ref_species="human",
+        show_progress=False,
+    )

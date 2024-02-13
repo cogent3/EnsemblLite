@@ -455,12 +455,13 @@ def write_alignments(
     outdir: os.PathLike,
     ref_species: str,
     stableids: list[str],
+    show_progress: bool = True,
 ):
     # then the coordinates for the id's
     ref_genome = genomes[ref_species]
     locations = []
     for stableid in stableids:
-        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
         if not record:
             continue
         elif len(record) == 1:
@@ -478,7 +479,9 @@ def write_alignments(
     if limit:
         locations = locations[:limit]
 
-    for stableid, species, seqid, start, end in track(locations):
+    for stableid, species, seqid, start, end in track(
+        locations, disable=not show_progress
+    ):
         alignments = list(
             get_alignment(
                 align_db,
