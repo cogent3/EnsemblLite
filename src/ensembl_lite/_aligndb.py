@@ -6,14 +6,12 @@ import typing
 from collections import defaultdict
 from dataclasses import dataclass
 
-import click
 import numpy
 
 from cogent3.core.alignment import Alignment
 from numpy.typing import NDArray
 from rich.progress import track
 
-from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 from ensembl_lite.util import sanitise_stableid
 
