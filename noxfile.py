@@ -12,8 +12,6 @@ def test(session):
         "pytest",
         "-s",
         "-x",
-        "-m",
-        "not slow",
         "--cov-report",
         f"lcov:lcov-{session.python}.info",
         "--cov",
