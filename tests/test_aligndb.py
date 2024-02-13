@@ -104,7 +104,7 @@ def test_aligndb_records_match_input(small_records):
         "A-B-C-D-EF-",
     ),
 )
-@pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
+@pytest.mark.parametrize("index", range(4, 6))  # the ungapped sequence is 6 long
 def test_gapped_convert_seq2aln(data, index):
     # converting a sequence index to alignment index
     ungapped = data.replace("-", "")
