@@ -11,6 +11,7 @@ from ensembl_lite._aligndb import (
     AlignRecord,
     GapPositions,
     get_alignment,
+    write_alignments,
 )
 from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
 from ensembl_lite.convert import seq_to_gap_coords
@@ -516,6 +517,23 @@ def test_get_alignment_features(coord):
         ("human", "s1", 3, 13),  # extends past
     ),
 )
+def test_get_alignment_masked_features(coord):
+    kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
+    kwargs["mask_features"] = ["gene"]
+    genomes, align_db = make_sample(two_aligns=False)
+    got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    assert len(got.annotation_db) == 1
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1", None, 11),  # finish within
+        ("human", "s1", 3, None),  # start within
+        ("human", "s1", 3, 9),  # within
+        ("human", "s1", 3, 13),  # extends past
+    ),
+)
 def test_align_db_get_records(coord):
     kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
     # records are, we should get a single hit from each query
@@ -560,3 +578,9 @@ def test_align_db_get_records_no_matches(coord):
 def test_get_species():
     _, align_db = make_sample()
     assert set(align_db.get_species_names()) == {"dog", "human", "mouse"}
+
+
+def test_write_alignments(tmp_path):
+    genomes, align_db = make_sample(two_aligns=True)
+    # write_alignments()
+    ...

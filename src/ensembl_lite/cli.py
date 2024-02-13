@@ -26,7 +26,7 @@ from ensembl_lite.download import (
     get_species_for_alignments,
 )
 from ensembl_lite.species import Species
-from ensembl_lite.util import sanitise_stableid
+from src.ensembl_lite._aligndb import write_alignments
 
 
 def _get_installed_config_path(ctx, param, path) -> os.PathLike:
@@ -369,13 +369,14 @@ def alignments(
     verbose,
 ):
     """dump alignments for named genes"""
-    # todo support genomic coordinates, e.g. coord_name:start-end:strand, for
-    #  a reference species
     from cogent3 import load_table
 
-    from ensembl_lite._aligndb import AlignDb, get_alignment
+    from ensembl_lite._aligndb import AlignDb
     from ensembl_lite._genomedb import load_genome
     from ensembl_lite.species import Species
+
+    # todo support genomic coordinates, e.g. coord_name:start-end:strand, for
+    #  a reference species
 
     if not ref:
         click.secho(
@@ -397,14 +398,6 @@ def alignments(
             fg="red",
         )
         exit(1)
-    align_db = AlignDb(source=align_path)
-    ref_species = Species.get_ensembl_db_prefix(ref)
-    if ref_species not in align_db.get_species_names():
-        click.secho(
-            f"species {ref!r} not in the alignment",
-            fg="red",
-        )
-        exit(1)
 
     # load the gene stable ID's
     table = load_table(ref_genes_file)
@@ -415,46 +408,29 @@ def alignments(
         )
         exit(1)
 
-    stableids = table.columns["stableid"]
+    align_db = AlignDb(source=align_path)
+    ref_species = Species.get_ensembl_db_prefix(ref)
+    if ref_species not in align_db.get_species_names():
+        click.secho(
+            f"species {ref!r} not in the alignment",
+            fg="red",
+        )
+        exit(1)
 
     # get all the genomes
     genomes = {
         sp: load_genome(config=config, species=sp)
         for sp in align_db.get_species_names()
     }
-    # then the coordinates for the id's
-    ref_genome = genomes[ref_species]
-    locations = []
-    for stableid in stableids:
-        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
-        if not record:
-            continue
-        elif len(record) == 1:
-            record = record[0]
-        locations.append(
-            (
-                stableid,
-                ref_species,
-                record["seqid"],
-                record["start"],
-                record["end"],
-            )
-        )
 
-    if limit:
-        locations = locations[:limit]
-
-    for stableid, species, seqid, start, end in track(locations):
-        alignments = list(get_alignment(align_db, genomes, species, seqid, start, end))
-        stableid = sanitise_stableid(stableid)
-        if len(alignments) == 1:
-            outpath = outdir / f"{stableid}.fa.gz"
-            alignments[0].write(outpath)
-        elif len(alignments) > 1:
-            for i, aln in enumerate(alignments):
-                aln = aln.with_masked_annotations(biotypes=mask_features)
-                outpath = outdir / f"{stableid}-{i}.fa.gz"
-                aln.write(outpath)
+    write_alignments(
+        align_db=align_db,
+        genomes=genomes,
+        mask_features=mask_features,
+        outdir=outdir,
+        ref_species=ref_species,
+        stableids=table.columns["stableid"],
+    )
 
     click.secho("Done!", fg="green")
 

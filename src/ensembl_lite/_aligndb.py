@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import os
 import typing
 
 from collections import defaultdict
 from dataclasses import dataclass
 
+import click
 import numpy
 
 from cogent3.core.alignment import Alignment
+from rich.progress import track
 
+from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
+from ensembl_lite.util import sanitise_stableid
 
 
 @dataclass(slots=True)
@@ -163,6 +168,7 @@ def get_alignment(
     ref_start: int | None = None,
     ref_end: int | None = None,
     namer: typing.Callable | None = None,
+    mask_features: list[str] | None = None,
 ) -> typing.Generator[Alignment]:
     """yields cogent3 Alignments"""
     from ensembl_lite.convert import gap_coords_to_seq
@@ -252,7 +258,10 @@ def get_alignment(
             aligned = gap_coords_to_seq(gaps.gaps, s)
             seqs.append(aligned)
 
-        yield Alignment(seqs)
+        aln = Alignment(seqs)
+        if mask_features:
+            aln = aln.with_masked_annotations(biotypes=mask_features)
+        yield aln
 
 
 def _gap_spans_cum_lengths(
@@ -418,3 +427,59 @@ class GapPositions:
             # align_index is after the last gap
             seq_index = align_index - total_gaps
         return seq_index
+
+
+def write_alignments(
+    *,
+    align_db: AlignDb.PathLike,
+    genomes: dict,
+    limit: int | None,
+    mask_features: list[str],
+    outdir: os.PathLike,
+    ref_species: str,
+    stableids: list[str],
+):
+    # then the coordinates for the id's
+    ref_genome = genomes[ref_species]
+    locations = []
+    for stableid in stableids:
+        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        if not record:
+            continue
+        elif len(record) == 1:
+            record = record[0]
+        locations.append(
+            (
+                stableid,
+                ref_species,
+                record["seqid"],
+                record["start"],
+                record["end"],
+            )
+        )
+
+    if limit:
+        locations = locations[:limit]
+
+    for stableid, species, seqid, start, end in track(locations):
+        alignments = list(
+            get_alignment(
+                align_db,
+                genomes,
+                species,
+                seqid,
+                start,
+                end,
+                mask_features=mask_features,
+            )
+        )
+        stableid = sanitise_stableid(stableid)
+        if len(alignments) == 1:
+            outpath = outdir / f"{stableid}.fa.gz"
+            alignments[0].write(outpath)
+        elif len(alignments) > 1:
+            for i, aln in enumerate(alignments):
+                outpath = outdir / f"{stableid}-{i}.fa.gz"
+                aln.write(outpath)
+
+    return True
