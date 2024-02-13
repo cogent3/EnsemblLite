@@ -9,7 +9,7 @@ from ensembl_lite._homologydb import (
     grouped_related,
     id_by_species_group,
 )
-from ensembl_lite.install import LoadHomologies
+from ensembl_lite._install import LoadHomologies
 
 
 def _make_expected_o2o(table):

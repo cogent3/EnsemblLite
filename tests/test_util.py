@@ -10,7 +10,7 @@ from ensembl_lite._config import (
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_lite.util import (
+from ensembl_lite._util import (
     elt_compress_it,
     elt_decompress_it,
     exec_command,
@@ -90,7 +90,7 @@ def test_parse_config_gorilla(gorilla_cfg):
     ),
 )
 def test_invalid_seq(name):
-    from ensembl_lite.download import valid_seq_file
+    from ensembl_lite._download import valid_seq_file
 
     assert not valid_seq_file(name)
 
@@ -106,7 +106,7 @@ def test_invalid_seq(name):
     ),
 )
 def test_valid_seq(name):
-    from ensembl_lite.download import valid_seq_file
+    from ensembl_lite._download import valid_seq_file
 
     assert valid_seq_file(name)
 

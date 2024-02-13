@@ -13,8 +13,8 @@ from ensembl_lite._aligndb import (
     get_alignment,
     write_alignments,
 )
+from ensembl_lite._convert import seq_to_gap_coords
 from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
-from ensembl_lite.convert import seq_to_gap_coords
 
 
 def small_seqs():

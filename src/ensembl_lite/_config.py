@@ -6,7 +6,7 @@ import pathlib
 from dataclasses import dataclass
 from typing import Iterable
 
-from ensembl_lite.species import Species, species_from_ensembl_tree
+from ensembl_lite._species import Species, species_from_ensembl_tree
 
 
 INSTALLED_CONFIG_NAME = "installed.cfg"
@@ -194,7 +194,7 @@ def read_installed_cfg(path: os.PathLike) -> InstalledConfig:
 def read_config(config_path) -> Config:
     """returns ensembl release, local path, and db specifics from the provided
     config path"""
-    from ensembl_lite.download import download_ensembl_tree
+    from ensembl_lite._download import download_ensembl_tree
 
     parser = configparser.ConfigParser()
 

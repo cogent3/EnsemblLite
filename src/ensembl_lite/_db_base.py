@@ -4,7 +4,7 @@ import sqlite3
 
 import numpy
 
-from ensembl_lite.util import blosc_compress_it, blosc_decompress_it
+from ensembl_lite._util import blosc_compress_it, blosc_decompress_it
 
 
 @dataclasses.dataclass(slots=True)

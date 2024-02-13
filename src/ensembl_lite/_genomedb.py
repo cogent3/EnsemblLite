@@ -12,7 +12,7 @@ from cogent3.util.table import Table
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 from ensembl_lite._homologydb import species_genes
-from ensembl_lite.util import elt_compress_it, elt_decompress_it
+from ensembl_lite._util import elt_compress_it, elt_decompress_it
 
 
 _SEQDB_NAME = "genome_sequence.seqdb"
@@ -353,7 +353,7 @@ def get_species_summary(
     species
         species name, overrides inference from annot_db.source
     """
-    from .species import Species
+    from ._species import Species
 
     # for now, just biotype
     species = species or annot_db.source.parent.name

@@ -5,7 +5,7 @@ import typing
 
 from dataclasses import dataclass
 
-from .species import Species
+from ._species import Species
 
 
 _release = re.compile(r"\d+")

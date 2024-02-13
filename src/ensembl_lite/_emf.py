@@ -5,7 +5,7 @@ import typing
 
 from cogent3 import open_
 
-from ensembl_lite.name import EmfName
+from ensembl_lite._name import EmfName
 
 
 # TODO spaces are optional between columns representing SEQ and SCORE lines

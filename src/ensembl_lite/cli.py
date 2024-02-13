@@ -18,14 +18,14 @@ from ensembl_lite._config import (
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_lite.download import (
+from ensembl_lite._download import (
     _cfg,
     download_aligns,
     download_homology,
     download_species,
     get_species_for_alignments,
 )
-from ensembl_lite.species import Species
+from ensembl_lite._species import Species
 from src.ensembl_lite._aligndb import write_alignments
 
 
@@ -199,7 +199,7 @@ def exportrc(outpath):
 
     setting an environment variable ENSEMBLDBRC with this path
     will force its contents to override the default ensembl_lite settings"""
-    from ensembl_lite.util import ENSEMBLDBRC
+    from ensembl_lite._util import ENSEMBLDBRC
 
     shutil.copytree(ENSEMBLDBRC, outpath)
     # we assume all files starting with alphabetical characters are valid
@@ -257,7 +257,7 @@ def download(configpath, debug, verbose):
 @_verbose
 def install(download, num_procs, force_overwrite, verbose):
     """create the local representations of the data"""
-    from ensembl_lite.install import (
+    from ensembl_lite._install import (
         local_install_compara,
         local_install_genomes,
         local_install_homology,
@@ -293,8 +293,8 @@ def installed(installed):
     """show what is installed"""
     from cogent3 import make_table
 
-    from ensembl_lite.species import Species
-    from ensembl_lite.util import rich_display
+    from ensembl_lite._species import Species
+    from ensembl_lite._util import rich_display
 
     config = read_installed_cfg(installed)
 
@@ -330,7 +330,7 @@ def installed(installed):
 def species_summary(installed, species):
     """genome summary data for a species"""
     from ._genomedb import get_annotations_for_species, get_species_summary
-    from .util import rich_display
+    from ._util import rich_display
 
     config = read_installed_cfg(installed)
     if species is None:
@@ -373,7 +373,7 @@ def alignments(
 
     from ensembl_lite._aligndb import AlignDb
     from ensembl_lite._genomedb import load_genome
-    from ensembl_lite.species import Species
+    from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-end:strand, for
     #  a reference species
@@ -455,7 +455,7 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
 
     from ensembl_lite._genomedb import get_selected_seqs
     from ensembl_lite._homologydb import id_by_species_group, load_homology_db
-    from ensembl_lite.species import Species
+    from ensembl_lite._species import Species
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)

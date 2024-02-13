@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from rich.progress import track
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
-from ensembl_lite.util import sanitise_stableid
+from ensembl_lite._util import sanitise_stableid
 
 
 @dataclass(slots=True)
@@ -170,7 +170,7 @@ def get_alignment(
     mask_features: list[str] | None = None,
 ) -> typing.Generator[Alignment]:
     """yields cogent3 Alignments"""
-    from ensembl_lite.convert import gap_coords_to_seq
+    from ensembl_lite._convert import gap_coords_to_seq
 
     if ref_species not in genomes:
         raise ValueError(f"unknown species {ref_species!r}")

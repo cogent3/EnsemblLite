@@ -10,10 +10,10 @@ import click
 from cogent3 import load_tree
 
 from ensembl_lite._config import Config
+from ensembl_lite._ftp_download import download_data, listdir
 from ensembl_lite._site_map import get_site_map
-from ensembl_lite.ftp_download import download_data, listdir
-from ensembl_lite.species import Species, species_from_ensembl_tree
-from ensembl_lite.util import (
+from ensembl_lite._species import Species, species_from_ensembl_tree
+from ensembl_lite._util import (
     dont_checksum,
     get_resource_path,
     is_signature,
