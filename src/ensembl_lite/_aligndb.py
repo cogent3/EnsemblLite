@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import typing
 
 from collections import defaultdict
@@ -8,8 +9,11 @@ from dataclasses import dataclass
 import numpy
 
 from cogent3.core.alignment import Alignment
+from numpy.typing import NDArray
+from rich.progress import track
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
+from ensembl_lite.util import sanitise_stableid
 
 
 @dataclass(slots=True)
@@ -163,6 +167,7 @@ def get_alignment(
     ref_start: int | None = None,
     ref_end: int | None = None,
     namer: typing.Callable | None = None,
+    mask_features: list[str] | None = None,
 ) -> typing.Generator[Alignment]:
     """yields cogent3 Alignments"""
     from ensembl_lite.convert import gap_coords_to_seq
@@ -252,30 +257,30 @@ def get_alignment(
             aligned = gap_coords_to_seq(gaps.gaps, s)
             seqs.append(aligned)
 
-        yield Alignment(seqs)
+        aln = Alignment(seqs)
+        if mask_features:
+            aln = aln.with_masked_annotations(biotypes=mask_features)
+        yield aln
 
 
-def _gap_spans_cum_lengths(
-    gaps: numpy.ndarray,
-) -> tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]:
+def _gap_spans(
+    gap_pos: NDArray[int], gap_cum_lengths: NDArray[int]
+) -> tuple[NDArray[int], NDArray[int]]:
     """returns 1D arrays in alignment coordinates of
-    gap start, gap end, cumulative gap length"""
-    if not len(gaps):
-        r = numpy.array([], dtype=gaps.dtype)
-        return r, r, r
+    gap start, gap end"""
+    if not len(gap_pos):
+        r = numpy.array([], dtype=gap_pos.dtype)
+        return r, r
 
-    cumsum = gaps[:, 1].cumsum()
     sum_to_prev = 0
-    gap_starts = numpy.empty(gaps.shape[0], dtype=gaps.dtype)
-    gap_ends = numpy.empty(gaps.shape[0], dtype=gaps.dtype)
-    for i, (p, l) in enumerate(gaps):
-        gap_start = sum_to_prev + p
-        gap_end = gap_start + l
-        sum_to_prev = cumsum[i]
-        gap_starts[i] = gap_start
-        gap_ends[i] = gap_end
+    gap_starts = numpy.empty(gap_pos.shape[0], dtype=gap_pos.dtype)
+    gap_ends = numpy.empty(gap_pos.shape[0], dtype=gap_pos.dtype)
+    for i, pos in enumerate(gap_pos):
+        gap_starts[i] = sum_to_prev + pos
+        gap_ends[i] = pos + gap_cum_lengths[i]
+        sum_to_prev = gap_cum_lengths[i]
 
-    return numpy.array(gap_starts), numpy.array(gap_ends), cumsum
+    return numpy.array(gap_starts), numpy.array(gap_ends)
 
 
 @dataclass(slots=True)
@@ -293,7 +298,7 @@ class GapPositions:
     # each row is a gap
     # column 0 is sequence index of gap **relative to the alignment**
     # column 1 is gap length
-    gaps: numpy.ndarray
+    gaps: NDArray[NDArray[int]]
     # length of the underlying sequence
     seq_length: int
 
@@ -323,12 +328,17 @@ class GapPositions:
                 f"{type(self).__name__!r} does not support negative indexes"
             )
 
-        # spans is in alignment indices
-        # [(gap start, gap end), ...]
-        gap_starts, gap_ends, cum_lengths = _gap_spans_cum_lengths(gaps)
+        if not len(gaps):
+            cum_lengths = numpy.array([], dtype=gaps.dtype)
+            pos = cum_lengths
+        else:
+            cum_lengths = gaps[:, 1].cumsum()
+            pos = gaps[:, 0]
+
+        gap_starts, gap_ends = _gap_spans(pos, cum_lengths)
 
         if not len(gaps) or stop < gap_starts[0] or start >= gap_ends[-1]:
-            return type(self)(
+            return self.__class__(
                 gaps=numpy.array([], dtype=gaps.dtype), seq_length=stop - start
             )
 
@@ -373,7 +383,7 @@ class GapPositions:
                 stop
             ) - self.from_align_to_seq_index(start)
 
-        return type(self)(gaps=result, seq_length=seq_length)
+        return self.__class__(gaps=result, seq_length=seq_length)
 
     def __len__(self):
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
@@ -383,16 +393,25 @@ class GapPositions:
         """convert a sequence index into an alignment index"""
         if seq_index < 0:
             raise NotImplementedError(f"{seq_index} negative align_index not supported")
-        # TODO convert this to numba function
 
-        total_gaps = 0
-        for gap_index, gap_length in self.gaps:
-            if seq_index < gap_index:
-                break
+        if not len(self.gaps) or seq_index < self.gaps[0, 0]:
+            return seq_index
 
-            total_gaps += gap_length
+        # this statement replace when we change self.gaps to include [gap pos, cumsum]
+        cum_gap_lengths = self.gaps[:, 1].cumsum()
+        gap_pos = self.gaps[:, 0]
 
-        return seq_index + total_gaps
+        if seq_index >= self.gaps[-1, 0]:
+            return seq_index + cum_gap_lengths[-1]
+
+        # find gap position before seq_index
+        index = numpy.searchsorted(gap_pos, seq_index, side="left")
+        if seq_index < gap_pos[index]:
+            gap_lengths = cum_gap_lengths[index - 1] if index else 0
+        else:
+            gap_lengths = cum_gap_lengths[index]
+
+        return seq_index + gap_lengths
 
     def from_align_to_seq_index(self, align_index: int) -> int:
         """converts alignment index to sequence index"""
@@ -401,20 +420,83 @@ class GapPositions:
                 f"{align_index} negative align_index not supported"
             )
 
-        # TODO convert this to numba function
-        total_gaps = 0
-        for seq_pos, gap_length in self.gaps:
-            aln_start = seq_pos + total_gaps
-            aln_end = aln_start + gap_length
-            if align_index < aln_start:
-                seq_index = align_index - total_gaps
-                break
-            if aln_start <= align_index <= aln_end:
-                # align_index between gaps
-                seq_index = seq_pos
-                break
-            total_gaps += gap_length
-        else:
-            # align_index is after the last gap
-            seq_index = align_index - total_gaps
-        return seq_index
+        if not len(self.gaps) or align_index < self.gaps[0, 0]:
+            return align_index
+
+        # replace the following call when we change self.gaps to include
+        # [gap pos, cumsum]
+        # these are alignment indices for gaps
+        cum_lengths = self.gaps[:, 1].cumsum()
+        gap_starts, gap_ends = _gap_spans(self.gaps[:, 0], cum_lengths)
+        if align_index >= gap_ends[-1]:
+            return align_index - cum_lengths[-1]
+
+        index = numpy.searchsorted(gap_ends, align_index, side="left")
+        if align_index < gap_starts[index]:
+            # before the gap at index
+            return align_index - cum_lengths[index - 1]
+
+        if align_index == gap_ends[index]:
+            # after the gap at index
+            return align_index - cum_lengths[index]
+
+        if gap_starts[index] <= align_index < gap_ends[index]:
+            # within the gap at index
+            # so the gap insertion position is the sequence position
+            return self.gaps[index, 0]
+
+
+def write_alignments(
+    *,
+    align_db: AlignDb,
+    genomes: dict,
+    limit: int | None,
+    mask_features: list[str],
+    outdir: os.PathLike,
+    ref_species: str,
+    stableids: list[str],
+):
+    # then the coordinates for the id's
+    ref_genome = genomes[ref_species]
+    locations = []
+    for stableid in stableids:
+        record = list(ref_genome.annotations.get_records_matching(name=stableid))
+        if not record:
+            continue
+        elif len(record) == 1:
+            record = record[0]
+        locations.append(
+            (
+                stableid,
+                ref_species,
+                record["seqid"],
+                record["start"],
+                record["end"],
+            )
+        )
+
+    if limit:
+        locations = locations[:limit]
+
+    for stableid, species, seqid, start, end in track(locations):
+        alignments = list(
+            get_alignment(
+                align_db,
+                genomes,
+                species,
+                seqid,
+                start,
+                end,
+                mask_features=mask_features,
+            )
+        )
+        stableid = sanitise_stableid(stableid)
+        if len(alignments) == 1:
+            outpath = outdir / f"{stableid}.fa.gz"
+            alignments[0].write(outpath)
+        elif len(alignments) > 1:
+            for i, aln in enumerate(alignments):
+                outpath = outdir / f"{stableid}-{i}.fa.gz"
+                aln.write(outpath)
+
+    return True

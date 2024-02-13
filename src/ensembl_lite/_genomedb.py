@@ -182,7 +182,10 @@ class Genome:
             name = namer(self.species, seqid, start, end)
         else:
             name = f"{self.species}:{seqid}:{start}-{end}"
-        seq = make_seq(seq, name=name, moltype="dna")
+        # we use seqid to make the sequence here because that identifies the
+        # parent seq identity, required for querying annotations
+        seq = make_seq(seq, name=seqid, moltype="dna")
+        seq.name = name
         if self.annotation_db:
             seq.annotation_offset = start or 0
             seq.annotation_db = self.annotation_db.subset(

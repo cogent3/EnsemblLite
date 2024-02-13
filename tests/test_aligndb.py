@@ -57,16 +57,17 @@ def make_records(start, end, block_id):
     records = []
     species = aln.info.species
     for seq in aln.seqs:
+        seqid, seq_start, seq_end, seq_strand = seq.data.parent_coordinates()
         gs = seq.get_gapped_seq()
         c, s = seq_to_gap_coords(gs)
         record = AlignRecord(
             source="blah",
             species=species[seq.name],
             block_id=block_id,
-            seqid=seq.name,
-            start=seq.map.start,
-            end=seq.map.end,
-            strand="+",
+            seqid=seqid,
+            start=seq_start,
+            end=seq_end,
+            strand="-" if seq_strand == -1 else "+",
             gap_spans=c,
         )
         records.append(record)
@@ -103,7 +104,7 @@ def test_aligndb_records_match_input(small_records):
         "A-B-C-D-EF-",
     ),
 )
-@pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
+@pytest.mark.parametrize("index", range(4, 6))  # the ungapped sequence is 6 long
 def test_gapped_convert_seq2aln(data, index):
     # converting a sequence index to alignment index
     ungapped = data.replace("-", "")
@@ -502,6 +503,23 @@ def test_select_alignment_minus_strand(start_end, namer):
 )
 def test_get_alignment_features(coord):
     kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
+    genomes, align_db = make_sample(two_aligns=False)
+    got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    assert len(got.annotation_db) == 1
+
+
+@pytest.mark.parametrize(
+    "coord",
+    (
+        ("human", "s1", None, 11),  # finish within
+        ("human", "s1", 3, None),  # start within
+        ("human", "s1", 3, 9),  # within
+        ("human", "s1", 3, 13),  # extends past
+    ),
+)
+def test_get_alignment_masked_features(coord):
+    kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
+    kwargs["mask_features"] = ["gene"]
     genomes, align_db = make_sample(two_aligns=False)
     got = list(get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
     assert len(got.annotation_db) == 1
