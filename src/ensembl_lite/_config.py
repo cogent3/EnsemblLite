@@ -1,6 +1,5 @@
 import configparser
 import fnmatch
-import os
 import pathlib
 
 from dataclasses import dataclass
@@ -12,10 +11,10 @@ from ensembl_lite._species import Species, species_from_ensembl_tree
 INSTALLED_CONFIG_NAME = "installed.cfg"
 DOWNLOADED_CONFIG_NAME = "downloaded.cfg"
 
-_COMPARA_NAME = "compara"
-_ALIGNS_NAME = "aligns"
-_HOMOLOGIES_NAME = "homologies"
-_GENOMES_NAME = "genomes"
+_COMPARA_NAME: str = "compara"
+_ALIGNS_NAME: str = "aligns"
+_HOMOLOGIES_NAME: str = "homologies"
+_GENOMES_NAME: str = "genomes"
 
 
 @dataclass
@@ -23,9 +22,9 @@ class Config:
     host: str
     remote_path: str
     release: str
-    staging_path: os.PathLike
-    install_path: os.PathLike
-    species_dbs: Iterable[str]
+    staging_path: pathlib.Path
+    install_path: pathlib.Path
+    species_dbs: dict[str, list[str]]
     align_names: Iterable[str]
     tree_names: Iterable[str]
 
@@ -109,7 +108,7 @@ class Config:
 @dataclass
 class InstalledConfig:
     release: str
-    install_path: os.PathLike
+    install_path: pathlib.Path
 
     def __hash__(self):
         return id(self)
@@ -133,7 +132,7 @@ class InstalledConfig:
     def genomes_path(self):
         return self.install_path / _GENOMES_NAME
 
-    def installed_genome(self, species: str) -> os.PathLike:
+    def installed_genome(self, species: str) -> pathlib.Path:
         db_name = Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
@@ -141,7 +140,7 @@ class InstalledConfig:
         """returns list of installed genomes"""
         return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
 
-    def path_to_alignment(self, pattern: str) -> os.PathLike | None:
+    def path_to_alignment(self, pattern: str) -> pathlib.Path | None:
         """returns the full path to alignment matching the name
 
         Parameters
@@ -163,7 +162,7 @@ class InstalledConfig:
         return align_dirs[0]
 
 
-def write_installed_cfg(config: Config) -> os.PathLike:
+def write_installed_cfg(config: Config) -> pathlib.Path:
     """writes an ini file under config.installed_path"""
     parser = configparser.ConfigParser()
     parser.add_section("release")
@@ -176,7 +175,7 @@ def write_installed_cfg(config: Config) -> os.PathLike:
     return outpath
 
 
-def read_installed_cfg(path: os.PathLike) -> InstalledConfig:
+def read_installed_cfg(path: pathlib.Path) -> InstalledConfig:
     """reads an ini file under config.installed_path"""
     parser = configparser.ConfigParser()
     path = (
