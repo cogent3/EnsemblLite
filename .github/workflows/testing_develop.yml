@@ -35,26 +35,23 @@ jobs:
           pip install --upgrade nox
 
       - name: "Run nox for ${{ matrix.python-version }}"
-        run: "nox -s test-${{ matrix.python-version }}"
+        run: "nox -s test-${{ matrix.python-version }} -- --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_lite"
 
       - name: Coveralls Parallel
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           parallel: true
           github-token: ${{ secrets.github_token }}
-          flag-name: run-${{ matrix.test_number }}
-          path-to-lcov: "tests/lcov-${{ matrix.python-version }}.info"
+          flag-name: run-${{matrix.python-version}}-${{matrix.os}}
+          file: "tests/lcov-${{matrix.os}}-${{matrix.python-version}}.lcov"
 
   finish:
+    name: "Finish Coveralls"
     needs: tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11"]
+    runs-on: ubuntu-latest
     steps:
     - name: Coveralls Finished
-      uses: coverallsapp/github-action@master
+      uses: coverallsapp/github-action@v2
       with:
         github-token: ${{ secrets.github_token }}
         parallel-finished: true
