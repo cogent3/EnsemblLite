@@ -11,6 +11,7 @@ from rich.progress import track
 from trogon import tui
 
 from ensembl_lite import __version__
+from ensembl_lite._aligndb import write_alignments
 from ensembl_lite._config import (
     DOWNLOADED_CONFIG_NAME,
     INSTALLED_CONFIG_NAME,
@@ -26,7 +27,6 @@ from ensembl_lite._download import (
     get_species_for_alignments,
 )
 from ensembl_lite._species import Species
-from src.ensembl_lite._aligndb import write_alignments
 
 
 def _get_installed_config_path(ctx, param, path) -> os.PathLike:
