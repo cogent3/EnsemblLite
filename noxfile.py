@@ -12,10 +12,7 @@ def test(session):
         "pytest",
         "-s",
         "-x",
-        "--cov-report",
-        f"lcov:lcov-{session.python}.info",
-        "--cov",
-        "ensembl_lite",
+        *session.posargs,
     )
 
 
