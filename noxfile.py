@@ -14,10 +14,3 @@ def test(session):
         "-x",
         *session.posargs,
     )
-
-
-@nox.session(python=[f"3.{v}" for v in _py_versions])
-def test_fast(session):
-    session.install(".[test]")
-    session.chdir("tests")
-    session.run("pytest", "-s", "-x", "-m", "not internet and not slow")
