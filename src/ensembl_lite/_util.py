@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import pathlib
@@ -371,3 +372,8 @@ def sanitise_stableid(stableid: str) -> str:
     this function removes redundant biotype component.
     """
     return _biotypes.sub("", stableid)
+
+
+@contextlib.contextmanager
+def fake_wake(*args, **kwargs):
+    yield
