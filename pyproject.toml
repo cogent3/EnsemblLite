@@ -23,6 +23,7 @@ dependencies = ["blosc2",
         "numpy",
         "trogon",
         "unsync",
+        "wakepy>0.7",
         ]
 classifiers = [
         "Development Status :: 5 - Production/Stable",
