@@ -8,7 +8,7 @@ import click
 
 
 try:
-    import wakepy.keep.running as keep_running
+    from wakepy.keep import running as keep_running
 except ImportError:
     from ensembl_lite._util import fake_wake as keep_running
 
@@ -32,6 +32,15 @@ from ensembl_lite._download import (
     get_species_for_alignments,
 )
 from ensembl_lite._species import Species
+
+
+try:
+    # trap flaky behaviour on linux
+    with keep_running():
+        ...
+
+except NotImplementedError:
+    from ensembl_lite._util import fake_wake as keep_running
 
 
 def _get_installed_config_path(ctx, param, path) -> os.PathLike:
