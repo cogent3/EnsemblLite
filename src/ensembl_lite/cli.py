@@ -5,7 +5,12 @@ import shutil
 from collections import defaultdict
 
 import click
-import wakepy.keep
+
+
+try:
+    import wakepy.keep.running as keep_running
+except ImportError:
+    from ensembl_lite._util import fake_wake as keep_running
 
 from rich.progress import track
 from trogon import tui
@@ -242,7 +247,7 @@ def download(configpath, debug, verbose):
         print(config.species_dbs)
 
     config.write()
-    with wakepy.keep.running():
+    with keep_running():
         download_species(config, debug, verbose)
         download_homology(config, debug, verbose)
         download_aligns(config, debug, verbose)
@@ -273,7 +278,7 @@ def install(download, num_procs, force_overwrite, verbose):
 
     config.install_path.mkdir(parents=True, exist_ok=True)
     write_installed_cfg(config)
-    with wakepy.keep.running():
+    with keep_running():
         local_install_genomes(
             config, force_overwrite=force_overwrite, max_workers=num_procs
         )
