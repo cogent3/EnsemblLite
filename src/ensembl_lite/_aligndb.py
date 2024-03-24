@@ -31,7 +31,7 @@ class AlignRecord:
     species: str
     seqid: str
     start: int
-    end: int
+    stop: int
     strand: str
     gap_spans: numpy.ndarray
 
@@ -42,7 +42,7 @@ class AlignRecord:
         setattr(self, item, value)
 
     def __eq__(self, other):
-        attrs = "source", "block_id", "species", "seqid", "start", "end", "strand"
+        attrs = "source", "block_id", "species", "seqid", "start", "stop", "strand"
         for attr in attrs:
             if getattr(self, attr) != getattr(other, attr):
                 return False
@@ -62,7 +62,7 @@ class AlignDb(SqliteDbMixin):
         "species": "TEXT",
         "seqid": "TEXT",
         "start": "INTEGER",
-        "end": "INTEGER",
+        "stop": "INTEGER",
         "strand": "TEXT",
         "gap_spans": "compressed_array",
     }
@@ -101,22 +101,22 @@ class AlignDb(SqliteDbMixin):
         species,
         seqid: str,
         start: int | None,
-        end: int | None,
+        stop: int | None,
     ) -> list[str]:
         sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND seqid = ?"
         values = species, seqid
-        if start is not None and end is not None:
-            # as long as start or end are within the record start/end, it's a match
-            sql = f"{sql} AND ((start <= ? AND ? < end) OR (start <= ? AND ? < end))"
-            values += (start, start, end, end)
+        if start is not None and stop is not None:
+            # as long as start or stop are within the record start/stop, it's a match
+            sql = f"{sql} AND ((start <= ? AND ? < stop) OR (start <= ? AND ? < stop))"
+            values += (start, start, stop, stop)
         elif start is not None:
             # the aligned segment overlaps start
-            sql = f"{sql} AND start <= ? AND ? < end"
+            sql = f"{sql} AND start <= ? AND ? < stop"
             values += (start, start)
-        elif end is not None:
-            # the aligned segment overlaps end
-            sql = f"{sql} AND start <= ? AND ? < end"
-            values += (end, end)
+        elif stop is not None:
+            # the aligned segment overlaps stop
+            sql = f"{sql} AND start <= ? AND ? < stop"
+            values += (stop, stop)
 
         return self.db.execute(sql, values).fetchall()
 
@@ -126,14 +126,14 @@ class AlignDb(SqliteDbMixin):
         species,
         seqid: str,
         start: int | None = None,
-        end: int | None = None,
+        stop: int | None = None,
     ) -> typing.Iterable[AlignRecord]:
         # make sure python, not numpy, integers
         start = None if start is None else int(start)
-        end = None if end is None else int(end)
+        stop = None if stop is None else int(stop)
 
         # We need the block IDs for all records for a species whose coordinates
-        # lie in the range (start, end). We then search for all records with
+        # lie in the range (start, stop). We then search for all records with
         # each block id. We return full records.
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
@@ -141,7 +141,7 @@ class AlignDb(SqliteDbMixin):
         block_ids = [
             r["block_id"]
             for r in self._get_block_id(
-                species=species, seqid=seqid, start=start, end=end
+                species=species, seqid=seqid, start=start, stop=stop
             )
         ]
 
@@ -176,7 +176,7 @@ def get_alignment(
         raise ValueError(f"unknown species {ref_species!r}")
 
     align_records = align_db.get_records_matching(
-        species=ref_species, seqid=seqid, start=ref_start, end=ref_end
+        species=ref_species, seqid=seqid, start=ref_start, stop=ref_end
     )
 
     # sample the sequences
@@ -190,9 +190,9 @@ def get_alignment(
         for align_record in block:
             if align_record.species == ref_species and align_record.seqid == seqid:
                 # ref_start, ref_end are genomic positions and the align_record
-                # start / end are also genomic positions
+                # start / stop are also genomic positions
                 genome_start = align_record.start
-                genome_end = align_record.end
+                genome_end = align_record.stop
                 gaps = GapPositions(
                     align_record.gap_spans, seq_length=genome_end - genome_start
                 )
@@ -202,13 +202,13 @@ def get_alignment(
                 # positions are used below for slicing each sequence in the
                 # alignment.
 
-                # make sure the sequence start and end are within this
+                # make sure the sequence start and stop are within this
                 # aligned block
                 seq_start = max(ref_start or genome_start, genome_start)
                 seq_end = min(ref_end or genome_end, genome_end)
                 # make these coordinates relative to the aligned segment
                 if align_record.strand == "-":
-                    # if record is on minus strand, then genome end is
+                    # if record is on minus strand, then genome stop is
                     # the alignment start
                     seq_start, seq_end = genome_end - seq_end, genome_end - seq_start
                 else:
@@ -228,7 +228,7 @@ def get_alignment(
             # We need to convert the alignment coordinates into sequence
             # coordinates for this species.
             genome_start = align_record.start
-            genome_end = align_record.end
+            genome_end = align_record.stop
             gaps = GapPositions(
                 align_record.gap_spans, seq_length=genome_end - genome_start
             )
@@ -239,13 +239,13 @@ def get_alignment(
             seq_end = gaps.from_align_to_seq_index(align_end)
             seq_length = seq_end - seq_start
             if align_record.strand == "-":
-                # if it's neg strand, the alignment start is the genome end
+                # if it's neg strand, the alignment start is the genome stop
                 seq_start = gaps.seq_length - seq_end
 
             s = genome.get_seq(
                 seqid=align_record.seqid,
                 start=genome_start + seq_start,
-                end=genome_start + seq_start + seq_length,
+                stop=genome_start + seq_start + seq_length,
                 namer=namer,
             )
             # we now trim the gaps for this sequence to the sub-alignment
@@ -267,7 +267,7 @@ def _gap_spans(
     gap_pos: NDArray[int], gap_cum_lengths: NDArray[int]
 ) -> tuple[NDArray[int], NDArray[int]]:
     """returns 1D arrays in alignment coordinates of
-    gap start, gap end"""
+    gap start, gap stop"""
     if not len(gap_pos):
         r = numpy.array([], dtype=gap_pos.dtype)
         return r, r
@@ -360,7 +360,7 @@ class GapPositions:
             begin = l
             shift = start - cum_lengths[l - 1] if l else start
 
-        # start search for end from l index
+        # start search for stop from l index
         r = numpy.searchsorted(gap_ends[l:], stop, side="right") + l
         if r == len(gaps):
             # stop is after last gap
@@ -472,7 +472,7 @@ def write_alignments(
                 ref_species,
                 record["seqid"],
                 record["start"],
-                record["end"],
+                record["stop"],
             )
         )
 

@@ -21,4 +21,4 @@ def test_process_maf_line_plus(line):
     assert s == "ACTCTCCAGATGA"
     # maf is zero based
     assert n.start == 2
-    assert n.end == 2 + 7
+    assert n.stop == 2 + 7
