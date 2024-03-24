@@ -33,12 +33,12 @@ def process_maf_line(line: str) -> tuple[MafName, str]:
     if strand == "-":
         start = coord_length - (start + size)
 
-    end = start + size
+    stop = start + size
     n = MafName(
         species=species,
         seqid=coord,
         start=start,
-        end=end,
+        stop=stop,
         strand=strand,
         coord_length=coord_length,
     )
