@@ -15,22 +15,7 @@ except ImportError:
 from rich.progress import track
 from trogon import tui
 
-from ensembl_lite import __version__
-from ensembl_lite._aligndb import write_alignments
-from ensembl_lite._config import (
-    DOWNLOADED_CONFIG_NAME,
-    INSTALLED_CONFIG_NAME,
-    read_config,
-    read_installed_cfg,
-    write_installed_cfg,
-)
-from ensembl_lite._download import (
-    _cfg,
-    download_aligns,
-    download_homology,
-    download_species,
-    get_species_for_alignments,
-)
+from ensembl_lite import __version__, _config, _download
 from ensembl_lite._species import Species
 
 
@@ -46,10 +31,10 @@ except NotImplementedError:
 def _get_installed_config_path(ctx, param, path) -> os.PathLike:
     """path to installed.cfg"""
     path = pathlib.Path(path)
-    if path.name == INSTALLED_CONFIG_NAME:
+    if path.name == _config.INSTALLED_CONFIG_NAME:
         return path
 
-    path = path / INSTALLED_CONFIG_NAME
+    path = path / _config.INSTALLED_CONFIG_NAME
     if not path.exists():
         click.secho(f"{str(path)} missing", fg="red")
         exit(1)
@@ -86,7 +71,7 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
 _cfgpath = click.option(
     "-c",
     "--configpath",
-    default=_cfg,
+    default=_download._cfg,
     type=pathlib.Path,
     help="path to config file specifying databases, only "
     "species or compara at present",
@@ -233,18 +218,18 @@ def exportrc(outpath):
 @_verbose
 def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
-    if configpath.name == _cfg:
+    if configpath.name == _download._cfg:
         click.secho(
             "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
         )
 
-    config = read_config(configpath)
+    config = _config.read_config(configpath)
     if not any((config.species_dbs, config.align_names)):
         click.secho("No genomes, no alignments specified", fg="red")
         exit(1)
 
     if not config.species_dbs:
-        species = get_species_for_alignments(
+        species = _download.get_species_for_alignments(
             host=config.host,
             remote_path=config.remote_path,
             release=config.release,
@@ -257,9 +242,9 @@ def download(configpath, debug, verbose):
 
     config.write()
     with keep_running():
-        download_species(config, debug, verbose)
-        download_homology(config, debug, verbose)
-        download_aligns(config, debug, verbose)
+        _download.download_species(config, debug, verbose)
+        _download.download_homology(config, debug, verbose)
+        _download.download_aligns(config, debug, verbose)
 
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
@@ -277,8 +262,8 @@ def install(download, num_procs, force_overwrite, verbose):
         local_install_homology,
     )
 
-    configpath = download / DOWNLOADED_CONFIG_NAME
-    config = read_config(configpath)
+    configpath = download / _config.DOWNLOADED_CONFIG_NAME
+    config = _config.read_config(configpath)
     if verbose:
         print(f"{config.install_path=}")
 
@@ -286,7 +271,7 @@ def install(download, num_procs, force_overwrite, verbose):
         shutil.rmtree(config.install_path, ignore_errors=True)
 
     config.install_path.mkdir(parents=True, exist_ok=True)
-    write_installed_cfg(config)
+    _config.write_installed_cfg(config)
     with keep_running():
         local_install_genomes(
             config, force_overwrite=force_overwrite, max_workers=num_procs
@@ -310,7 +295,7 @@ def installed(installed):
     from ensembl_lite._species import Species
     from ensembl_lite._util import rich_display
 
-    config = read_installed_cfg(installed)
+    config = _config.read_installed_cfg(installed)
 
     genome_dir = config.genomes_path
     if genome_dir.exists():
@@ -346,7 +331,7 @@ def species_summary(installed, species):
     from ._genomedb import get_annotations_for_species, get_species_summary
     from ._util import rich_display
 
-    config = read_installed_cfg(installed)
+    config = _config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
         exit(1)
@@ -385,7 +370,7 @@ def alignments(
     """dump alignments for named genes"""
     from cogent3 import load_table
 
-    from ensembl_lite._aligndb import AlignDb
+    from ensembl_lite._aligndb import AlignDb, write_alignments
     from ensembl_lite._genomedb import load_genome
     from ensembl_lite._species import Species
 
@@ -404,7 +389,7 @@ def alignments(
 
     outdir.mkdir(parents=True, exist_ok=True)
 
-    config = read_installed_cfg(installed)
+    config = _config.read_installed_cfg(installed)
     align_path = config.path_to_alignment(align_name)
     if align_path is None:
         click.secho(
@@ -476,7 +461,7 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
 
     outpath.mkdir(parents=True, exist_ok=True)
 
-    config = read_installed_cfg(installed)
+    config = _config.read_installed_cfg(installed)
     db = load_homology_db(config=config)
     related = db.get_related_groups(relationship_type=relationship)
     if limit:
@@ -535,7 +520,7 @@ def dump_genes(installed, species, outdir, limit):
         get_gene_table_for_species,
     )
 
-    config = read_installed_cfg(installed)
+    config = _config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
         exit(1)
