@@ -67,7 +67,7 @@ def make_records(start, end, block_id):
             block_id=block_id,
             seqid=seqid,
             start=seq_start,
-            end=seq_end,
+            stop=seq_end,
             strand="-" if seq_strand == -1 else "+",
             gap_spans=c,
         )
@@ -375,7 +375,7 @@ def make_sample(two_aligns=False):
 
 
 def _update_records(s2_genome, aln, block_id, start, end):
-    # start, end are the coordinates used to slice the alignment
+    # start, stop are the coordinates used to slice the alignment
     align_records = make_records(start, end, block_id)
     # in the alignment, s2 is in reverse complement relative to its genome
     # In order to be sure what "genome" coordinates are for s2, we first slice
@@ -391,7 +391,7 @@ def _update_records(s2_genome, aln, block_id, start, end):
     for record in align_records:
         if record.seqid == "s2":
             record.start = start
-            record.end = end
+            record.stop = end
             record.strand = "-"
             break
     return align_records
@@ -536,7 +536,7 @@ def test_get_alignment_masked_features(coord):
     ),
 )
 def test_align_db_get_records(coord):
-    kwargs = dict(zip(("species", "seqid", "start", "end"), coord))
+    kwargs = dict(zip(("species", "seqid", "start", "stop"), coord))
     # records are, we should get a single hit from each query
     # [('blah', 0, 'human', 's1', 1, 12, '+', array([], dtype=int32)),
     _, align_db = make_sample(two_aligns=True)

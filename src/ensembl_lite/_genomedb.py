@@ -48,7 +48,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         self.db.commit()
 
     def get_seq(
-        self, *, seqid: str, start: int | None = None, end: int | None = None
+        self, *, seqid: str, start: int | None = None, stop: int | None = None
     ) -> str:
         """
 
@@ -59,7 +59,7 @@ class GenomeSeqsDb(SqliteDbMixin):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
@@ -68,15 +68,15 @@ class GenomeSeqsDb(SqliteDbMixin):
         else:
             start = 1
 
-        if end is None:
+        if stop is None:
             sql = (
                 f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where seqid = ?"
             )
             values = start, seqid
         else:
-            end -= start - 1
+            stop -= start - 1
             sql = f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where seqid = ?"
-            values = start, end, seqid
+            values = start, stop, seqid
 
         return self._execute_sql(sql, values).fetchone()[0]
 
@@ -109,7 +109,7 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         self.db.commit()
 
     def get_seq(
-        self, *, seqid: str, start: int | None = None, end: int | None = None
+        self, *, seqid: str, start: int | None = None, stop: int | None = None
     ) -> str:
         """
 
@@ -120,14 +120,14 @@ class CompressedGenomeSeqsDb(GenomeSeqsDb):
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         """
         sql = f"SELECT seq FROM {self.table_name} where seqid = ?"
 
         seq = elt_decompress_it(self._execute_sql(sql, (seqid,)).fetchone()[0])
-        return seq[start:end] if start or end else seq
+        return seq[start:stop] if start or stop else seq
 
 
 # todo: this wrapping class is required for memory efficiency because
@@ -154,7 +154,7 @@ class Genome:
         *,
         seqid: str,
         start: int | None = None,
-        end: int | None = None,
+        stop: int | None = None,
         namer: typing.Callable | None = None,
     ) -> str:
         """returns annotated sequence
@@ -166,22 +166,22 @@ class Genome:
         start
             starting position of slice in python coordinates, defaults
             to 0
-        end
+        stop
             ending position of slice in python coordinates, defaults
             to length of coordinate
         namer
             callback for naming the sequence. Callback must take four
-            arguments: species, seqid,start, end. Default is
-            species:seqid:start-end.
+            arguments: species, seqid,start, stop. Default is
+            species:seqid:start-stop.
         Notes
         -----
         Annotations partially within region are included.
         """
-        seq = self._seqs.get_seq(seqid=seqid, start=start, end=end)
+        seq = self._seqs.get_seq(seqid=seqid, start=start, stop=stop)
         if namer:
-            name = namer(self.species, seqid, start, end)
+            name = namer(self.species, seqid, start, stop)
         else:
-            name = f"{self.species}:{seqid}:{start}-{end}"
+            name = f"{self.species}:{seqid}:{start}-{stop}"
         # we use seqid to make the sequence here because that identifies the
         # parent seq identity, required for querying annotations
         seq = make_seq(seq, name=seqid, moltype="dna")
@@ -189,7 +189,7 @@ class Genome:
         if self.annotation_db:
             seq.annotation_offset = start or 0
             seq.annotation_db = self.annotation_db.subset(
-                seqid=seqid, start=start, end=end, allow_partial=True
+                seqid=seqid, start=start, stop=stop, allow_partial=True
             )
         return seq
 
@@ -326,7 +326,7 @@ def get_gene_table_for_species(
         "source",
         "biotype",
         "start",
-        "end",
+        "stop",
         "score",
         "strand",
         "phase",

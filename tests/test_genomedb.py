@@ -85,12 +85,12 @@ def compressed_small_genome(small_data):
 
 @pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
 @pytest.mark.parametrize(
-    "name,start,end", (("s1", 3, 7), ("s1", 3, None), ("s1", None, 7), ("s2", 2, 4))
+    "name,start,stop", (("s1", 3, 7), ("s1", 3, None), ("s1", None, 7), ("s2", 2, 4))
 )
-def test_get_seq(genome, request, name, start, end):
+def test_get_seq(genome, request, name, start, stop):
     genome, seqs = request.getfixturevalue(genome)
-    expect = seqs[name][start:end]
-    assert genome.get_seq(seqid=name, start=start, end=end) == expect
+    expect = seqs[name][start:stop]
+    assert genome.get_seq(seqid=name, start=start, stop=stop) == expect
 
 
 @pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
@@ -154,7 +154,7 @@ def test_get_seq_num_annotations_correct(
 
 
 @pytest.mark.parametrize(
-    "seqid,feature_name,start,end",
+    "seqid,feature_name,start,stop",
     (
         ("s1", None, None, None),
         ("s1", "gene-01", 2, 8),
@@ -162,14 +162,14 @@ def test_get_seq_num_annotations_correct(
     ),
 )
 def test_get_seq_feature_seq_correct(
-    small_genome, small_annotdb, small_coll, seqid, feature_name, start, end, namer
+    small_genome, small_annotdb, small_coll, seqid, feature_name, start, stop, namer
 ):
     gen_seqs_db, small_data = small_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
-    seq = genome.get_seq(seqid=seqid, start=start, end=end, namer=namer)
+    seq = genome.get_seq(seqid=seqid, start=start, stop=stop, namer=namer)
     coll_seq = small_coll.get_seq(seqid)
-    assert seq == coll_seq[start:end]
-    expect = list(coll_seq[start:end].get_features(allow_partial=True))[0]
+    assert seq == coll_seq[start:stop]
+    expect = list(coll_seq[start:stop].get_features(allow_partial=True))[0]
     got = list(seq.get_features(allow_partial=True))[0]
     # should also get the same slice
     assert got.get_slice() == expect.get_slice()

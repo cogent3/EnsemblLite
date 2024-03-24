@@ -37,7 +37,7 @@ def test_db_align_add_records(db_align):
             species="human",
             seqid="1",
             start=22,
-            end=42,
+            stop=42,
             strand="-",
             gap_spans=gap_spans,
         )
