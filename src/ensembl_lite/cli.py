@@ -126,7 +126,6 @@ _verbose = click.option(
     "-v",
     "--verbose",
     is_flag=True,
-    help="causes stdout/stderr from rsync download to be " "written to screen",
 )
 _numprocs = click.option(
     "-n",
