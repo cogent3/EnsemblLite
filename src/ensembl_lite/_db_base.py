@@ -1,5 +1,6 @@
 import dataclasses
 import inspect
+import io
 import sqlite3
 
 import numpy
@@ -21,14 +22,18 @@ _decompressor = blosc_decompress_it()
 
 
 def compressed_array_to_sqlite(data):
-    return _compressor(data.array.astype(numpy.int32).tobytes())
+    with io.BytesIO() as out:
+        numpy.save(out, data.array)
+        out.seek(0)
+        output = _compressor(out.read())
+    return output
 
 
 def decompressed_sqlite_to_array(data):
-    result = numpy.frombuffer(_decompressor(data), dtype=numpy.int32)
-    if len(result):
-        dim = result.shape[0] // 2
-        result = result.reshape((dim, 2))
+    data = _decompressor(data)
+    with io.BytesIO(data) as out:
+        out.seek(0)
+        result = numpy.load(out)
     return result
 
 
