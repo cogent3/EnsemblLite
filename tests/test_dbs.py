@@ -12,7 +12,7 @@ from ensembl_lite._install import LoadHomologies, _load_one_align
 
 @pytest.fixture(scope="function")
 def db_align(DATA_DIR, tmp_path):
-    records = _load_one_align(DATA_DIR / "tiny.maf")
+    records = _load_one_align()(DATA_DIR / "tiny.maf")
     outpath = tmp_path / "blah.sqlitedb"
     db = AlignDb(source=outpath)
     db.add_records(records)

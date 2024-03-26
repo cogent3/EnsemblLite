@@ -7,6 +7,8 @@ import typing
 from collections import Counter
 
 from cogent3 import load_annotations, make_seq, open_
+from cogent3.app.composable import LOADER, define_app
+from cogent3.app.typing import IdentifierType
 from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.table import FilteringParser
 from cogent3.util import parallel as PAR
@@ -137,18 +139,25 @@ def seq2gaps(record: dict):
     return AlignRecord(**record)
 
 
-def _load_one_align(path: os.PathLike) -> typing.Iterable[dict]:
-    records = []
-    for block_id, align in enumerate(_maf.parse(path)):
-        converted = []
-        for maf_name, seq in align.items():
-            record = maf_name.to_dict()
-            record["block_id"] = f"{path.name}-{block_id}"
-            record["source"] = path.name
-            record["seq"] = seq
-            converted.append(seq2gaps(record))
-        records.extend(converted)
-    return records
+@define_app(app_type=LOADER)
+class _load_one_align:
+    def __init__(self, species: set[str] | None = None):
+        self.species = species or {}
+
+    def main(self, path: IdentifierType) -> typing.Iterable[dict]:
+        records = []
+        for block_id, align in enumerate(_maf.parse(path)):
+            converted = []
+            for maf_name, seq in align.items():
+                if maf_name.species not in self.species:
+                    continue
+                record = maf_name.to_dict()
+                record["block_id"] = f"{path.name}-{block_id}"
+                record["source"] = path.name
+                record["seq"] = seq
+                converted.append(seq2gaps(record))
+            records.extend(converted)
+        return records
 
 
 def local_install_compara(
@@ -156,6 +165,8 @@ def local_install_compara(
 ):
     if force_overwrite:
         shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
+
+    aln_loader = _load_one_align(set(config.db_names))
 
     for align_name in config.align_names:
         src_dir = config.staging_aligns / align_name
@@ -165,11 +176,14 @@ def local_install_compara(
         db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
         records = []
         paths = list(src_dir.glob(f"{align_name}*maf*"))
-        if max_workers:
+        if max_workers and max_workers > 1:
             max_workers = min(len(paths) + 1, max_workers)
+            series = PAR.as_completed(aln_loader, paths, max_workers=max_workers)
+        else:
+            series = map(aln_loader, paths)
 
         for result in track(
-            PAR.as_completed(_load_one_align, paths, max_workers=max_workers),
+            series,
             transient=True,
             description="Installing alignments",
             total=len(paths),
