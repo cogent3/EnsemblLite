@@ -418,6 +418,9 @@ def alignments(
         exit(1)
 
     # get all the genomes
+    if verbose:
+        print(f"working on species {align_db.get_species_names()}")
+
     genomes = {
         sp: load_genome(config=config, species=sp)
         for sp in align_db.get_species_names()
