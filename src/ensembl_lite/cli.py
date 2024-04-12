@@ -483,7 +483,6 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
         for seqs in get_seqs.as_completed(
             sp_gene_groups,
             parallel=True,
-            par_kw=dict(max_workers=11),
             show_progress=False,
         ):
             if not seqs:
