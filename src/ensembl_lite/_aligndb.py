@@ -215,8 +215,8 @@ def get_alignment(
                     seq_start = seq_start - genome_start
                     seq_end = seq_end - genome_start
 
-                align_start = gaps.from_seq_to_align_index(seq_start)
-                align_end = gaps.from_seq_to_align_index(seq_end)
+                align_start = gaps.get_align_index(seq_start)
+                align_end = gaps.get_align_index(seq_end)
                 break
         else:
             raise ValueError(f"no matching alignment record for {ref_species!r}")
@@ -235,8 +235,8 @@ def get_alignment(
 
             # We use the alignment indices derived for the reference sequence
             # above
-            seq_start = gaps.from_align_to_seq_index(align_start)
-            seq_end = gaps.from_align_to_seq_index(align_end)
+            seq_start = gaps.get_seq_index(align_start)
+            seq_end = gaps.get_seq_index(align_end)
             seq_length = seq_end - seq_start
             if align_record.strand == "-":
                 # if it's neg strand, the alignment start is the genome stop
@@ -379,9 +379,7 @@ class GapPositions:
             # no gaps
             seq_length = stop - start
         else:
-            seq_length = self.from_align_to_seq_index(
-                stop
-            ) - self.from_align_to_seq_index(start)
+            seq_length = self.get_seq_index(stop) - self.get_seq_index(start)
 
         return self.__class__(gaps=result, seq_length=seq_length)
 
@@ -389,7 +387,7 @@ class GapPositions:
         total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
         return total_gaps + self.seq_length
 
-    def from_seq_to_align_index(self, seq_index: int) -> int:
+    def get_align_index(self, seq_index: int) -> int:
         """convert a sequence index into an alignment index"""
         if seq_index < 0:
             raise NotImplementedError(f"{seq_index} negative align_index not supported")
@@ -413,7 +411,7 @@ class GapPositions:
 
         return seq_index + gap_lengths
 
-    def from_align_to_seq_index(self, align_index: int) -> int:
+    def get_seq_index(self, align_index: int) -> int:
         """converts alignment index to sequence index"""
         if align_index < 0:
             raise NotImplementedError(

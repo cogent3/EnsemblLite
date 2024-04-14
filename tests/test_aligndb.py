@@ -112,7 +112,7 @@ def test_gapped_convert_seq2aln(data, index):
     seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_seq_to_align_index(index)
+    idx = gaps.get_align_index(index)
     assert data[idx] == ungapped[index]
 
 
@@ -135,8 +135,8 @@ def test_gapped_convert_seq2aln2seq(data, index):
     seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    align_index = gaps.from_seq_to_align_index(index)
-    got = gaps.from_align_to_seq_index(align_index)
+    align_index = gaps.get_align_index(index)
+    got = gaps.get_seq_index(align_index)
     assert got == index
 
 
@@ -159,7 +159,7 @@ def test_gapped_convert_aln2seq_nongap_char(data, seq_index):
     seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_align_to_seq_index(align_index)
+    idx = gaps.get_seq_index(align_index)
     assert idx == seq_index
 
 
@@ -204,7 +204,7 @@ def test_gapped_convert_aln2seq_gapchar(data, gap_number):
     seq = make_seq(data, moltype="text")
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
-    idx = gaps.from_align_to_seq_index(align_index)
+    idx = gaps.get_seq_index(align_index)
     assert idx == seq_index
 
 
@@ -213,7 +213,7 @@ def test_gapped_convert_aln2seq_invalid():
     g, s = seq_to_gap_coords(seq)
     gaps = GapPositions(g, len(seq))
     with pytest.raises(NotImplementedError):
-        gaps.from_align_to_seq_index(-1)
+        gaps.get_seq_index(-1)
 
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
