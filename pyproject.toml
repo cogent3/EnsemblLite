@@ -12,7 +12,7 @@ authors = [
 keywords = ["biology", "genomics", "evolution", "bioinformatics"]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">3.10,<3.12"
+requires-python = ">=3.10,<3.13"
 dependencies = ["blosc2",
         "click",
         "scitrack",
@@ -34,6 +34,7 @@ classifiers = [
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ]
 
 [project.urls]
