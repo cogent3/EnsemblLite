@@ -18,30 +18,20 @@ from ensembl_lite import _maf
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._convert import seq_to_gap_coords
-from ensembl_lite._genomedb import (
-    _ANNOTDB_NAME,
-    _SEQDB_NAME,
-    CompressedGenomeSeqsDb,
-)
+from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite._species import Species
-from ensembl_lite._util import elt_compress_it
 
 
 def _rename(label: str) -> str:
     return label.split()[0]
 
 
-def _get_seqs(src: os.PathLike) -> list[tuple[str, bytes]]:
+def _get_seqs(src: os.PathLike) -> list[tuple[str, str]]:
     with open_(src) as infile:
         data = infile.read().splitlines()
     name_seqs = list(MinimalFastaParser(data))
-    labels = Counter(n for n, _ in name_seqs)
-    if max(labels.values()) != 1:
-        multiples = {k: c for k, c in labels.items() if c > 1}
-        msg = f"Some seqid's not unique for {str(src.parent.name)!r} : {multiples}"
-        raise RuntimeError(msg)
-    return [(_rename(name), elt_compress_it(seq)) for name, seq in name_seqs]
+    return [(_rename(name), seq) for name, seq in name_seqs]
 
 
 def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
@@ -125,8 +115,8 @@ def local_install_genomes(
             src_dir = config.staging_genomes / db_name
             dest_dir = config.install_genomes / db_name
             dest, records = _prepped_seqs(src_dir, dest_dir, progress, max_workers)
-            db = CompressedGenomeSeqsDb(source=dest, species=dest.parent.name)
-            db.add_compressed_records(records=records)
+            db = SeqsDataHdf5(source=dest, species=dest.parent.name, mode="w")
+            db.add_records(records=records)
             db.close()
             progress.update(writing, description="Installing  🧬", advance=1)
 

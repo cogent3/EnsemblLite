@@ -14,7 +14,7 @@ from ensembl_lite._aligndb import (
     write_alignments,
 )
 from ensembl_lite._convert import seq_to_gap_coords
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
+from ensembl_lite._genomedb import Genome, SeqsDataHdf5
 
 
 def small_seqs():
@@ -227,7 +227,9 @@ def genomedbs_aligndb(small_records):
     data = seqs.to_dict()
     genomes = {}
     for name, seq in data.items():
-        genome = CompressedGenomeSeqsDb(source=":memory:", species=name)
+        genome = SeqsDataHdf5(
+            source=f"{name}", species=species[name], mode="w", in_memory=True
+        )
         genome.add_records(records=[(name, seq)])
         genomes[species[name]] = Genome(seqs=genome, annots=None, species=species[name])
 
@@ -358,7 +360,12 @@ def make_sample(two_aligns=False):
         if seq.name == "s2":
             seq = seq.rc()
             s2_genome = str(seq)
-        genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
+        genome = SeqsDataHdf5(
+            source=f"{name}",
+            mode="w",
+            in_memory=True,
+            species=species[seq.name],
+        )
         genome.add_records(records=[(name, str(seq))])
         genomes[species[name]] = Genome(
             seqs=genome, annots=annot_dbs[name], species=species[name]
