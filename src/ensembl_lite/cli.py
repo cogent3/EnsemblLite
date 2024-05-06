@@ -453,7 +453,7 @@ def alignments(
 @_force
 @_verbose
 def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
-    """exports all homolog groups of type relationship in json format"""
+    """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress
 
     from ensembl_lite._genomedb import get_selected_seqs
