@@ -51,8 +51,7 @@ class SiteMapABC(ABC):
         ...
 
     @abstractmethod
-    def get_annotations_path(self, ensembl_name: str) -> str:
-        ...
+    def get_annotations_path(self, ensembl_name: str) -> str: ...
 
     @property
     def alignments_path(self) -> StrOrNone:

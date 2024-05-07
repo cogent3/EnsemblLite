@@ -49,24 +49,20 @@ class SeqsDataABC(ABC):
         return id(self)
 
     @abstractmethod
-    def add_record(self, *, seqid: str, seq: str):
-        ...
+    def add_record(self, *, seqid: str, seq: str): ...
 
     @abstractmethod
-    def add_records(self, *, records: typing.Iterable[list[str, str]]):
-        ...
+    def add_records(self, *, records: typing.Iterable[list[str, str]]): ...
 
     @abstractmethod
     def get_seq_str(
         self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
-    ) -> str:
-        ...
+    ) -> str: ...
 
     @abstractmethod
     def get_seq_arr(
         self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
-    ) -> NDArray[numpy.uint8]:
-        ...
+    ) -> NDArray[numpy.uint8]: ...
 
     @abstractmethod
     def get_coord_names(self) -> tuple[str]:
