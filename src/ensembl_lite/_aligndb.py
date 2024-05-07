@@ -8,12 +8,16 @@ from dataclasses import dataclass
 
 import numpy
 
-from cogent3.core.alignment import Alignment
+from cogent3.core.alignment import Aligned, Alignment
+from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 from numpy.typing import NDArray
 from rich.progress import track
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
 from ensembl_lite._util import sanitise_stableid
+
+
+_no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
 
 @dataclass(slots=True)
@@ -47,6 +51,15 @@ class AlignRecord:
             if getattr(self, attr) != getattr(other, attr):
                 return False
         return (self.gap_spans == other.gap_spans).all()
+
+    @property
+    def gap_data(self):
+        if len(self.gap_spans):
+            gap_pos, gap_lengths = self.gap_spans.T
+        else:
+            gap_pos, gap_lengths = _no_gaps.copy(), _no_gaps.copy()
+
+        return gap_pos, gap_lengths
 
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
@@ -150,6 +163,8 @@ class AlignDb(SqliteDbMixin):
         results = defaultdict(list)
         for record in self.db.execute(sql, block_ids).fetchall():
             record = {k: record[k] for k in record.keys()}
+            if not len(record["gap_spans"]):
+                record["gap_spans"] = _no_gaps.copy()
             results[record["block_id"]].append(AlignRecord(**record))
 
         return results.values()
@@ -170,7 +185,6 @@ def get_alignment(
     mask_features: list[str] | None = None,
 ) -> typing.Generator[Alignment]:
     """yields cogent3 Alignments"""
-    from ensembl_lite._convert import gap_coords_to_seq
 
     if ref_species not in genomes:
         raise ValueError(f"unknown species {ref_species!r}")
@@ -193,8 +207,11 @@ def get_alignment(
                 # start / stop are also genomic positions
                 genome_start = align_record.start
                 genome_end = align_record.stop
-                gaps = GapPositions(
-                    align_record.gap_spans, seq_length=genome_end - genome_start
+                gap_pos, gap_lengths = align_record.gap_data
+                gaps = IndelMap(
+                    gap_pos=gap_pos,
+                    gap_lengths=gap_lengths,
+                    parent_length=genome_end - genome_start,
                 )
 
                 # We use the GapPosition object to identify the alignment
@@ -229,8 +246,11 @@ def get_alignment(
             # coordinates for this species.
             genome_start = align_record.start
             genome_end = align_record.stop
-            gaps = GapPositions(
-                align_record.gap_spans, seq_length=genome_end - genome_start
+            gap_pos, gap_lengths = align_record.gap_data
+            gaps = IndelMap(
+                gap_pos=gap_pos,
+                gap_lengths=gap_lengths,
+                parent_length=genome_end - genome_start,
             )
 
             # We use the alignment indices derived for the reference sequence
@@ -240,7 +260,7 @@ def get_alignment(
             seq_length = seq_end - seq_start
             if align_record.strand == "-":
                 # if it's neg strand, the alignment start is the genome stop
-                seq_start = gaps.seq_length - seq_end
+                seq_start = gaps.parent_length - seq_end
 
             s = genome.get_seq(
                 seqid=align_record.seqid,
@@ -254,7 +274,7 @@ def get_alignment(
             if align_record.strand == "-":
                 s = s.rc()
 
-            aligned = gap_coords_to_seq(gaps.gaps, s)
+            aligned = Aligned(gaps, s)
             seqs.append(aligned)
 
         aln = Alignment(seqs)
