@@ -4,13 +4,13 @@ from cogent3 import make_unaligned_seqs
 from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._genomedb import (
-    CompressedGenomeSeqsDb,
+    _SEQDB_NAME,
     Genome,
-    GenomeSeqsDb,
+    SeqsDataHdf5,
     get_gene_table_for_species,
     get_species_summary,
+    str2arr,
 )
-from ensembl_lite._util import elt_compress_it
 
 
 @pytest.fixture(scope="function")
@@ -63,13 +63,6 @@ def small_annotdb(small_annots):
 
 
 @pytest.fixture(scope="function")
-def small_genome(small_data):
-    db = GenomeSeqsDb(source=":memory:", species="dodo")
-    db.add_records(records=small_data.items())
-    return db, small_data
-
-
-@pytest.fixture(scope="function")
 def small_coll(small_data, small_annotdb):
     seqs = make_unaligned_seqs(data=small_data, moltype="dna")
     seqs.annotation_db = small_annotdb
@@ -77,44 +70,45 @@ def small_coll(small_data, small_annotdb):
 
 
 @pytest.fixture(scope="function")
-def compressed_small_genome(small_data):
-    db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
-    db.add_records(records=small_data.items())
-    return db, small_data
+def h5_genome(tmp_path):
+    # in memory db
+    return SeqsDataHdf5(
+        source=tmp_path / "small-hd5f.genome-h5",
+        mode="w",
+        species="Human",
+        in_memory=True,
+    )
 
 
-@pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
+@pytest.fixture
+def small_h5_genome(small_data, h5_genome):
+    # in memory db
+    h5_genome.add_records(records=small_data.items())
+    return h5_genome, small_data
+
+
 @pytest.mark.parametrize(
     "name,start,stop", (("s1", 3, 7), ("s1", 3, None), ("s1", None, 7), ("s2", 2, 4))
 )
-def test_get_seq(genome, request, name, start, stop):
-    genome, seqs = request.getfixturevalue(genome)
+def test_get_seq(small_h5_genome, name, start, stop):
+    genome, seqs = small_h5_genome
     expect = seqs[name][start:stop]
-    assert genome.get_seq(seqid=name, start=start, stop=stop) == expect
+    assert genome.get_seq_str(seqid=name, start=start, stop=stop) == expect
 
 
-@pytest.mark.parametrize("genome", ("small_genome", "compressed_small_genome"))
 @pytest.mark.parametrize("name", ("s1", "s2"))
-def test_get_fullseq(genome, request, name):
-    genome, seqs = request.getfixturevalue(genome)
+def test_get_fullseq(small_h5_genome, name):
+    genome, seqs = small_h5_genome
     expect = seqs[name]
-    assert genome.get_seq(seqid=name) == expect
-
-
-def test_add_compressed(small_data):
-    db = CompressedGenomeSeqsDb(source=":memory:", species="dodo")
-    data = {k: elt_compress_it(s) for k, s in small_data.items()}
-    db.add_compressed_records(records=data.items())
-    assert db.get_seq(seqid="s1") == small_data["s1"]
-    assert db.get_seq(seqid="s2") == small_data["s2"]
+    assert genome.get_seq_str(seqid=name) == expect
 
 
 def test_annodb(small_annotdb):
     list(small_annotdb.get_features_matching(seqid="s1", biotype="gene"))
 
 
-def test_selected_seq_is_annotated(small_genome, small_annotdb, namer):
-    gen_seqs_db, _ = small_genome
+def test_selected_seq_is_annotated(small_h5_genome, small_annotdb, namer):
+    gen_seqs_db, _ = small_h5_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1", namer=namer)
     assert len(seq.annotation_db) == 3
@@ -124,29 +118,25 @@ def test_selected_seq_is_annotated(small_genome, small_annotdb, namer):
     assert gene.name == "gene-01"
 
 
-@pytest.mark.parametrize("cls", (GenomeSeqsDb, CompressedGenomeSeqsDb))
-def test_hashable_genome(cls):
-    genome = cls(species="dodo", source=":memory:")
-    assert hash(genome) == id(genome)
+def test_hashable_genome_seqs(h5_genome):
+    assert hash(h5_genome) == id(h5_genome)
 
 
-def test_genome_close(small_genome, small_annotdb, namer):
-    import sqlite3
-
-    gen_seqs_db, _ = small_genome
+def test_genome_close(small_h5_genome, small_annotdb, namer):
+    gen_seqs_db, _ = small_h5_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1", namer=namer)
     assert seq
     genome.close()
-    with pytest.raises(sqlite3.ProgrammingError):
+    with pytest.raises(OSError):
         genome.get_seq(seqid="s1")
 
 
 @pytest.mark.parametrize("seqid", ("s1", "s2"))
 def test_get_seq_num_annotations_correct(
-    small_genome, small_annotdb, small_coll, seqid, namer
+    small_h5_genome, small_annotdb, small_coll, seqid, namer
 ):
-    gen_seqs_db, small_data = small_genome
+    gen_seqs_db, small_data = small_h5_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid=seqid, namer=namer)
     expect = list(small_coll.get_features(seqid=seqid))
@@ -162,9 +152,9 @@ def test_get_seq_num_annotations_correct(
     ),
 )
 def test_get_seq_feature_seq_correct(
-    small_genome, small_annotdb, small_coll, seqid, feature_name, start, stop, namer
+    small_h5_genome, small_annotdb, small_coll, seqid, feature_name, start, stop, namer
 ):
-    gen_seqs_db, small_data = small_genome
+    gen_seqs_db, small_data = small_h5_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid=seqid, start=start, stop=stop, namer=namer)
     coll_seq = small_coll.get_seq(seqid)
@@ -191,3 +181,77 @@ def test_get_species_summary(small_annotdb):
     # we do not check values here, only the Type and that we have > 0 records
     assert isinstance(got, Table)
     assert len(got) > 0
+
+
+def test_hdf5_genome_skip_duplicates(small_h5_genome):
+    genome, data = small_h5_genome
+    # should not fail
+    genome.add_records(records=data.items())
+
+
+def test_hdf5_genome_error_duplicate_names(small_h5_genome):
+    genome, data = small_h5_genome
+    with pytest.raises(ValueError):
+        # duplicate name, but seq is different
+        genome.add_record(seqid="s1", seq=data["s1"][:-2])
+
+
+def test_hdf5_genome_coord_names(small_h5_genome):
+    genome, data = small_h5_genome
+    assert genome.get_coord_names() == tuple(data)
+
+
+def test_empty_hdf5_genome_coord_names(h5_genome):
+    assert h5_genome.get_coord_names() == ()
+
+
+@pytest.mark.parametrize(
+    "name,start,stop",
+    (
+        ("s1", 3, 7),
+        ("s1", 3, None),
+        ("s1", None, 7),
+        ("s2", 2, 4),
+        ("s1", None, None),
+        ("s2", None, None),
+    ),
+)
+def test_h5_get_seq(small_h5_genome, name, start, stop):
+    genome, seqs = small_h5_genome
+    expect = seqs[name][start:stop]
+    assert genome.get_seq_str(seqid=name, start=start, stop=stop) == expect
+    convert = str2arr(moltype="dna")
+    assert (
+        genome.get_seq_arr(seqid=name, start=start, stop=stop) == convert(expect)
+    ).all()
+
+
+def test_pickling_round_trip(small_data, tmp_path):
+    import pickle
+
+    path = tmp_path / f"small.{_SEQDB_NAME}"
+    kwargs = dict(source=path, species="human")
+    genome = SeqsDataHdf5(mode="w", **kwargs)
+    genome.add_records(records=small_data.items())
+    with pytest.raises(NotImplementedError):
+        pickle.dumps(genome)
+
+    ro = SeqsDataHdf5(mode="r", **kwargs)
+    assert ro.get_seq_str(seqid="s1") == small_data["s1"]
+    unpkl = pickle.loads(pickle.dumps(ro))
+    got = unpkl.get_seq_str(seqid="s1")
+    assert got == small_data["s1"]
+
+
+def test_species_setting(small_data, tmp_path):
+    path = tmp_path / f"small.{_SEQDB_NAME}"
+    kwargs = dict(source=path, species="human")
+    genome = SeqsDataHdf5(mode="w", **kwargs)
+    genome.add_records(records=small_data.items())
+    genome.close()
+
+    genome = SeqsDataHdf5(mode="r", source=path)
+    # note that species are converted into the Ensembl db prefix
+    assert genome.species == "homo_sapiens"
+    with pytest.raises(ValueError):
+        _ = SeqsDataHdf5(mode="r", source=path, species="cat")

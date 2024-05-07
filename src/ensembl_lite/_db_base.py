@@ -5,7 +5,11 @@ import sqlite3
 
 import numpy
 
-from ensembl_lite._util import blosc_compress_it, blosc_decompress_it
+from ensembl_lite._util import (
+    SerialisableMixin,
+    blosc_compress_it,
+    blosc_decompress_it,
+)
 
 
 @dataclasses.dataclass(slots=True)
@@ -66,20 +70,10 @@ def _make_table_sql(
     return f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types});"
 
 
-class SqliteDbMixin:
+class SqliteDbMixin(SerialisableMixin):
     table_name = None
     _db = None
     source = None
-
-    def __new__(cls, *args, **kwargs):
-        obj = object.__new__(cls)
-        init_sig = inspect.signature(cls.__init__)
-        bargs = init_sig.bind_partial(cls, *args, **kwargs)
-        bargs.apply_defaults()
-        init_vals = bargs.arguments
-        init_vals.pop("self", None)
-        obj._init_vals = init_vals
-        return obj
 
     def __getstate__(self):
         return {**self._init_vals}

@@ -9,12 +9,10 @@ from cogent3.core.annotation_db import GffAnnotationDb
 from ensembl_lite._aligndb import (
     AlignDb,
     AlignRecord,
-    GapPositions,
     get_alignment,
     write_alignments,
 )
-from ensembl_lite._convert import seq_to_gap_coords
-from ensembl_lite._genomedb import CompressedGenomeSeqsDb, Genome
+from ensembl_lite._genomedb import Genome, SeqsDataHdf5
 
 
 def small_seqs():
@@ -60,7 +58,13 @@ def make_records(start, end, block_id):
     for seq in aln.seqs:
         seqid, seq_start, seq_end, seq_strand = seq.data.parent_coordinates()
         gs = seq.get_gapped_seq()
-        c, s = seq_to_gap_coords(gs)
+        imap, s = gs.parse_out_gaps()
+        if imap.num_gaps:
+            gap_spans = numpy.array(
+                [imap.gap_pos, imap.get_gap_lengths()], dtype=numpy.int32
+            ).T
+        else:
+            gap_spans = numpy.array([], dtype=numpy.int32)
         record = AlignRecord(
             source="blah",
             species=species[seq.name],
@@ -69,7 +73,7 @@ def make_records(start, end, block_id):
             start=seq_start,
             stop=seq_end,
             strand="-" if seq_strand == -1 else "+",
-            gap_spans=c,
+            gap_spans=gap_spans,
         )
         records.append(record)
     return records
@@ -92,77 +96,6 @@ def test_aligndb_records_match_input(small_records):
         assert g == o
 
 
-@pytest.mark.parametrize(
-    "data",
-    (
-        "AB---CD--EF",
-        "---ABCD--EF",
-        "ABCD---EF--",
-        "-----ABCDEF",
-        "ABCDEF-----",
-        "-ABCDEF----",
-        "-A-B-C-D-EF",
-        "A-B-C-D-EF-",
-    ),
-)
-@pytest.mark.parametrize("index", range(4, 6))  # the ungapped sequence is 6 long
-def test_gapped_convert_seq2aln(data, index):
-    # converting a sequence index to alignment index
-    ungapped = data.replace("-", "")
-    seq = make_seq(data, moltype="text")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
-    idx = gaps.get_align_index(index)
-    assert data[idx] == ungapped[index]
-
-
-@pytest.mark.parametrize(
-    "data",
-    (
-        "AB---CD--EF",
-        "---ABCD--EF",
-        "ABCD---EF--",
-        "-----ABCDEF",
-        "ABCDEF-----",
-        "-ABCDEF----",
-        "-A-B-C-D-EF",
-        "A-B-C-D-EF-",
-    ),
-)
-@pytest.mark.parametrize("index", range(6))  # the ungapped sequence is 6 long
-def test_gapped_convert_seq2aln2seq(data, index):
-    # round tripping seq to alignment to seq indices
-    seq = make_seq(data, moltype="text")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
-    align_index = gaps.get_align_index(index)
-    got = gaps.get_seq_index(align_index)
-    assert got == index
-
-
-@pytest.mark.parametrize(
-    "data",
-    (
-        "AB--CDE-FG",
-        "--ABC-DEFG",
-        "AB--CDE-FG--",
-        "ABCDE--FG---",
-        "-----ABCDEFG",
-        "-A-B-C-D-E-F-G-",
-    ),
-)
-@pytest.mark.parametrize("seq_index", range(7))
-def test_gapped_convert_aln2seq_nongap_char(data, seq_index):
-    # test alignment indexes when aligned position is NOT a gap
-    ungapped = "ABCDEFG"
-    align_index = data.find(ungapped[seq_index])
-    seq = make_seq(data, moltype="text")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
-    idx = gaps.get_seq_index(align_index)
-    assert idx == seq_index
-
-
 def _find_nth_gap_index(data: str, n: int) -> int:
     num = -1
     for i, c in enumerate(data):
@@ -180,42 +113,6 @@ def _get_expected_seqindex(data: str, align_index: int) -> int:
     return refseq.find(got[0]) if got else len(refseq)
 
 
-@pytest.mark.parametrize(
-    "data",
-    (
-        "AB-----CDE-F--G",
-        "----ABC-DEFG---",
-        "AB--CDE-FG-----",
-        "ABCDE--FG------",
-        "--------ABCDEFG",
-        "-A-B-C-D-E-F-G-",
-    ),
-)
-@pytest.mark.parametrize("gap_number", range(8))
-def test_gapped_convert_aln2seq_gapchar(data, gap_number):
-    # test alignment indexes when aligned position IS a gap
-    # in this case we expect the position of the next non-gap
-    # to be the result
-    # find the alignment index corresponding to the
-    align_index = _find_nth_gap_index(data, gap_number)
-    assert data[align_index] == "-", (data, gap_number)
-    # find nearest non-gap
-    seq_index = _get_expected_seqindex(data, align_index)
-    seq = make_seq(data, moltype="text")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
-    idx = gaps.get_seq_index(align_index)
-    assert idx == seq_index
-
-
-def test_gapped_convert_aln2seq_invalid():
-    seq = make_seq("AC--GTA-TG", moltype="dna")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(seq))
-    with pytest.raises(NotImplementedError):
-        gaps.get_seq_index(-1)
-
-
 # fixture to make synthetic GenomeSeqsDb and alignment db
 # based on a given alignment
 @pytest.fixture
@@ -227,7 +124,9 @@ def genomedbs_aligndb(small_records):
     data = seqs.to_dict()
     genomes = {}
     for name, seq in data.items():
-        genome = CompressedGenomeSeqsDb(source=":memory:", species=name)
+        genome = SeqsDataHdf5(
+            source=f"{name}", species=species[name], mode="w", in_memory=True
+        )
         genome.add_records(records=[(name, seq)])
         genomes[species[name]] = Genome(seqs=genome, annots=None, species=species[name])
 
@@ -253,92 +152,6 @@ def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
         list(get_alignment(align_db, genomes, **kwargs))
 
 
-@pytest.mark.parametrize(
-    "invalid_slice",
-    (slice(None, None, -1), slice(None, -1, None), slice(-1, None, None)),
-)
-def test_gap_pos_invalid_slice(invalid_slice):
-    gp = GapPositions(numpy.array([[1, 3]], dtype=numpy.int32), 20)
-    with pytest.raises(NotImplementedError):
-        gp[invalid_slice]
-
-
-@pytest.mark.parametrize(
-    "slice",
-    (
-        slice(3, 7),
-        slice(20, None),
-    ),
-)
-def test_no_gaps_in_slice(slice):
-    # aligned length is 25
-    seq_length = 20
-    gap_length = 5
-    gp = GapPositions(
-        gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
-    )
-    got = gp[slice]
-    assert not len(got.gaps)
-    start = slice.start or 0
-    stop = slice.stop or (seq_length + gap_length)
-    assert len(got) == stop - start
-
-
-def test_len_gapped():
-    seq_length = 20
-    gap_length = 5
-
-    gp = GapPositions(
-        gaps=numpy.array([[10, gap_length]], dtype=numpy.int32), seq_length=seq_length
-    )
-    assert len(gp) == (seq_length + gap_length)
-
-
-def test_all_gaps_in_slice():
-    # slicing GapPositions
-    # sample seq 1
-    data = "AC--GTA-TG"
-    seq = make_seq(data, moltype="dna")
-    g, s = seq_to_gap_coords(seq)
-    gp = GapPositions(g, len(data.replace("-", "")))
-    sl = slice(1, 9)
-
-    got = gp[sl]
-    expect_gaps, expect_seq = seq_to_gap_coords(make_seq(data[sl], moltype="dna"))
-    assert (got.gaps == expect_gaps).all()
-    assert got.seq_length == 5
-
-
-@pytest.mark.parametrize(
-    "data",
-    (
-        "----GTA-TG",
-        "AC--GTA---",
-        "AC--GTA-TG",
-        "A-C-G-T-A-",
-        "-A-C-G-T-A",
-        "ACGTAACGTA",
-        "----------",
-    ),
-)
-@pytest.mark.parametrize(
-    "slice",
-    [slice(i, j) for i, j in combinations(range(10), 2)],
-)
-def test_variant_slices(data, slice):
-    seq = make_seq(data, moltype="dna")
-    g, s = seq_to_gap_coords(seq)
-    gaps = GapPositions(g, len(s))
-    orig = gaps.gaps.copy()
-    got = gaps[slice]
-
-    expect_gaps, expect_seq = seq_to_gap_coords(make_seq(data[slice], moltype="dna"))
-    assert got.seq_length == len(expect_seq)
-    assert (got.gaps == expect_gaps).all()
-    # make sure original data unmodified
-    assert (orig == gaps.gaps).all()
-
-
 def make_sample(two_aligns=False):
     aln = small_seqs()
     species = aln.info.species
@@ -358,7 +171,12 @@ def make_sample(two_aligns=False):
         if seq.name == "s2":
             seq = seq.rc()
             s2_genome = str(seq)
-        genome = CompressedGenomeSeqsDb(source=":memory:", species=species[seq.name])
+        genome = SeqsDataHdf5(
+            source=f"{name}",
+            mode="w",
+            in_memory=True,
+            species=species[seq.name],
+        )
         genome.add_records(records=[(name, str(seq))])
         genomes[species[name]] = Genome(
             seqs=genome, annots=annot_dbs[name], species=species[name]

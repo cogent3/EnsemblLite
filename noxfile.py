@@ -1,7 +1,7 @@
 import nox
 
 
-_py_versions = range(8, 12)
+_py_versions = range(8, 13)
 
 
 @nox.session(python=[f"3.{v}" for v in _py_versions])

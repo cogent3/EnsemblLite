@@ -12,15 +12,17 @@ authors = [
 keywords = ["biology", "genomics", "evolution", "bioinformatics"]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">3.10,<3.12"
+requires-python = ">=3.10,<3.13"
 dependencies = ["blosc2",
         "click",
-        "scitrack",
-        "typing_extensions",
         "cogent3 @ git+https://github.com/cogent3/cogent3.git@develop",
-        "rich",
+        "h5py",
+        "hdf5plugin",
         "numba",
         "numpy",
+        "rich",
+        "scitrack",
+        "typing_extensions",
         "trogon",
         "unsync",
         "wakepy>0.7; os_name != 'linux'",
@@ -34,6 +36,7 @@ classifiers = [
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ]
 
 [project.urls]
@@ -46,8 +49,8 @@ elt = "ensembl_lite.cli:main"
 
 [project.optional-dependencies]
 test = [
-    "black==23.3.0",
-    "isort==5.12.0",
+    "black==24.4.2",
+    "isort==5.13.2",
     "click==8.1.3", # black needs this pinned
     "pytest",
     "pytest-cov",
@@ -60,14 +63,14 @@ doc  = ["click==8.1.3",
         "sphinx_book_theme",
         "sphinx_design",
         "sphinxcontrib-bibtex"]
-dev = ["black==23.3.0",
+dev = ["black==24.4.2",
+       "isort==5.13.2",
        "click==8.1.3",
        "cogapp",
        "flit",
        "ipykernel",
        "ipython",
        "ipywidgets",
-       "isort==5.12.0",
        "jupyter-sphinx",
        "jupyter_client",
        "jupyterlab",

@@ -1,133 +1,234 @@
+import dataclasses
+import os
+import pathlib
 import typing
 
-import click
+from abc import ABC, abstractmethod
+from typing import Any, Optional, Union
 
-from cogent3 import make_seq, make_table
+import click
+import h5py
+import hdf5plugin
+import numpy
+
+from cogent3 import get_moltype, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 from cogent3.util.table import Table
+from numpy.typing import NDArray
 
 from ensembl_lite._config import InstalledConfig
-from ensembl_lite._db_base import SqliteDbMixin
 from ensembl_lite._homologydb import species_genes
-from ensembl_lite._util import elt_compress_it, elt_decompress_it
+from ensembl_lite._species import Species
+from ensembl_lite._util import SerialisableMixin
 
 
-_SEQDB_NAME = "genome_sequence.seqdb"
+_SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.gff3db"
 
+_BLOSC2_KWARGS = hdf5plugin.Blosc2(
+    cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.SHUFFLE
+)
 
-class GenomeSeqsDb(SqliteDbMixin):
-    """class to be replaced by cogent3 sequence collection when that
-    has been modernised"""
-
-    table_name = "genome"
-    _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "TEXT", "length": "INT"}
-    _metadata_schema = {"species": "TEXT"}
-
-    def __init__(self, *, source: str = ":memory:", species: str = None):
-        self.source = source
-        self._init_tables()
-        # the metadata table stores species info
-        self._execute_sql("INSERT INTO metadata(species) VALUES (?)", (species,))
-        self.db.commit()
-
-    def __hash__(self):
-        return id(self)
-
-    def add_record(self, *, seqid: str, seq: str):
-        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
-        self._execute_sql(sql, (seqid, seq, len(seq)))
-        self.db.commit()
-
-    def add_records(self, *, records: typing.Iterable[list[str, str]]):
-        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
-        self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
-        self.db.commit()
-
-    def get_seq(
-        self, *, seqid: str, start: int | None = None, stop: int | None = None
-    ) -> str:
-        """
-
-        Parameters
-        ----------
-        seqid
-            name of chromosome etc..
-        start
-            starting position of slice in python coordinates, defaults
-            to 0
-        stop
-            ending position of slice in python coordinates, defaults
-            to length of coordinate
-        """
-        if start is not None:
-            start += 1  # SQLite counts from 1
-        else:
-            start = 1
-
-        if stop is None:
-            sql = (
-                f"SELECT SUBSTR(seq, ?, length) FROM {self.table_name} where seqid = ?"
-            )
-            values = start, seqid
-        else:
-            stop -= start - 1
-            sql = f"SELECT SUBSTR(seq, ?, ?) FROM {self.table_name} where seqid = ?"
-            values = start, stop, seqid
-
-        return self._execute_sql(sql, values).fetchone()[0]
+PathType = Union[str, pathlib.Path, os.PathLike]
 
 
-class CompressedGenomeSeqsDb(GenomeSeqsDb):
-    """class to be replaced by cogent3 sequence collection when that
-    has been modernised"""
+class SeqsDataABC(ABC):
+    """interface for genome sequence storage"""
 
-    _genome_schema = {"seqid": "TEXT PRIMARY KEY", "seq": "BLOB", "length": "INT"}
+    # the storage reference, e.g. path to file
+    source: PathType
+    species: str
+    mode: str  # as per standard file opening modes, r, w, a
+    _is_open = False
+    _file: Optional[Any] = None
 
     def __hash__(self):
         return id(self)
 
-    def add_record(self, *, seqid: str, seq: str):
-        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
-        self._execute_sql(sql, (seqid, elt_compress_it(seq), len(seq)))
-        self.db.commit()
+    @abstractmethod
+    def add_record(self, *, seqid: str, seq: str): ...
 
-    def add_records(self, *, records: typing.Iterable[list[str, str]]):
-        self.add_compressed_records(
-            records=[(n, elt_compress_it(s)) for n, s in records]
+    @abstractmethod
+    def add_records(self, *, records: typing.Iterable[list[str, str]]): ...
+
+    @abstractmethod
+    def get_seq_str(
+        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+    ) -> str: ...
+
+    @abstractmethod
+    def get_seq_arr(
+        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+    ) -> NDArray[numpy.uint8]: ...
+
+    @abstractmethod
+    def get_coord_names(self) -> tuple[str]:
+        """names of chromosomes / contig"""
+        ...
+
+    @abstractmethod
+    def close(self):
+        """closes the resource"""
+        ...
+
+
+@define_app
+class str2arr:
+    """convert string to array of uint8"""
+
+    def __init__(self, moltype: str = "dna", max_length=None):
+        moltype = get_moltype(moltype)
+        self.canonical = "".join(moltype)
+        self.max_length = max_length
+        extended = "".join(list(moltype.alphabets.degen))
+        self.translation = b"".maketrans(
+            extended.encode("utf8"),
+            "".join(chr(i) for i in range(len(extended))).encode("utf8"),
         )
 
-    def add_compressed_records(self, *, records: typing.Iterable[list[str, bytes]]):
-        """sequences already compressed"""
+    def main(self, data: str) -> numpy.ndarray:
+        if self.max_length:
+            data = data[: self.max_length]
 
-        sql = f"INSERT INTO {self.table_name}(seqid, seq, length) VALUES (?, ?, ?)"
+        b = data.encode("utf8").translate(self.translation)
+        return numpy.array(memoryview(bytearray(b)), dtype=numpy.uint8)
 
-        self.db.executemany(sql, [(n, s, len(s)) for n, s in records])
-        self.db.commit()
 
-    def get_seq(
-        self, *, seqid: str, start: int | None = None, stop: int | None = None
+@define_app
+class arr2str:
+    """convert array of uint8 to str"""
+
+    def __init__(self, moltype: str = "dna", max_length=None):
+        moltype = get_moltype(moltype)
+        self.canonical = "".join(moltype)
+        self.max_length = max_length
+        extended = "".join(list(moltype.alphabets.degen))
+        self.translation = b"".maketrans(
+            "".join(chr(i) for i in range(len(extended))).encode("utf8"),
+            extended.encode("utf8"),
+        )
+
+    def main(self, data: numpy.ndarray) -> str:
+        if self.max_length:
+            data = data[: self.max_length]
+
+        b = data.tobytes().translate(self.translation)
+        return bytearray(b).decode("utf8")
+
+
+@dataclasses.dataclass
+class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
+    """HDF5 sequence data storage"""
+
+    def __init__(
+        self,
+        source: PathType,
+        species: Optional[str] = None,
+        mode: str = "r",
+        in_memory: bool = False,
+    ):
+        # note that species are converted into the Ensembl db prefix
+
+        source = pathlib.Path(source)
+        self.source = source
+
+        if mode == "r" and not source.exists():
+            raise OSError(f"{self.source.name!r} not found")
+
+        species = Species.get_ensembl_db_prefix(species) if species else None
+        self.mode = "w-" if mode == "w" else mode
+        if in_memory:
+            h5_kwargs = dict(
+                driver="core",
+                backing_store=False,
+            )
+        else:
+            h5_kwargs = {}
+
+        try:
+            self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
+        except OSError:
+            print(source)
+            raise
+        self._str2arr = str2arr(moltype="dna")
+        self._arr2str = arr2str(moltype="dna")
+        self._is_open = True
+        if "r" not in self.mode and "species" not in self._file.attrs:
+            assert species
+            self._file.attrs["species"] = species
+
+        if (
+            species
+            and (file_species := self._file.attrs.get("species", None)) != species
+        ):
+            raise ValueError(f"{self.source.name!r} {file_species!r} != {species}")
+        self.species = self._file.attrs["species"]
+
+    def __hash__(self):
+        return id(self)
+
+    def __getstate__(self):
+        if set(self.mode) & {"w", "a"}:
+            raise NotImplementedError(f"pickling not supported for mode={self.mode!r}")
+        return self._init_vals.copy()
+
+    def __setstate__(self, state):
+        obj = self.__class__(**state)
+        self.__dict__.update(obj.__dict__)
+        # because we have a __del__ method, and self attributes point to
+        # attributes on obj, we need to modify obj state so that garbage
+        # collection does not screw up self
+        obj._is_open = False
+        obj._file = None
+
+    def __del__(self):
+        if self._is_open and self._file is not None:
+            self._file.flush()
+        if self._file is not None:
+            self._file.close()
+        self._is_open = False
+
+    def add_record(self, *, seqid: str, seq: str):
+        seq = self._str2arr(seq)
+        if seqid in self._file:
+            stored = self._file[seqid]
+            if (seq == stored).all():
+                # already seen this seq
+                return
+            # but it's different, which is a problem
+            raise ValueError(f"{seqid!r} already present but with different seq")
+        self._file.create_dataset(name=seqid, data=seq, chunks=True, **_BLOSC2_KWARGS)
+        self._file.flush()
+
+    def add_records(self, *, records: typing.Iterable[list[str, str]]):
+        for seqid, seq in records:
+            self.add_record(seqid=seqid, seq=seq)
+
+    def get_seq_str(
+        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
     ) -> str:
-        """
+        return self._arr2str(self.get_seq_arr(seqid=seqid, start=start, stop=stop))
 
-        Parameters
-        ----------
-        seqid
-            name of chromosome etc..
-        start
-            starting position of slice in python coordinates, defaults
-            to 0
-        stop
-            ending position of slice in python coordinates, defaults
-            to length of coordinate
-        """
-        sql = f"SELECT seq FROM {self.table_name} where seqid = ?"
+    def get_seq_arr(
+        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+    ) -> NDArray[numpy.uint8]:
+        if not self._is_open:
+            raise OSError(f"{self.source.name!r} is closed")
 
-        seq = elt_decompress_it(self._execute_sql(sql, (seqid,)).fetchone()[0])
-        return seq[start:stop] if start or stop else seq
+        return self._file[seqid][start:stop]
+
+    def get_coord_names(self) -> tuple[str]:
+        """names of chromosomes / contig"""
+        return tuple(self._file)
+
+    def close(self):
+        if self._is_open:
+            self._file.flush()
+        self._file.close()
+        self._is_open = False
 
 
 # todo: this wrapping class is required for memory efficiency because
@@ -142,7 +243,7 @@ class Genome:
         self,
         *,
         species: str,
-        seqs: GenomeSeqsDb | CompressedGenomeSeqsDb,
+        seqs: SeqsDataABC,
         annots: GffAnnotationDb,
     ) -> None:
         self.species = species
@@ -153,8 +254,8 @@ class Genome:
         self,
         *,
         seqid: str,
-        start: int | None = None,
-        stop: int | None = None,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
         namer: typing.Callable | None = None,
     ) -> str:
         """returns annotated sequence
@@ -177,7 +278,7 @@ class Genome:
         -----
         Annotations partially within region are included.
         """
-        seq = self._seqs.get_seq(seqid=seqid, start=start, stop=stop)
+        seq = self._seqs.get_seq_str(seqid=seqid, start=start, stop=stop)
         if namer:
             name = namer(self.species, seqid, start, stop)
         else:
@@ -228,7 +329,7 @@ class Genome:
 def load_genome(*, config: InstalledConfig, species: str):
     """returns the Genome with bound seqs and features"""
     genome_path = config.installed_genome(species) / _SEQDB_NAME
-    seqs = CompressedGenomeSeqsDb(source=genome_path, species=species)
+    seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
     ann_path = config.installed_genome(species) / _ANNOTDB_NAME
     ann = GffAnnotationDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
@@ -303,7 +404,7 @@ def get_annotations_for_species(
 
 
 def get_gene_table_for_species(
-    *, annot_db: GffAnnotationDb, limit: int | None, species: str | None = None
+    *, annot_db: GffAnnotationDb, limit: Optional[int], species: Optional[str] = None
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -341,7 +442,7 @@ def get_gene_table_for_species(
 
 
 def get_species_summary(
-    *, annot_db: GffAnnotationDb, species: str | None = None
+    *, annot_db: GffAnnotationDb, species: Optional[str] = None
 ) -> Table:
     """
     returns the Table summarising data for species_name

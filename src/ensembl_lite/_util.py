@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import inspect
 import os
 import pathlib
 import re
@@ -377,3 +378,19 @@ def sanitise_stableid(stableid: str) -> str:
 @contextlib.contextmanager
 def fake_wake(*args, **kwargs):
     yield
+
+
+class SerialisableMixin:
+    """mixin class, adds a self._init_vals dict attribute which
+    contains the keyword/arg mapping of arguments provided to the
+    constructor"""
+
+    def __new__(cls, *args, **kwargs):
+        obj = object.__new__(cls)
+        init_sig = inspect.signature(cls.__init__)
+        bargs = init_sig.bind_partial(cls, *args, **kwargs)
+        bargs.apply_defaults()
+        init_vals = bargs.arguments
+        init_vals.pop("self", None)
+        obj._init_vals = init_vals
+        return obj

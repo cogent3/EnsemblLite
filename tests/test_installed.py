@@ -11,7 +11,7 @@ from ensembl_lite._config import (
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
-    CompressedGenomeSeqsDb,
+    SeqsDataHdf5,
     get_seqs_for_ids,
 )
 
@@ -24,7 +24,11 @@ def one_genome(DATA_DIR, tmp_dir):
     celegans.mkdir(parents=True, exist_ok=True)
 
     seqs_path = celegans / _SEQDB_NAME
-    seqdb = CompressedGenomeSeqsDb(source=seqs_path, species=seqs_path.parent.name)
+    seqdb = SeqsDataHdf5(
+        source=seqs_path,
+        species=seqs_path.parent.name,
+        mode="w",
+    )
     input_seq = DATA_DIR / "c_elegans_WS199_shortened.fasta"
     seq = load_seq(
         input_seq,
