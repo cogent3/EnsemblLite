@@ -25,7 +25,8 @@ dependencies = ["blosc2",
         "typing_extensions",
         "trogon",
         "unsync",
-        "wakepy>0.7; os_name != 'linux'",
+        # restricting wakepy to macOS for now
+        "wakepy>0.7; os_name == 'darwin'",
         ]
 classifiers = [
         "Development Status :: 5 - Production/Stable",
