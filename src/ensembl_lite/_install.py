@@ -126,7 +126,7 @@ def local_install_genomes(
 
 def seq2gaps(record: dict):
     seq = make_seq(record.pop("seq"))
-    indel_map = seq.parse_out_gaps()
+    indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
         record["gap_spans"] = numpy.array(
             [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
@@ -185,6 +185,9 @@ def local_install_compara(
             description="Installing alignments",
             total=len(paths),
         ):
+            if not result:
+                print(result)
+                raise RuntimeError
             records.extend(result)
 
         db.add_records(records=records)
