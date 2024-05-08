@@ -7,7 +7,7 @@ from ensembl_lite._homologydb import (
     HomologyDb,
     HomologyRecord,
     grouped_related,
-    id_by_species_group,
+    homolog_group,
     species_genes,
 )
 from ensembl_lite._install import LoadHomologies
@@ -101,7 +101,10 @@ def hom_records(orth_records):
 
 
 def _reduced_to_ids(groups):
-    return [[i for _, i in group] for group in groups]
+    result = []
+    for group in groups:
+        result.append(group.all_gene_ids())
+    return result
 
 
 def test_hdb_get_related_groups(o2o_db):
@@ -128,36 +131,52 @@ def hom_hdb(hom_records):
 
 def test_group_related(hom_records):
     orths = [r for r in hom_records if r["relationship"] == "ortholog_one2one"]
-    got = grouped_related(orths)
-    expect = {
-        frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
-        frozenset([("a", "4"), ("b", "5")]),
-    }
+    got = sorted(grouped_related(orths), key=lambda x: len(x), reverse=True)
+    expect = [
+        homolog_group(
+            relationship="ortholog_one2one",
+            data=(
+                species_genes(species="a", gene_ids=["1"]),
+                species_genes(species="b", gene_ids=["2"]),
+                species_genes(species="c", gene_ids=["3"]),
+            ),
+        ),
+        homolog_group(
+            relationship="ortholog_one2one",
+            data=(
+                species_genes(species="a", gene_ids=["4"]),
+                species_genes(species="b", gene_ids=["5"]),
+            ),
+        ),
+    ]
     assert got == expect
 
 
 def test_homology_db(hom_hdb):
-    got = hom_hdb.get_related_groups("ortholog_one2one")
-    expect = {
-        frozenset([("a", "1"), ("b", "2"), ("c", "3")]),
-        frozenset([("a", "4"), ("b", "5")]),
-    }
-    assert got == expect
-
-
-def test_grouped_by_species(hom_hdb):
-    got_species, got_gene_map = id_by_species_group(
-        hom_hdb.get_related_groups("ortholog_one2one")
+    got = sorted(
+        hom_hdb.get_related_groups("ortholog_one2one"),
+        key=lambda x: len(x),
+        reverse=True,
     )
-    sp_map = {sp.species: set(sp.gene_ids) for sp in got_species}
-    expected_species = {"a": {"1", "4"}, "b": {"2", "5"}, "c": {"3"}}
-    assert sp_map == expected_species
-    expected_groups = {("1", "2", "3"), ("4", "5")}
-    got_groups = {}
-    for g, i in got_gene_map.items():
-        got_groups[i] = got_groups.get(i, []) + [g]
-    got_groups = {tuple(sorted(g)) for g in got_groups.values()}
-    assert got_groups == expected_groups
+
+    expect = [
+        homolog_group(
+            relationship="ortholog_one2one",
+            data=(
+                species_genes(species="a", gene_ids=["1"]),
+                species_genes(species="b", gene_ids=["2"]),
+                species_genes(species="c", gene_ids=["3"]),
+            ),
+        ),
+        homolog_group(
+            relationship="ortholog_one2one",
+            data=(
+                species_genes(species="a", gene_ids=["4"]),
+                species_genes(species="b", gene_ids=["5"]),
+            ),
+        ),
+    ]
+    assert got == expect
 
 
 def test_species_genes_eq():

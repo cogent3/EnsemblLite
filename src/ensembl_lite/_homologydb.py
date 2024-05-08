@@ -48,9 +48,48 @@ class species_genes:
             self.gene_ids = []
 
 
+@dataclasses.dataclass
+class homolog_group:
+    """has species_genes instances belonging to the same ortholog group"""
+
+    relationship: str
+    data: dataclasses.InitVar[typing.Optional[tuple[species_genes, ...]]] = None
+    _species_genes: dict[str, species_genes] = dataclasses.field(init=False, repr=False)
+
+    def __post_init__(self, data: typing.Optional[tuple[species_genes]]):
+        if data is None:
+            self._species_genes = {}
+            return
+        self._species_genes = {e.species: e for e in data}
+
+    def __eq__(self, other):
+        return (
+            self.relationship == other.relationship
+            and self._species_genes == other._species_genes
+        )
+
+    def __getitem__(self, item: str):
+        return self._species_genes.get(item)
+
+    def __setitem__(self, key: str, value: species_genes):
+        self._species_genes[key] = value
+
+    def items(self):
+        yield from self._species_genes.items()
+
+    def __len__(self):
+        return len(self._species_genes)
+
+    def all_gene_ids(self):
+        result = []
+        for sp_gene in self._species_genes.values():
+            result.extend(sp_gene.gene_ids)
+        return result
+
+
 def grouped_related(
     data: list[HomologyRecord],
-) -> set[frozenset[tuple[str, str]]]:
+) -> typing.Sequence[homolog_group]:
     """determines related groups of genes
 
     Parameters
@@ -70,7 +109,9 @@ def grouped_related(
     # grouped is {gene id: set(group)}. So gene's that belong to the same
     # group have the same value
     grouped = {}
+    relationship_type = []
     for record in track(data, description="Grouping related...", transient=True):
+        relationship_type.append(record.relationship)
         pair = [
             (record.species_1, record.gene_id_1),
             (record.species_2, record.gene_id_2),
@@ -83,7 +124,18 @@ def grouped_related(
             val = set()
         val.update(pair)
         grouped[record.gene_id_1] = grouped[record.gene_id_2] = val
-    return {frozenset(v) for v in grouped.values()}
+
+    ortholog_groups = {frozenset(v) for v in grouped.values()}
+    relationship_type = ",".join(sorted(set(relationship_type)))
+    result = []
+    for group in ortholog_groups:
+        homologs = homolog_group(relationship=relationship_type)
+        for species, gene_id in group:
+            record = species_genes(species=species)
+            record.gene_ids.append(gene_id)
+            homologs[species] = record
+        result.append(homologs)
+    return result
 
 
 # the homology db stores pairwise relationship information
@@ -137,7 +189,7 @@ class HomologyDb(SqliteDbMixin):
 
     def get_related_groups(
         self, relationship_type: str
-    ) -> set[frozenset[tuple[str, str]]]:
+    ) -> typing.Sequence[homolog_group]:
         """returns all groups of relationship type"""
         # get all gene ID's first
         sql = f"SELECT * from {self.table_name} WHERE relationship=?"
@@ -153,16 +205,3 @@ def load_homology_db(
     config: InstalledConfig,
 ) -> HomologyDb:
     return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
-
-
-def id_by_species_group(related) -> tuple[list[species_genes], dict[str, int]]:
-    """returns species gene sets and relationship index"""
-    sp_groups = {}
-    id_group_map = {}
-    for group_num, group in enumerate(related):
-        for sp, gene_id in group:
-            val = sp_groups[sp] if sp in sp_groups else species_genes(species=sp)
-            val.gene_ids.append(gene_id)
-            sp_groups[sp] = val
-            id_group_map[gene_id] = group_num
-    return list(sp_groups.values()), id_group_map

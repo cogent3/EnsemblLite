@@ -456,9 +456,8 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
     """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress
 
-    from ensembl_lite._genomedb import get_selected_seqs
-    from ensembl_lite._homologydb import id_by_species_group, load_homology_db
-    from ensembl_lite._species import Species
+    from ensembl_lite._genomedb import collect_seqs
+    from ensembl_lite._homologydb import load_homology_db
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
@@ -471,44 +470,35 @@ def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
     if limit:
         related = list(related)[:limit]
 
-    get_seqs = get_selected_seqs(config=config)
-    sp_gene_groups, gene_map = id_by_species_group(related)
-    # we now get all the sequences for all species
-    grouped = defaultdict(list)
-    todo = {s.species for s in sp_gene_groups}
+    # todo create a directory data store writer and write all output to
+    #  that. This requires homolog_group has a .source attribute
+    get_seqs = collect_seqs(config=config)
     with Progress(transient=True) as progress:
-        reading = progress.add_task(
-            total=len(sp_gene_groups), description="Extracting  🧬"
-        )
-        for seqs in get_seqs.as_completed(
-            sp_gene_groups,
-            parallel=True,
-            show_progress=False,
+        reading = progress.add_task(total=len(related), description="Extracting  🧬")
+        for i, seqs in enumerate(
+            get_seqs.as_completed(
+                related,
+                parallel=True,
+                show_progress=False,
+                par_kw=dict(max_workers=num_procs),
+            )
         ):
             if not seqs:
-                print(seqs)
-                exit(1)
+                if verbose:
+                    print(f"{seqs=}")
+                continue
+            if not seqs.obj.seqs:
+                if verbose:
+                    print(f"{seqs.obj.seqs=}")
+                continue
 
-            common = Species.get_common_name(seqs.obj[0].info.species)
-            msg = f"Done {common!r}  🧬"
-            if verbose:
-                todo = todo - {seqs.obj[0].info.species}
-                msg = f"Remaining {todo} 🧬"
-
-            progress.update(reading, description=msg, advance=1)
-            for seq in seqs.obj:
-                grouped[gene_map[seq.info.name]].append(seq)
-
-    # todo also need to be writing out a logfile, plus a meta data table of
-    #  gene IDs and location info
-    # todo why is this loop so slow if we use make_unaligned_seqs??
-    for group, seqs in track(
-        grouped.items(), description="✏️ 🧬", total=len(grouped), transient=True
-    ):
-        txt = [seq.to_fasta() for seq in seqs]
-        outname = outpath / f"seqcoll-{group}.fasta"
-        with outname.open(mode="w") as outfile:
-            outfile.write("".join(txt))
+            # todo also need to be writing out a logfile, plus a meta data table of
+            #  gene IDs and location info
+            txt = [seq.to_fasta() for seq in seqs.obj.seqs]
+            progress.update(reading, advance=1)
+            outname = outpath / f"seqcoll-{i}.fasta"
+            with outname.open(mode="w") as outfile:
+                outfile.write("".join(txt))
 
 
 @main.command(no_args_is_help=True)
