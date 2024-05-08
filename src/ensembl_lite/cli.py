@@ -449,10 +449,13 @@ def alignments(
     default="ortholog_one2one",
     help="type of homology",
 )
+@_nprocs
 @_limit
 @_force
 @_verbose
-def homologs(installed, outpath, relationship, limit, force_overwrite, verbose):
+def homologs(
+    installed, outpath, relationship, num_procs, limit, force_overwrite, verbose
+):
     """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress
 
