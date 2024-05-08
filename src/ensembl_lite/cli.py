@@ -274,10 +274,13 @@ def install(download, num_procs, force_overwrite, verbose):
         local_install_genomes(
             config, force_overwrite=force_overwrite, max_workers=num_procs
         )
+        # On test cases, only 30% speedup from running install homology data
+        # in parallel due to overhead of pickling the data, but considerable
+        # increase in memory. So, run in serial to avoid memory issues since
+        # it's reasonably fast anyway. (At least until we have
+        # a more robust solution.)
+        local_install_homology(config, force_overwrite=force_overwrite, max_workers=1)
         local_install_compara(
-            config, force_overwrite=force_overwrite, max_workers=num_procs
-        )
-        local_install_homology(
             config, force_overwrite=force_overwrite, max_workers=num_procs
         )
 
