@@ -30,6 +30,24 @@ class HomologyRecord:
         setattr(self, item, value)
 
 
+@dataclasses.dataclass(slots=True)
+class species_genes:
+    """contains gene IDs for species"""
+
+    species: str
+    gene_ids: list[str] = None
+
+    def __hash__(self):
+        return hash(self.species)
+
+    def __eq__(self, other):
+        return self.species == other.species and self.gene_ids == other.gene_ids
+
+    def __post_init__(self):
+        if self.gene_ids is None:
+            self.gene_ids = []
+
+
 def grouped_related(
     data: list[HomologyRecord],
 ) -> set[frozenset[tuple[str, str]]]:
@@ -135,20 +153,6 @@ def load_homology_db(
     config: InstalledConfig,
 ) -> HomologyDb:
     return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
-
-
-@dataclasses.dataclass(slots=True)
-class species_genes:
-    """contains gene IDs for species"""
-
-    species: str
-    gene_ids: list[str] = None
-
-    def __hash__(self):
-        return hash(self.species)
-
-    def __post_init__(self):
-        self.gene_ids = []
 
 
 def id_by_species_group(related) -> tuple[list[species_genes], dict[str, int]]:

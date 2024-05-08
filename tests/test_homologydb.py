@@ -8,6 +8,7 @@ from ensembl_lite._homologydb import (
     HomologyRecord,
     grouped_related,
     id_by_species_group,
+    species_genes,
 )
 from ensembl_lite._install import LoadHomologies
 
@@ -157,3 +158,15 @@ def test_grouped_by_species(hom_hdb):
         got_groups[i] = got_groups.get(i, []) + [g]
     got_groups = {tuple(sorted(g)) for g in got_groups.values()}
     assert got_groups == expected_groups
+
+
+def test_species_genes_eq():
+    a = species_genes(species="a", gene_ids=["1"])
+    b = species_genes(species="a", gene_ids=["1"])
+    assert a == b
+    c = species_genes(species="a", gene_ids=["2"])
+    assert a != c
+    d = species_genes(species="b", gene_ids=["1"])
+    assert a != d
+    e = species_genes(species="b", gene_ids=["2"])
+    assert a != e
