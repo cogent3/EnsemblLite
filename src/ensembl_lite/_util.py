@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import typing
 import uuid
 
 from hashlib import md5
@@ -20,6 +21,7 @@ import numba
 import numpy
 
 from cogent3.app.composable import define_app
+from cogent3.util.parallel import as_completed
 
 
 def md5sum(data: bytes, *args) -> str:
@@ -394,3 +396,12 @@ class SerialisableMixin:
         init_vals.pop("self", None)
         obj._init_vals = init_vals
         return obj
+
+
+def get_iterable_tasks(
+    *, func: typing.Callable, series: typing.Sequence, max_workers: int, **kwargs
+) -> typing.Iterator:
+    if max_workers == 1:
+        return map(func, series)
+    else:
+        return as_completed(func, series, max_workers=max_workers, **kwargs)
