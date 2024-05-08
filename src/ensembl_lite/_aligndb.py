@@ -196,7 +196,7 @@ def get_alignment(
     # sample the sequences
     for block in align_records:
         # we get the gaps corresponding to the reference sequence
-        # and convert them to a GapPosition instance. We then convert
+        # and convert them to a IndelMap instance. We then convert
         # the ref_start, ref_end into align_start, align_end. Those values are
         # used for all other species -- they are converted into sequence
         # coordinates for each species -- selecting their sequence,
@@ -214,7 +214,7 @@ def get_alignment(
                     parent_length=genome_end - genome_start,
                 )
 
-                # We use the GapPosition object to identify the alignment
+                # We use the IndelMap object to identify the alignment
                 # positions the ref_start / ref_end correspond to. The alignment
                 # positions are used below for slicing each sequence in the
                 # alignment.
@@ -301,167 +301,6 @@ def _gap_spans(
         sum_to_prev = gap_cum_lengths[i]
 
     return numpy.array(gap_starts), numpy.array(gap_ends)
-
-
-@dataclass(slots=True)
-class GapPositions:
-    """records gap insertion index and length
-
-    Notes
-    -----
-    This very closely parallels the cogent3.core.location.Map class,
-    but is more memory efficient. When that class has been updated,
-    this can be removed.
-    """
-
-    # 2D numpy int array,
-    # each row is a gap
-    # column 0 is sequence index of gap **relative to the alignment**
-    # column 1 is gap length
-    gaps: NDArray[NDArray[int]]
-    # length of the underlying sequence
-    seq_length: int
-
-    def __post_init__(self):
-        if not len(self.gaps):
-            # can get a zero length array with shape != (0, 0)
-            # e.g. by slicing gaps[:0], but since there's no data
-            # we force it to have zero elements on both dimensions
-            self.gaps = self.gaps.reshape((0, 0))
-
-        # make gap array immutable
-        self.gaps.flags.writeable = False
-
-    def __getitem__(self, item: slice) -> typing.Self:
-        # we're assuming that this gap object is associated with a sequence
-        # that will also be sliced. Hence, we need to shift the gap insertion
-        # positions relative to this newly sliced sequence.
-        if item.step:
-            raise NotImplementedError(
-                f"{type(self).__name__!r} does not support strides"
-            )
-        start = item.start or 0
-        stop = item.stop or len(self)
-        gaps = self.gaps.copy()
-        if start < 0 or stop < 0:
-            raise NotImplementedError(
-                f"{type(self).__name__!r} does not support negative indexes"
-            )
-
-        if not len(gaps):
-            cum_lengths = numpy.array([], dtype=gaps.dtype)
-            pos = cum_lengths
-        else:
-            cum_lengths = gaps[:, 1].cumsum()
-            pos = gaps[:, 0]
-
-        gap_starts, gap_ends = _gap_spans(pos, cum_lengths)
-
-        if not len(gaps) or stop < gap_starts[0] or start >= gap_ends[-1]:
-            return self.__class__(
-                gaps=numpy.array([], dtype=gaps.dtype), seq_length=stop - start
-            )
-
-        # second column of spans is gap ends
-        # which gaps does it fall between
-        l = numpy.searchsorted(gap_ends, start, side="left")
-        if gap_starts[l] <= start < gap_ends[l]:
-            # start is within a gap
-            begin = l
-            begin_diff = start - gap_starts[l]
-            gaps[l, 1] -= begin_diff
-            shift = start - cum_lengths[l - 1] - begin_diff if l else gaps[l, 0]
-        elif start == gap_ends[l]:
-            # at gap boundary
-            begin = l + 1
-            shift = start - cum_lengths[l]
-        else:
-            # not within a gap
-            begin = l
-            shift = start - cum_lengths[l - 1] if l else start
-
-        # start search for stop from l index
-        r = numpy.searchsorted(gap_ends[l:], stop, side="right") + l
-        if r == len(gaps):
-            # stop is after last gap
-            end = r
-        elif gap_starts[r] < stop <= gap_ends[r]:
-            # within gap
-            end = r + 1
-            end_diff = gap_ends[r] - stop
-            gaps[r, 1] -= end_diff
-        else:
-            end = r
-
-        result = gaps[begin:end]
-        result[:, 0] -= shift
-        if not len(result):
-            # no gaps
-            seq_length = stop - start
-        else:
-            seq_length = self.get_seq_index(stop) - self.get_seq_index(start)
-
-        return self.__class__(gaps=result, seq_length=seq_length)
-
-    def __len__(self):
-        total_gaps = self.gaps[:, 1].sum() if len(self.gaps) else 0
-        return total_gaps + self.seq_length
-
-    def get_align_index(self, seq_index: int) -> int:
-        """convert a sequence index into an alignment index"""
-        if seq_index < 0:
-            raise NotImplementedError(f"{seq_index} negative align_index not supported")
-
-        if not len(self.gaps) or seq_index < self.gaps[0, 0]:
-            return seq_index
-
-        # this statement replace when we change self.gaps to include [gap pos, cumsum]
-        cum_gap_lengths = self.gaps[:, 1].cumsum()
-        gap_pos = self.gaps[:, 0]
-
-        if seq_index >= self.gaps[-1, 0]:
-            return seq_index + cum_gap_lengths[-1]
-
-        # find gap position before seq_index
-        index = numpy.searchsorted(gap_pos, seq_index, side="left")
-        if seq_index < gap_pos[index]:
-            gap_lengths = cum_gap_lengths[index - 1] if index else 0
-        else:
-            gap_lengths = cum_gap_lengths[index]
-
-        return seq_index + gap_lengths
-
-    def get_seq_index(self, align_index: int) -> int:
-        """converts alignment index to sequence index"""
-        if align_index < 0:
-            raise NotImplementedError(
-                f"{align_index} negative align_index not supported"
-            )
-
-        if not len(self.gaps) or align_index < self.gaps[0, 0]:
-            return align_index
-
-        # replace the following call when we change self.gaps to include
-        # [gap pos, cumsum]
-        # these are alignment indices for gaps
-        cum_lengths = self.gaps[:, 1].cumsum()
-        gap_starts, gap_ends = _gap_spans(self.gaps[:, 0], cum_lengths)
-        if align_index >= gap_ends[-1]:
-            return align_index - cum_lengths[-1]
-
-        index = numpy.searchsorted(gap_ends, align_index, side="left")
-        if align_index < gap_starts[index]:
-            # before the gap at index
-            return align_index - cum_lengths[index - 1]
-
-        if align_index == gap_ends[index]:
-            # after the gap at index
-            return align_index - cum_lengths[index]
-
-        if gap_starts[index] <= align_index < gap_ends[index]:
-            # within the gap at index
-            # so the gap insertion position is the sequence position
-            return self.gaps[index, 0]
 
 
 def write_alignments(

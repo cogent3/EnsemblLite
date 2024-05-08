@@ -4,8 +4,6 @@ import os
 import shutil
 import typing
 
-from collections import Counter
-
 import numpy
 
 from cogent3 import load_annotations, make_seq, open_
@@ -13,7 +11,6 @@ from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.table import FilteringParser
-from cogent3.util import parallel as PAR
 from rich.progress import Progress, track
 
 from ensembl_lite import _maf
@@ -22,6 +19,7 @@ from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite._species import Species
+from ensembl_lite._util import get_iterable_tasks
 
 
 def _rename(label: str) -> str:
@@ -67,7 +65,8 @@ def _prepped_seqs(
     common_name = Species.get_common_name(src_dir.parent.name)
     msg = f"📚🗜️ {common_name} seqs"
     load = progress.add_task(msg, total=len(paths))
-    for result in PAR.as_completed(_get_seqs, paths, max_workers=max_workers):
+    tasks = get_iterable_tasks(func=_get_seqs, series=paths, max_workers=max_workers)
+    for result in tasks:
         all_seqs.extend(result)
         progress.update(load, advance=1, description=msg)
 
@@ -103,9 +102,10 @@ def local_install_genomes(
     with Progress(transient=True) as progress:
         msg = "Installing  🧬 features"
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
-        for _ in PAR.as_completed(
-            _load_one_annotations, src_dest_paths, max_workers=max_workers
-        ):
+        tasks = get_iterable_tasks(
+            func=_load_one_annotations, series=src_dest_paths, max_workers=max_workers
+        )
+        for _ in tasks:
             progress.update(writing, description=msg, advance=1)
 
     with Progress(transient=True) as progress:
@@ -126,7 +126,7 @@ def local_install_genomes(
 
 def seq2gaps(record: dict):
     seq = make_seq(record.pop("seq"))
-    indel_map = seq.parse_out_gaps()
+    indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
         record["gap_spans"] = numpy.array(
             [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
@@ -173,11 +173,13 @@ def local_install_compara(
         db = AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
         records = []
         paths = list(src_dir.glob(f"{align_name}*maf*"))
+
         if max_workers and max_workers > 1:
-            max_workers = min(len(paths) + 1, max_workers)
-            series = PAR.as_completed(aln_loader, paths, max_workers=max_workers)
-        else:
-            series = map(aln_loader, paths)
+            max_workers = min(len(paths) + 1, max_workers or 0)
+
+        series = get_iterable_tasks(
+            func=aln_loader, series=paths, max_workers=max_workers
+        )
 
         for result in track(
             series,
@@ -185,6 +187,9 @@ def local_install_compara(
             description="Installing alignments",
             total=len(paths),
         ):
+            if not result:
+                print(result)
+                raise RuntimeError
             records.extend(result)
 
         db.add_records(records=records)
@@ -258,16 +263,16 @@ def local_install_homology(
         dirnames.append(list(path.glob("*.tsv.gz")))
 
     loader = LoadHomologies(allowed_species=set(config.db_names))
-    # On test cases, only 30% speedup from running in parallel due to overhead
-    # of pickling the data, but considerable increase in memory. So, run
-    # in serial to avoid memory issues since it's reasonably fast anyway.
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
 
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
-        for rows in PAR.as_completed(loader, dirnames, max_workers=max_workers):
+        tasks = get_iterable_tasks(
+            func=loader, series=dirnames, max_workers=max_workers
+        )
+        for rows in tasks:
             db.add_records(records=rows, col_order=loader.dest_col)
             del rows
             progress.update(writing, description=msg, advance=1)

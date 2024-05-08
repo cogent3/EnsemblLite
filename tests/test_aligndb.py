@@ -1,9 +1,7 @@
-from itertools import combinations
-
 import numpy
 import pytest
 
-from cogent3 import load_aligned_seqs, make_seq
+from cogent3 import load_aligned_seqs
 from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._aligndb import (

@@ -11,8 +11,9 @@ import h5py
 import hdf5plugin
 import numpy
 
-from cogent3 import get_moltype, make_seq, make_table
-from cogent3.app.composable import define_app
+from cogent3 import get_moltype, make_seq, make_table, make_unaligned_seqs
+from cogent3.app.composable import NotCompleted, define_app
+from cogent3.app.typing import UnalignedSeqsType
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
@@ -20,7 +21,7 @@ from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite._config import InstalledConfig
-from ensembl_lite._homologydb import species_genes
+from ensembl_lite._homologydb import homolog_group
 from ensembl_lite._species import Species
 from ensembl_lite._util import SerialisableMixin
 
@@ -136,7 +137,7 @@ class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
         self.source = source
 
         if mode == "r" and not source.exists():
-            raise OSError(f"{self.source.name!r} not found")
+            raise OSError(f"{self.source!s} not found")
 
         species = Species.get_ensembl_db_prefix(species) if species else None
         self.mode = "w-" if mode == "w" else mode
@@ -372,21 +373,6 @@ def get_seqs_for_ids(
     del genome
 
 
-@define_app
-def get_selected_seqs(species_gene_ids: species_genes, config: InstalledConfig) -> list:
-    """return gene sequences when given a species_gene_id instance
-
-    Notes
-    -----
-    This function becomes a class, created using config. Calling the class
-    instance with a species_genes instance is used to extract the list of gene
-    ID's from the species.
-    """
-    species = species_gene_ids.species
-    gene_ids = species_gene_ids.gene_ids
-    return list(get_seqs_for_ids(config=config, species=species, names=gene_ids))
-
-
 def get_annotations_for_species(
     *, config: InstalledConfig, species: str
 ) -> GffAnnotationDb:
@@ -469,3 +455,51 @@ def get_species_summary(
         data=list(counts.items()),
         title=f"{common_name} features",
     )
+
+
+@define_app
+class collect_seqs:
+    """given a config and homolog group, loads genome instances on demand
+    and extracts sequences"""
+
+    def __init__(self, config: InstalledConfig, make_seq_name: typing.Callable = None):
+        self._config = config
+        self._genomes = {}
+        self._namer = make_seq_name
+
+    def main(self, homologs: homolog_group) -> UnalignedSeqsType:
+        namer = self._namer
+        seqs = []
+        for species, sp_genes in homologs.items():
+            if species not in self._genomes:
+                self._genomes[species] = load_genome(
+                    config=self._config, species=species
+                )
+            genome = self._genomes[species]
+            for name in sp_genes.gene_ids:
+                feature = list(genome.get_features(name=f"%{name}"))[0]
+                transcripts = list(feature.get_children(biotype="mRNA"))
+                if not transcripts:
+                    continue
+
+                longest = max(transcripts, key=lambda x: len(x))
+                cds = list(longest.get_children(biotype="CDS"))
+                if not cds:
+                    continue
+
+                feature = cds[0]
+                seq = feature.get_slice()
+                seq.name = f"{species}-{name}" if namer is None else namer(feature)
+                seq.info["species"] = species
+                seq.info["name"] = name
+                # disconnect from annotation so the closure of the genome
+                # does not cause issues when run in parallel
+                seq.annotation_db = None
+                seqs.append(seq)
+
+        if not seqs:
+            return NotCompleted(
+                type="FAIL", origin=self, message=f"no CDS for {homologs}"
+            )
+
+        return make_unaligned_seqs(data=seqs, moltype="dna")
