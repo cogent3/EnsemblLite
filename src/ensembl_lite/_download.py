@@ -154,7 +154,7 @@ class valid_compara_homology:
 
 def download_homology(config: Config, debug: bool, verbose: bool):
     """downloads tsv homology files for each genome"""
-    if not any((config.align_names, config.tree_names)):
+    if not config.homologies:
         return
 
     site_map = get_site_map(config.host)

@@ -27,6 +27,7 @@ class Config:
     species_dbs: dict[str, list[str]]
     align_names: Iterable[str]
     tree_names: Iterable[str]
+    homologies: bool
 
     def update_species(self, species: dict[str, list[str]]):
         if not species:
@@ -210,7 +211,7 @@ def read_config(config_path) -> Config:
     install_path = (
         pathlib.Path(parser.get("local path", "install_path")).expanduser().absolute()
     )
-
+    homologies = parser.has_option("compara", "homologies")
     species_dbs = {}
     get_option = parser.get
     align_names = []
@@ -248,4 +249,5 @@ def read_config(config_path) -> Config:
         species_dbs=species_dbs,
         align_names=align_names,
         tree_names=tree_names,
+        homologies=homologies,
     )
