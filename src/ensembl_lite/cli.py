@@ -154,8 +154,8 @@ _nprocs = click.option(
     "-np",
     "--num_procs",
     type=int,
-    default=None,
-    help="number of procs to use, defaults to all",
+    default=1,
+    help="number of procs to use, defaults to 1",
 )
 
 
