@@ -2,8 +2,6 @@ import os
 import pathlib
 import shutil
 
-from collections import defaultdict
-
 import click
 
 
@@ -12,7 +10,6 @@ try:
 except ImportError:
     from ensembl_lite._util import fake_wake as keep_running
 
-from rich.progress import track
 from trogon import tui
 
 from ensembl_lite import __version__

@@ -4,8 +4,6 @@ import os
 import shutil
 import typing
 
-from collections import Counter
-
 import numpy
 
 from cogent3 import load_annotations, make_seq, open_

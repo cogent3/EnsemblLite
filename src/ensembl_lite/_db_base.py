@@ -1,5 +1,4 @@
 import dataclasses
-import inspect
 import io
 import sqlite3
 
