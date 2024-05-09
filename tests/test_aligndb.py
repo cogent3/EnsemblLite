@@ -7,6 +7,7 @@ from cogent3.core.annotation_db import GffAnnotationDb
 from ensembl_lite._aligndb import (
     AlignDb,
     AlignRecord,
+    GapStore,
     get_alignment,
     write_alignments,
 )
@@ -412,3 +413,33 @@ def test_write_alignments(tmp_path):
     aln_path = list(tmp_path.glob("*"))[0]
     aln = load_aligned_seqs(aln_path, moltype="dna")
     assert len(aln) == 3
+
+
+@pytest.mark.parametrize(
+    "gaps", [numpy.array([[0, 24], [2, 3]], dtype=int), numpy.array([], dtype=int)]
+)
+def test_gapstore_add_retrieve(gaps):
+    gap_store = GapStore(source="stuff", in_memory=True, mode="w", align_name="demo")
+    gap_store.add_record(index=20, gaps=gaps)
+    got = gap_store.get_record(index=20)
+    assert got is not gaps
+    assert (got == gaps).all()
+
+
+def test_gapstore_add_duplicate():
+    a = numpy.array([[0, 24], [2, 3]], dtype=int)
+    gap_store = GapStore(source="stuff", in_memory=True, mode="w", align_name="demo")
+    gap_store.add_record(index=20, gaps=a)
+    # adding it again has now effect
+    gap_store.add_record(index=20, gaps=a)
+    got = gap_store.get_record(index=20)
+    assert got is not a
+    assert (got == a).all()
+
+
+def test_gapstore_add_invalid_duplicate():
+    a = numpy.array([[0, 24], [2, 3]], dtype=int)
+    gap_store = GapStore(source="stuff", in_memory=True, mode="w", align_name="demo")
+    gap_store.add_record(index=20, gaps=a)
+    with pytest.raises(ValueError):
+        gap_store.add_record(index=20, gaps=a[:1])

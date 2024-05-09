@@ -30,26 +30,27 @@ def test_db_align(db_align):
 
 def test_db_align_add_records(db_align):
     gap_spans = numpy.array([[2, 5], [7, 1]], dtype=int)
-    records = [
-        AlignRecord(
-            source="blah",
-            block_id=42,
-            species="human",
-            seqid="1",
-            start=22,
-            stop=42,
-            strand="-",
-            gap_spans=gap_spans,
-        )
-    ]
+    orig = dict(
+        source="blah",
+        block_id="42",
+        species="human",
+        seqid="1",
+        start=22,
+        stop=42,
+        strand="-",
+    )
+    records = [AlignRecord(gap_spans=gap_spans, **orig.copy())]
     db_align.add_records(records)
     got = list(
         db_align._execute_sql(
             f"SELECT * from {db_align.table_name} where block_id=?", (42,)
         )
-    )
-    got_spans = got[0]["gap_spans"]
-    assert numpy.allclose(got_spans, gap_spans)
+    )[0]
+    index = got["id"]
+    got = {k: got[k] for k in orig if k != "id"}
+    # gap_spans not stored in the db, but in a GapStore
+    assert got == orig
+    assert index == 1
 
 
 @pytest.mark.parametrize("func", (str, repr))

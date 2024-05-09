@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import pathlib
 import typing
 
 from collections import defaultdict
 from dataclasses import dataclass
 
+import h5py
 import numpy
 
 from cogent3.core.alignment import Aligned, Alignment
@@ -12,11 +14,13 @@ from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 from numpy.typing import NDArray
 from rich.progress import track
 
-from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
-from ensembl_lite._util import PathType, sanitise_stableid
+from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
+from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType, sanitise_stableid
 
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
+
+_GAP_STORE_SUFFIX = "hdf5_blosc2"
 
 
 @dataclass(slots=True)
@@ -64,11 +68,66 @@ class AlignRecord:
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 
+class GapStore(Hdf5Mixin):
+    # store gap data from aligned sequences
+    def __init__(
+        self,
+        source: PathType,
+        align_name: typing.Optional[str] = None,
+        mode: str = "r",
+        in_memory: bool = False,
+    ):
+        self.source = pathlib.Path(source)
+        self.mode = "w-" if mode == "w" else mode
+        h5_kwargs = (
+            dict(
+                driver="core",
+                backing_store=False,
+            )
+            if in_memory
+            else {}
+        )
+        try:
+            self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
+        except OSError:
+            print(source)
+            raise
+
+        if "r" not in self.mode and "align_name" not in self._file.attrs:
+            assert align_name
+            self._file.attrs["align_name"] = align_name
+        if (
+            align_name
+            and (file_species := self._file.attrs.get("align_name", None)) != align_name
+        ):
+            raise ValueError(f"{self.source.name!r} {file_species!r} != {align_name}")
+        self.align_name = self._file.attrs["align_name"]
+
+    def add_record(self, *, index: int, gaps: numpy.ndarray):
+        # dataset names must be strings
+        index = str(index)
+        if index in self._file:
+            stored = self._file[index]
+            if (gaps == stored).all():
+                # already seen this index
+                return
+            # but it's different, which is a problem
+            raise ValueError(f"{index!r} already present but with different gaps")
+        self._file.create_dataset(
+            name=index, data=gaps, chunks=True, **_HDF5_BLOSC2_KWARGS
+        )
+        self._file.flush()
+
+    def get_record(self, *, index: int) -> numpy.ndarray:
+        return self._file[str(index)][:]
+
+
 # todo add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
 class AlignDb(SqliteDbMixin):
     table_name = "align"
     _align_schema = {
+        "id": "INTEGER PRIMARY KEY",  # used to uniquely identify gap_spans in bound GapStore
         "source": "TEXT",  # the file path
         "block_id": "TEXT",  # <source file path>-<alignment number>
         "species": "TEXT",
@@ -76,10 +135,9 @@ class AlignDb(SqliteDbMixin):
         "start": "INTEGER",
         "stop": "INTEGER",
         "strand": "TEXT",
-        "gap_spans": "compressed_array",
     }
 
-    def __init__(self, *, source=":memory:"):
+    def __init__(self, *, source=":memory:", mode="a"):
         """
         Parameters
         ----------
@@ -87,7 +145,18 @@ class AlignDb(SqliteDbMixin):
             location to store the db, defaults to in memory only
         """
         # note that data is destroyed
+        source = pathlib.Path(source)
         self.source = source
+        if source.name == ":memory:":
+            gap_path = "memory"
+            kwargs = dict(in_memory=True)
+        else:
+            gap_path = source.parent / f"{source.stem}.{_GAP_STORE_SUFFIX}"
+            kwargs = dict(in_memory=False)
+
+        self.gap_store = GapStore(
+            source=gap_path, align_name=source.stem, mode=mode, **kwargs
+        )
         self._db = None
         self._init_tables()
 
@@ -98,14 +167,15 @@ class AlignDb(SqliteDbMixin):
             for row in self.db.execute(
                 f"PRAGMA table_info({self.table_name})"
             ).fetchall()
+            if row[1] != "id"
         ]
-        for i in range(len(records)):
-            records[i].gap_spans = _compressed_array_proxy(records[i].gap_spans)
-            records[i] = [records[i][c] for c in col_order]
-
         val_placeholder = ", ".join("?" * len(col_order))
-        sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
-        self.db.executemany(sql, records)
+        sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder}) RETURNING id"
+
+        for i in range(len(records)):
+            index = self.db.execute(sql, [records[i][c] for c in col_order]).fetchone()
+            index = index["id"]
+            self.gap_store.add_record(index=index, gaps=records[i].gap_spans)
 
     def _get_block_id(
         self,
@@ -162,8 +232,8 @@ class AlignDb(SqliteDbMixin):
         results = defaultdict(list)
         for record in self.db.execute(sql, block_ids).fetchall():
             record = {k: record[k] for k in record.keys()}
-            if not len(record["gap_spans"]):
-                record["gap_spans"] = _no_gaps.copy()
+            index = record.pop("id")
+            record["gap_spans"] = self.gap_store.get_record(index=index)
             results[record["block_id"]].append(AlignRecord(**record))
 
         return results.values()
