@@ -272,16 +272,24 @@ def install(download, num_procs, force_overwrite, verbose):
     elt_config.write_installed_cfg(config)
     with keep_running():
         local_install_genomes(
-            config, force_overwrite=force_overwrite, max_workers=num_procs
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
         )
         # On test cases, only 30% speedup from running install homology data
         # in parallel due to overhead of pickling the data, but considerable
         # increase in memory. So, run in serial to avoid memory issues since
         # it's reasonably fast anyway. (At least until we have
         # a more robust solution.)
-        local_install_homology(config, force_overwrite=force_overwrite, max_workers=1)
+        local_install_homology(
+            config, force_overwrite=force_overwrite, max_workers=1, verbose=verbose
+        )
         local_install_compara(
-            config, force_overwrite=force_overwrite, max_workers=num_procs
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
         )
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")

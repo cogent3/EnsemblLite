@@ -113,6 +113,9 @@ def local_install_genomes(
         for _ in tasks:
             progress.update(writing, description=msg, advance=1)
 
+    if verbose:
+        print("Finished installing features ")
+
     with Progress(transient=True) as progress:
         writing = progress.add_task(
             total=len(db_names), description="Installing  🧬", advance=0
@@ -126,6 +129,8 @@ def local_install_genomes(
             db.close()
             progress.update(writing, description="Installing  🧬", advance=1)
 
+    if verbose:
+        print("Finished installing sequences ")
     return
 
 
@@ -206,6 +211,9 @@ def local_install_compara(
 
         db.add_records(records=records)
         db.close()
+
+    if verbose:
+        print("Finished installing homologies")
 
     return
 
@@ -299,3 +307,6 @@ def local_install_homology(
     db.close()
     if no_records:
         outpath.unlink()
+
+    if verbose:
+        print("Finished installing homologies")
