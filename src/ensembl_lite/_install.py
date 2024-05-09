@@ -74,7 +74,10 @@ def _prepped_seqs(
 
 
 def local_install_genomes(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
@@ -90,6 +93,9 @@ def local_install_genomes(
     db_names = list(config.db_names)
     if max_workers:
         max_workers = min(len(db_names) + 1, max_workers)
+
+    if verbose:
+        print(f"genomes {max_workers=}")
 
     # we load the individual gff3 files and write to annotation db's
     src_dest_paths = []
@@ -123,7 +129,7 @@ def local_install_genomes(
     return
 
 
-def seq2gaps(record: dict):
+def seq2gaps(record: dict) -> AlignRecord:
     seq = make_seq(record.pop("seq"))
     indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
@@ -157,7 +163,10 @@ class _load_one_align:
 
 
 def local_install_compara(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
@@ -174,7 +183,11 @@ def local_install_compara(
         paths = list(src_dir.glob(f"{align_name}*maf*"))
 
         if max_workers and max_workers > 1:
+            # we adjust the maximum workers to the number of paths
             max_workers = min(len(paths) + 1, max_workers or 0)
+
+        if verbose:
+            print(f"{max_workers=}")
 
         series = get_iterable_tasks(
             func=aln_loader, series=paths, max_workers=max_workers
@@ -246,7 +259,10 @@ class LoadHomologies:
 
 
 def local_install_homology(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)
@@ -264,6 +280,9 @@ def local_install_homology(
     loader = LoadHomologies(allowed_species=set(config.db_names))
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
+
+    if verbose:
+        print(f"homologies {max_workers=}")
 
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
