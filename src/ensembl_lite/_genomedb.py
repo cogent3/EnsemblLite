@@ -1,10 +1,9 @@
 import dataclasses
-import os
 import pathlib
 import typing
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import click
 import h5py
@@ -23,7 +22,7 @@ from numpy.typing import NDArray
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._homologydb import homolog_group
 from ensembl_lite._species import Species
-from ensembl_lite._util import SerialisableMixin
+from ensembl_lite._util import PathType, SerialisableMixin
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
@@ -32,8 +31,6 @@ _ANNOTDB_NAME = "features.gff3db"
 _BLOSC2_KWARGS = hdf5plugin.Blosc2(
     cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.SHUFFLE
 )
-
-PathType = Union[str, pathlib.Path, os.PathLike]
 
 
 class SeqsDataABC(ABC):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import typing
 
 from collections import defaultdict
@@ -14,7 +13,7 @@ from numpy.typing import NDArray
 from rich.progress import track
 
 from ensembl_lite._db_base import SqliteDbMixin, _compressed_array_proxy
-from ensembl_lite._util import sanitise_stableid
+from ensembl_lite._util import PathType, sanitise_stableid
 
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
@@ -309,7 +308,7 @@ def write_alignments(
     genomes: dict,
     limit: int | None,
     mask_features: list[str],
-    outdir: os.PathLike,
+    outdir: PathType,
     ref_species: str,
     stableids: list[str],
     show_progress: bool = True,

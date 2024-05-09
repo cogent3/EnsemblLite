@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import typing
 
@@ -19,21 +18,21 @@ from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite._species import Species
-from ensembl_lite._util import get_iterable_tasks
+from ensembl_lite._util import PathType, get_iterable_tasks
 
 
 def _rename(label: str) -> str:
     return label.split()[0]
 
 
-def _get_seqs(src: os.PathLike) -> list[tuple[str, str]]:
+def _get_seqs(src: PathType) -> list[tuple[str, str]]:
     with open_(src) as infile:
         data = infile.read().splitlines()
     name_seqs = list(MinimalFastaParser(data))
     return [(_rename(name), seq) for name, seq in name_seqs]
 
 
-def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
+def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
     src, dest = src_dest
     if dest.exists():
         return True
@@ -43,19 +42,19 @@ def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
 
 
 def _make_src_dest_annotation_paths(
-    src_dir: os.PathLike, dest_dir: os.PathLike
-) -> list[tuple[os.PathLike, os.PathLike]]:
+    src_dir: PathType, dest_dir: PathType
+) -> list[tuple[PathType, PathType]]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
     return [(path, dest) for path in paths]
 
 
-T = tuple[os.PathLike, list[tuple[str, bytes]]]
+T = tuple[PathType, list[tuple[str, str]]]
 
 
 def _prepped_seqs(
-    src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progress, max_workers: int
+    src_dir: PathType, dest_dir: PathType, progress: Progress, max_workers: int
 ) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
@@ -229,7 +228,7 @@ class LoadHomologies:
     def _matching_species(self, row):
         return {row[1], row[4]} <= self._allowed_species
 
-    def __call__(self, paths: typing.Iterable[os.PathLike]) -> list:
+    def __call__(self, paths: typing.Iterable[PathType]) -> list:
         final = []
         for path in paths:
             with open_(path) as infile:

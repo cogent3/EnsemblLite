@@ -24,6 +24,9 @@ from cogent3.app.composable import define_app
 from cogent3.util.parallel import as_completed
 
 
+PathType = Union[str, pathlib.Path, os.PathLike]
+
+
 def md5sum(data: bytes, *args) -> str:
     """computes MD5SUM
 
@@ -49,7 +52,7 @@ def checksum(data: bytes, size: int):  # pragma: no cover
     return cksum, int(nb)
 
 
-def _get_resource_dir() -> os.PathLike:
+def _get_resource_dir() -> PathType:
     """returns path to resource directory"""
     if "ENSEMBLDBRC" in os.environ:
         path = os.environ["ENSEMBLDBRC"]
@@ -65,7 +68,7 @@ def _get_resource_dir() -> os.PathLike:
     return pathlib.Path(path)
 
 
-def get_resource_path(resource: Union[str, os.PathLike]) -> os.PathLike:
+def get_resource_path(resource: PathType) -> PathType:
     path = ENSEMBLDBRC / resource
     assert path.exists()
     return path
@@ -116,7 +119,7 @@ class CaseInsensitiveString(str):
         return "".join(list(self))
 
 
-def load_ensembl_checksum(path: os.PathLike) -> dict:
+def load_ensembl_checksum(path: PathType) -> dict:
     """loads the BSD checksums from Ensembl CHECKSUMS file"""
     result = {}
     for line in path.read_text().splitlines():
@@ -129,7 +132,7 @@ def load_ensembl_checksum(path: os.PathLike) -> dict:
     return result
 
 
-def load_ensembl_md5sum(path: os.PathLike) -> dict:
+def load_ensembl_md5sum(path: PathType) -> dict:
     """loads the md5 sum from Ensembl MD5SUM file"""
     result = {}
     for line in path.read_text().splitlines():
@@ -145,7 +148,7 @@ def load_ensembl_md5sum(path: os.PathLike) -> dict:
 class atomic_write:
     """performs atomic write operations, cleans up if fails"""
 
-    def __init__(self, path: os.PathLike, tmpdir=None, mode="wb", encoding=None):
+    def __init__(self, path: PathType, tmpdir=None, mode="wb", encoding=None):
         """
 
         Parameters
@@ -247,12 +250,12 @@ _dont_checksum = re.compile("(CHECKSUMS|MD5SUM|README)")
 _sig_file = re.compile("(CHECKSUMS|MD5SUM)")
 
 
-def dont_checksum(path: os.PathLike) -> bool:
+def dont_checksum(path: PathType) -> bool:
     return _dont_checksum.search(str(path)) is not None
 
 
 @functools.singledispatch
-def is_signature(path: os.PathLike) -> bool:
+def is_signature(path: PathType) -> bool:
     return _sig_file.search(path.name) is not None
 
 
@@ -272,7 +275,7 @@ def _(sig_path: str) -> Callable:
     return _sig_calc_funcs[sig_path]
 
 
-def get_signature_data(path: os.PathLike) -> Callable:
+def get_signature_data(path: PathType) -> Callable:
     return _sig_load_funcs[path.name](path)
 
 

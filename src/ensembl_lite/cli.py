@@ -1,4 +1,3 @@
-import os
 import pathlib
 import shutil
 
@@ -16,6 +15,7 @@ from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
 from ensembl_lite._species import Species
+from ensembl_lite._util import PathType
 
 
 try:
@@ -27,7 +27,7 @@ except NotImplementedError:
     from ensembl_lite._util import fake_wake as keep_running
 
 
-def _get_installed_config_path(ctx, param, path) -> os.PathLike:
+def _get_installed_config_path(ctx, param, path) -> PathType:
     """path to installed.cfg"""
     path = pathlib.Path(path)
     if path.name == elt_config.INSTALLED_CONFIG_NAME:

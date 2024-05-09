@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from ensembl_lite._species import Species, species_from_ensembl_tree
+from ensembl_lite._util import PathType
 
 
 INSTALLED_CONFIG_NAME = "installed.cfg"
@@ -22,8 +23,8 @@ class Config:
     host: str
     remote_path: str
     release: str
-    staging_path: pathlib.Path
-    install_path: pathlib.Path
+    staging_path: PathType
+    install_path: PathType
     species_dbs: dict[str, list[str]]
     align_names: Iterable[str]
     tree_names: Iterable[str]
@@ -109,7 +110,7 @@ class Config:
 @dataclass
 class InstalledConfig:
     release: str
-    install_path: pathlib.Path
+    install_path: PathType
 
     def __hash__(self):
         return id(self)
@@ -133,7 +134,7 @@ class InstalledConfig:
     def genomes_path(self):
         return self.install_path / _GENOMES_NAME
 
-    def installed_genome(self, species: str) -> pathlib.Path:
+    def installed_genome(self, species: str) -> PathType:
         db_name = Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
@@ -141,7 +142,7 @@ class InstalledConfig:
         """returns list of installed genomes"""
         return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
 
-    def path_to_alignment(self, pattern: str) -> pathlib.Path | None:
+    def path_to_alignment(self, pattern: str) -> PathType | None:
         """returns the full path to alignment matching the name
 
         Parameters
@@ -163,7 +164,7 @@ class InstalledConfig:
         return align_dirs[0]
 
 
-def write_installed_cfg(config: Config) -> pathlib.Path:
+def write_installed_cfg(config: Config) -> PathType:
     """writes an ini file under config.installed_path"""
     parser = configparser.ConfigParser()
     parser.add_section("release")
@@ -176,7 +177,7 @@ def write_installed_cfg(config: Config) -> pathlib.Path:
     return outpath
 
 
-def read_installed_cfg(path: pathlib.Path) -> InstalledConfig:
+def read_installed_cfg(path: PathType) -> InstalledConfig:
     """reads an ini file under config.installed_path"""
     parser = configparser.ConfigParser()
     path = (
