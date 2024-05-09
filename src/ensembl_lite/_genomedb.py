@@ -1,14 +1,12 @@
 import dataclasses
-import os
 import pathlib
 import typing
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import click
 import h5py
-import hdf5plugin
 import numpy
 
 from cogent3 import get_moltype, make_seq, make_table, make_unaligned_seqs
@@ -21,19 +19,14 @@ from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite._config import InstalledConfig
+from ensembl_lite._db_base import Hdf5Mixin
 from ensembl_lite._homologydb import homolog_group
 from ensembl_lite._species import Species
-from ensembl_lite._util import SerialisableMixin
+from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.gff3db"
-
-_BLOSC2_KWARGS = hdf5plugin.Blosc2(
-    cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.SHUFFLE
-)
-
-PathType = Union[str, pathlib.Path, os.PathLike]
 
 
 class SeqsDataABC(ABC):
@@ -121,7 +114,7 @@ class arr2str:
 
 
 @dataclasses.dataclass
-class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
+class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
     """HDF5 sequence data storage"""
 
     def __init__(
@@ -171,27 +164,6 @@ class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
     def __hash__(self):
         return id(self)
 
-    def __getstate__(self):
-        if set(self.mode) & {"w", "a"}:
-            raise NotImplementedError(f"pickling not supported for mode={self.mode!r}")
-        return self._init_vals.copy()
-
-    def __setstate__(self, state):
-        obj = self.__class__(**state)
-        self.__dict__.update(obj.__dict__)
-        # because we have a __del__ method, and self attributes point to
-        # attributes on obj, we need to modify obj state so that garbage
-        # collection does not screw up self
-        obj._is_open = False
-        obj._file = None
-
-    def __del__(self):
-        if self._is_open and self._file is not None:
-            self._file.flush()
-        if self._file is not None:
-            self._file.close()
-        self._is_open = False
-
     def add_record(self, *, seqid: str, seq: str):
         seq = self._str2arr(seq)
         if seqid in self._file:
@@ -201,7 +173,9 @@ class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
                 return
             # but it's different, which is a problem
             raise ValueError(f"{seqid!r} already present but with different seq")
-        self._file.create_dataset(name=seqid, data=seq, chunks=True, **_BLOSC2_KWARGS)
+        self._file.create_dataset(
+            name=seqid, data=seq, chunks=True, **_HDF5_BLOSC2_KWARGS
+        )
         self._file.flush()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
@@ -224,12 +198,6 @@ class SeqsDataHdf5(SeqsDataABC, SerialisableMixin):
     def get_coord_names(self) -> tuple[str]:
         """names of chromosomes / contig"""
         return tuple(self._file)
-
-    def close(self):
-        if self._is_open:
-            self._file.flush()
-        self._file.close()
-        self._is_open = False
 
 
 # todo: this wrapping class is required for memory efficiency because

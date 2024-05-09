@@ -1,4 +1,3 @@
-import os
 import pathlib
 import shutil
 
@@ -16,6 +15,7 @@ from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
 from ensembl_lite._species import Species
+from ensembl_lite._util import PathType
 
 
 try:
@@ -27,7 +27,7 @@ except NotImplementedError:
     from ensembl_lite._util import fake_wake as keep_running
 
 
-def _get_installed_config_path(ctx, param, path) -> os.PathLike:
+def _get_installed_config_path(ctx, param, path) -> PathType:
     """path to installed.cfg"""
     path = pathlib.Path(path)
     if path.name == elt_config.INSTALLED_CONFIG_NAME:
@@ -272,16 +272,24 @@ def install(download, num_procs, force_overwrite, verbose):
     elt_config.write_installed_cfg(config)
     with keep_running():
         local_install_genomes(
-            config, force_overwrite=force_overwrite, max_workers=num_procs
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
         )
         # On test cases, only 30% speedup from running install homology data
         # in parallel due to overhead of pickling the data, but considerable
         # increase in memory. So, run in serial to avoid memory issues since
         # it's reasonably fast anyway. (At least until we have
         # a more robust solution.)
-        local_install_homology(config, force_overwrite=force_overwrite, max_workers=1)
+        local_install_homology(
+            config, force_overwrite=force_overwrite, max_workers=1, verbose=verbose
+        )
         local_install_compara(
-            config, force_overwrite=force_overwrite, max_workers=num_procs
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
         )
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")

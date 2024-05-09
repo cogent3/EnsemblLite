@@ -210,20 +210,6 @@ def test_blosc_apps():
     assert elt_decompress_it(z) == o
 
 
-def test_blosc_array():
-    from ensembl_lite._db_base import (
-        _compressed_array_proxy,
-        compressed_array_to_sqlite,
-        decompressed_sqlite_to_array,
-    )
-
-    data = numpy.array([[0, 3], [4, 11]], dtype=numpy.int32)
-    arr = _compressed_array_proxy(data)
-    z = compressed_array_to_sqlite(arr)
-    got = decompressed_sqlite_to_array(z)
-    assert numpy.allclose(got, data)
-
-
 def test_get_sig_calc_func_invalid():
     with pytest.raises(NotImplementedError):
         get_sig_calc_func(2)

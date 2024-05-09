@@ -1,11 +1,12 @@
 # parser for Ensembl Multi Format (EMF) FLATFILE DUMPS
 # we limit this to the Compara flavoured version
-import os
+
 import typing
 
 from cogent3 import open_
 
 from ensembl_lite._name import EmfName
+from ensembl_lite._util import PathType
 
 
 # TODO spaces are optional between columns representing SEQ and SCORE lines
@@ -46,7 +47,7 @@ def _iter_blocks(data: typing.Iterable[str]) -> list[tuple[int, int]]:
 
 # we need a raw parser
 def parse_emf(
-    path: typing.Union[str, os.PathLike],
+    path: PathType,
     check_format: bool = True,
     extract_data: typing.Callable = _get_block_seqnames,
 ) -> dict[EmfName, str]:

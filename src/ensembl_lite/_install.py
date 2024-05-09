@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import typing
 
@@ -19,21 +18,21 @@ from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import HomologyDb
 from ensembl_lite._species import Species
-from ensembl_lite._util import get_iterable_tasks
+from ensembl_lite._util import PathType, get_iterable_tasks
 
 
 def _rename(label: str) -> str:
     return label.split()[0]
 
 
-def _get_seqs(src: os.PathLike) -> list[tuple[str, str]]:
+def _get_seqs(src: PathType) -> list[tuple[str, str]]:
     with open_(src) as infile:
         data = infile.read().splitlines()
     name_seqs = list(MinimalFastaParser(data))
     return [(_rename(name), seq) for name, seq in name_seqs]
 
 
-def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
+def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
     src, dest = src_dest
     if dest.exists():
         return True
@@ -43,19 +42,19 @@ def _load_one_annotations(src_dest: tuple[os.PathLike, os.PathLike]) -> bool:
 
 
 def _make_src_dest_annotation_paths(
-    src_dir: os.PathLike, dest_dir: os.PathLike
-) -> list[tuple[os.PathLike, os.PathLike]]:
+    src_dir: PathType, dest_dir: PathType
+) -> list[tuple[PathType, PathType]]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
     return [(path, dest) for path in paths]
 
 
-T = tuple[os.PathLike, list[tuple[str, bytes]]]
+T = tuple[PathType, list[tuple[str, str]]]
 
 
 def _prepped_seqs(
-    src_dir: os.PathLike, dest_dir: os.PathLike, progress: Progress, max_workers: int
+    src_dir: PathType, dest_dir: PathType, progress: Progress, max_workers: int
 ) -> T:
     src_dir = src_dir / "fasta"
     paths = list(src_dir.glob("*.fa.gz"))
@@ -75,7 +74,10 @@ def _prepped_seqs(
 
 
 def local_install_genomes(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
@@ -91,6 +93,9 @@ def local_install_genomes(
     db_names = list(config.db_names)
     if max_workers:
         max_workers = min(len(db_names) + 1, max_workers)
+
+    if verbose:
+        print(f"genomes {max_workers=}")
 
     # we load the individual gff3 files and write to annotation db's
     src_dest_paths = []
@@ -108,6 +113,9 @@ def local_install_genomes(
         for _ in tasks:
             progress.update(writing, description=msg, advance=1)
 
+    if verbose:
+        print("Finished installing features ")
+
     with Progress(transient=True) as progress:
         writing = progress.add_task(
             total=len(db_names), description="Installing  🧬", advance=0
@@ -121,10 +129,12 @@ def local_install_genomes(
             db.close()
             progress.update(writing, description="Installing  🧬", advance=1)
 
+    if verbose:
+        print("Finished installing sequences ")
     return
 
 
-def seq2gaps(record: dict):
+def seq2gaps(record: dict) -> AlignRecord:
     seq = make_seq(record.pop("seq"))
     indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
@@ -158,7 +168,10 @@ class _load_one_align:
 
 
 def local_install_compara(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
@@ -175,7 +188,11 @@ def local_install_compara(
         paths = list(src_dir.glob(f"{align_name}*maf*"))
 
         if max_workers and max_workers > 1:
+            # we adjust the maximum workers to the number of paths
             max_workers = min(len(paths) + 1, max_workers or 0)
+
+        if verbose:
+            print(f"{max_workers=}")
 
         series = get_iterable_tasks(
             func=aln_loader, series=paths, max_workers=max_workers
@@ -194,6 +211,9 @@ def local_install_compara(
 
         db.add_records(records=records)
         db.close()
+
+    if verbose:
+        print("Finished installing homologies")
 
     return
 
@@ -229,7 +249,7 @@ class LoadHomologies:
     def _matching_species(self, row):
         return {row[1], row[4]} <= self._allowed_species
 
-    def __call__(self, paths: typing.Iterable[os.PathLike]) -> list:
+    def __call__(self, paths: typing.Iterable[PathType]) -> list:
         final = []
         for path in paths:
             with open_(path) as infile:
@@ -247,7 +267,10 @@ class LoadHomologies:
 
 
 def local_install_homology(
-    config: Config, force_overwrite: bool, max_workers: int | None
+    config: Config,
+    force_overwrite: bool,
+    max_workers: int | None,
+    verbose: bool = False,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)
@@ -266,6 +289,9 @@ def local_install_homology(
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
 
+    if verbose:
+        print(f"homologies {max_workers=}")
+
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
@@ -281,3 +307,6 @@ def local_install_homology(
     db.close()
     if no_records:
         outpath.unlink()
+
+    if verbose:
+        print("Finished installing homologies")

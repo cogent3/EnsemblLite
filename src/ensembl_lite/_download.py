@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import pathlib
 import re
 import shutil
@@ -14,6 +13,7 @@ from ensembl_lite._ftp_download import download_data, listdir
 from ensembl_lite._site_map import get_site_map
 from ensembl_lite._species import Species, species_from_ensembl_tree
 from ensembl_lite._util import (
+    PathType,
     dont_checksum,
     get_resource_path,
     is_signature,
@@ -41,7 +41,7 @@ class valid_gff3_file:
         return self._valid.search(name) is not None
 
 
-def _remove_tmpdirs(path: os.PathLike):
+def _remove_tmpdirs(path: PathType):
     """delete any tmp dirs left over from unsuccessful runs"""
     tmpdirs = [p for p in path.glob("tmp*") if p.is_dir()]
     for tmpdir in tmpdirs:
