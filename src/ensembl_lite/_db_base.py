@@ -1,54 +1,10 @@
 import dataclasses
-import io
 import sqlite3
-
-import numpy
-
-from ensembl_lite._util import (
-    SerialisableMixin,
-    blosc_compress_it,
-    blosc_decompress_it,
-)
-
-
-@dataclasses.dataclass(slots=True)
-class _compressed_array_proxy:
-    """this exists only to automate conversion of a customised sqlite type"""
-
-    array: numpy.ndarray
-
 
 from ensembl_lite._util import SerialisableMixin
 
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
-
-_compressor = blosc_compress_it()
-_decompressor = blosc_decompress_it()
-
-
-def compressed_array_to_sqlite(data):
-    with io.BytesIO() as out:
-        numpy.save(out, data.array)
-        out.seek(0)
-        output = _compressor(out.read())
-    return output
-
-
-def decompressed_sqlite_to_array(data):
-    data = _decompressor(data)
-    with io.BytesIO(data) as out:
-        out.seek(0)
-        result = numpy.load(out)
-    return result
-
-
-# registering the conversion functions with sqlite
-# since these conversion functions are tied to a type, need to ensure the
-# type will be unique to this tool, best way is to use <libname_type> and
-# wrap a fundamental type with a proxy
-sqlite3.register_adapter(_compressed_array_proxy, compressed_array_to_sqlite)
-sqlite3.register_converter("compressed_array", decompressed_sqlite_to_array)
 
 
 def _make_table_sql(
