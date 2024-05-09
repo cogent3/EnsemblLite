@@ -17,6 +17,7 @@ from tempfile import mkdtemp
 from typing import IO, Callable, Union
 
 import blosc2
+import hdf5plugin
 import numba
 import numpy
 
@@ -25,6 +26,10 @@ from cogent3.util.parallel import as_completed
 
 
 PathType = Union[str, pathlib.Path, os.PathLike]
+
+_HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
+    cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.SHUFFLE
+)
 
 
 def md5sum(data: bytes, *args) -> str:

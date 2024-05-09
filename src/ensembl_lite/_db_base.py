@@ -18,6 +18,9 @@ class _compressed_array_proxy:
     array: numpy.ndarray
 
 
+from ensembl_lite._util import SerialisableMixin
+
+
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 _compressor = blosc_compress_it()
@@ -146,3 +149,42 @@ class SqliteDbMixin(SerialisableMixin):
     def get_distinct(self, column: str) -> set[str]:
         sql = f"SELECT DISTINCT {column} from {self.table_name}"
         return {r[column] for r in self._execute_sql(sql).fetchall()}
+
+
+# HDF5 base class
+@dataclasses.dataclass
+class Hdf5Mixin(SerialisableMixin):
+    """HDF5 sequence data storage"""
+
+    _file = None
+    _is_open = False
+
+    def __hash__(self):
+        return id(self)
+
+    def __getstate__(self):
+        if set(self.mode) & {"w", "a"}:
+            raise NotImplementedError(f"pickling not supported for mode={self.mode!r}")
+        return self._init_vals.copy()
+
+    def __setstate__(self, state):
+        obj = self.__class__(**state)
+        self.__dict__.update(obj.__dict__)
+        # because we have a __del__ method, and self attributes point to
+        # attributes on obj, we need to modify obj state so that garbage
+        # collection does not screw up self
+        obj._is_open = False
+        obj._file = None
+
+    def __del__(self):
+        if self._is_open and self._file is not None:
+            self._file.flush()
+        if self._file is not None:
+            self._file.close()
+        self._is_open = False
+
+    def close(self):
+        if self._is_open:
+            self._file.flush()
+        self._file.close()
+        self._is_open = False
