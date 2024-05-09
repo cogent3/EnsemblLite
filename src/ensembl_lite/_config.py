@@ -234,6 +234,9 @@ def read_config(config_path) -> Config:
         species = Species.get_species_name(section, level="raise")
         species_dbs[species] = dbs
 
+    # we also want homologies if we want alignments
+    homologies = homologies or bool(align_names)
+
     if tree_names:
         # add all species in the tree to species_dbs
         for tree_name in tree_names:
