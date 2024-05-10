@@ -66,6 +66,10 @@ class SqliteDbMixin(SerialisableMixin):
         )
         self._db.row_factory = sqlite3.Row
 
+        # try and reduce memory usage
+        cursor = self._db.cursor()
+        cursor.execute("PRAGMA cache_size = -2048;")
+
         # A bit of magic.
         # Assumes schema attributes named as `_<table name>_schema`
         for attr in dir(self):
@@ -73,7 +77,7 @@ class SqliteDbMixin(SerialisableMixin):
                 table_name = "_".join(attr.split("_")[1:-1])
                 attr = getattr(self, attr)
                 sql = _make_table_sql(table_name, attr)
-                self._execute_sql(sql)
+                cursor.execute(sql)
 
     @property
     def db(self) -> sqlite3.Connection:
