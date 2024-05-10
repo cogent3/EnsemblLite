@@ -25,6 +25,34 @@ def _rename(label: str) -> str:
     return label.split()[0]
 
 
+@define_app
+class fasta_to_hdf5:
+    def __init__(self, config: Config):
+        self.config = config
+
+    def main(self, db_name: str) -> bool:
+        src_dir = self.config.staging_genomes / db_name
+        dest_dir = self.config.install_genomes / db_name
+
+        seq_store = SeqsDataHdf5(
+            source=dest_dir / _SEQDB_NAME,
+            species=Species.get_species_name(db_name),
+            mode="w",
+        )
+
+        src_dir = src_dir / "fasta"
+        for path in src_dir.glob("*.fa.gz"):
+            with open_(path) as infile:
+                for label, seq in MinimalFastaParser(infile):
+                    seqid = _rename(label)
+                    seq_store.add_record(seqid=seqid, seq=seq)
+                    del seq
+
+        seq_store.close()
+
+        return True
+
+
 def _get_seqs(src: PathType) -> list[tuple[str, str]]:
     with open_(src) as infile:
         data = infile.read().splitlines()
@@ -37,7 +65,9 @@ def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
     if dest.exists():
         return True
 
-    _ = load_annotations(path=src, write_path=dest)
+    db = load_annotations(path=src, write_path=dest)
+    db.db.close()
+    del db
     return True
 
 
@@ -120,13 +150,15 @@ def local_install_genomes(
         writing = progress.add_task(
             total=len(db_names), description="Installing  🧬", advance=0
         )
-        for db_name in db_names:
-            src_dir = config.staging_genomes / db_name
-            dest_dir = config.install_genomes / db_name
-            dest, records = _prepped_seqs(src_dir, dest_dir, progress, max_workers)
-            db = SeqsDataHdf5(source=dest, species=dest.parent.name, mode="w")
-            db.add_records(records=records)
-            db.close()
+        # we parallelise across databases
+        writer = fasta_to_hdf5(config=config)
+        tasks = get_iterable_tasks(
+            func=writer, series=db_names, max_workers=max_workers
+        )
+        for result in tasks:
+            if not result:
+                print(result)
+                raise RuntimeError
             progress.update(writing, description="Installing  🧬", advance=1)
 
     if verbose:
