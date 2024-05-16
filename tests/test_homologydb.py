@@ -189,3 +189,18 @@ def test_species_genes_eq():
     assert a != d
     e = species_genes(species="b", gene_ids=["2"])
     assert a != e
+
+
+@pytest.mark.parametrize("col", tuple(HomologyDb._index_columns))
+def test_indexing(o2o_db, col):
+    db, _ = o2o_db
+    expect = ("index", col, db.table_name)
+    db.make_indexes()
+    sql_template = (
+        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
+        f"tbl_name = {db.table_name!r} and name = {col!r}"  # nosec B608
+    )
+
+    result = db._execute_sql(sql_template).fetchone()
+    got = tuple(result)[:3]
+    assert got == expect

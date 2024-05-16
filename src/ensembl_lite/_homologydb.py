@@ -152,6 +152,7 @@ class HomologyDb(SqliteDbMixin):
         "prot_id_2": "TEXT",
         "relationship": "TEXT",  # defined by Ensembl
     }
+    _index_columns = "relationship", "gene_id_1", "gene_id_2"
 
     def __init__(self, source=":memory:"):
         self.source = source

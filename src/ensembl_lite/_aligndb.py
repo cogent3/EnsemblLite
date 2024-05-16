@@ -137,6 +137,8 @@ class AlignDb(SqliteDbMixin):
         "strand": "TEXT",
     }
 
+    _index_columns = "id", "block_id", "seqid", "start", "stop"
+
     def __init__(self, *, source=":memory:", mode="a"):
         """
         Parameters

@@ -201,9 +201,10 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
 
 
 # todo: this wrapping class is required for memory efficiency because
-# the cogent3 SequeceCollection class is not designed for large sequence
-# collections, either large sequences or large numbers of sequences. The
-# correct solution is to improve that.
+#  the cogent3 SequenceCollection class is not designed for large sequence
+#  collections, either large sequences or large numbers of sequences. The
+#  longer term solution is improving SequenceCollections,
+#  which is underway 🎉
 class Genome:
     """class to be replaced by cogent3 sequence collection when that
     has been modernised"""
