@@ -28,7 +28,7 @@ from cogent3.util.parallel import as_completed
 PathType = Union[str, pathlib.Path, os.PathLike]
 
 _HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
-    cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.SHUFFLE
+    cname="blosclz", clevel=9, filters=hdf5plugin.Blosc2.BITSHUFFLE
 )
 
 

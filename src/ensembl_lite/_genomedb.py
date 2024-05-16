@@ -88,7 +88,7 @@ class str2arr:
             data = data[: self.max_length]
 
         b = data.encode("utf8").translate(self.translation)
-        return numpy.array(memoryview(bytearray(b)), dtype=numpy.uint8)
+        return numpy.array(memoryview(b), dtype=numpy.uint8)
 
 
 @define_app
@@ -176,7 +176,6 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
         self._file.create_dataset(
             name=seqid, data=seq, chunks=True, **_HDF5_BLOSC2_KWARGS
         )
-        self._file.flush()
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
         for seqid, seq in records:
