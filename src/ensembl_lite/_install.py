@@ -10,6 +10,7 @@ from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.table import FilteringParser
+from cogent3.util.io import iter_splitlines
 from rich.progress import Progress, track
 
 from ensembl_lite import _maf
@@ -42,11 +43,10 @@ class fasta_to_hdf5:
 
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
-            with open_(path) as infile:
-                for label, seq in MinimalFastaParser(infile):
-                    seqid = _rename(label)
-                    seq_store.add_record(seqid=seqid, seq=seq)
-                    del seq
+            for label, seq in MinimalFastaParser(iter_splitlines(path)):
+                seqid = _rename(label)
+                seq_store.add_record(seqid=seqid, seq=seq)
+                del seq
 
         seq_store.close()
 
@@ -111,7 +111,6 @@ def local_install_genomes(
 ):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
-
     # we create the local installation
     config.install_genomes.mkdir(parents=True, exist_ok=True)
     # we create subdirectories for each species
@@ -284,12 +283,7 @@ class LoadHomologies:
     def __call__(self, paths: typing.Iterable[PathType]) -> list:
         final = []
         for path in paths:
-            with open_(path) as infile:
-                # we bulk load because it's faster than the default line-by-line
-                # iteration on a file
-                data = infile.read().splitlines()
-
-            rows = list(self._reader(data))
+            rows = list(self._reader(iter_splitlines(path)))
             header = rows.pop(0)
             assert list(header) == list(self.src_cols), (header, self.src_cols)
             rows = [r + [path.name] for r in rows]
