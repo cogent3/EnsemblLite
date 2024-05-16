@@ -443,3 +443,26 @@ def test_gapstore_add_invalid_duplicate():
     gap_store.add_record(index=20, gaps=a)
     with pytest.raises(ValueError):
         gap_store.add_record(index=20, gaps=a[:1])
+
+
+@pytest.fixture
+def small_db(small_records):
+    import copy
+
+    db = AlignDb(source=":memory:")
+    db.add_records(records=copy.deepcopy(small_records))
+    return db
+
+
+@pytest.mark.parametrize("col", tuple(AlignDb._index_columns))
+def test_indexing(small_db, col):
+    expect = ("index", col, small_db.table_name)
+    small_db.make_indexes()
+    sql_template = (
+        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "
+        f"tbl_name = {small_db.table_name!r} and name = {col!r}"
+    )
+
+    result = small_db._execute_sql(sql_template).fetchone()
+    got = tuple(result)[:3]
+    assert got == expect

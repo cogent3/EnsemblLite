@@ -110,6 +110,12 @@ class SqliteDbMixin(SerialisableMixin):
         sql = f"SELECT DISTINCT {column} from {self.table_name}"
         return {r[column] for r in self._execute_sql(sql).fetchall()}
 
+    def make_indexes(self):
+        """adds db indexes for core attributes"""
+        sql = f"CREATE INDEX IF NOT EXISTS %s on {self.table_name}(%s)"
+        for col in self._index_columns:
+            self._execute_sql(sql % (col, col))
+
 
 # HDF5 base class
 @dataclasses.dataclass
