@@ -197,8 +197,8 @@ def test_indexing(o2o_db, col):
     expect = ("index", col, db.table_name)
     db.make_indexes()
     sql_template = (
-        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "
-        f"tbl_name = {db.table_name!r} and name = {col!r}"
+        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
+        f"tbl_name = {db.table_name!r} and name = {col!r}"  # nosec B608
     )
 
     result = db._execute_sql(sql_template).fetchone()
