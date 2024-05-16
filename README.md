@@ -127,8 +127,8 @@ Downloads are written to a local directory, specified in the config file. Downlo
 
 ### Install
 
-"Installation" presently involves transforming downloaded files into local sqlite3 databases which are saved to the location specified in the config file.
+"Installation" presently involves transforming downloaded files into local sqlite3 databases and HDF5 storage of genome sequences which are saved to the location specified in the config file.
 
 From the maf alignment files, the "ancestral" sequences are discarded and for every aligned sequence only the gap data is stored (i.e. gap position and length) along with the genomic coordinates. These alignments will be reconstructable by combining this information with the whole genome sequence. (This approach reduces storage requirements ~5-fold).
 
-Installation is done in parallel on multiple CPUs (since the data need to be decompressed on the fly).
+Installation can be done in parallel on multiple CPUs (since the data need to be decompressed on the fly).

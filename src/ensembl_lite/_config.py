@@ -206,11 +206,11 @@ def read_config(config_path) -> Config:
     host = parser.get("remote path", "host")
     remote_path = parser.get("remote path", "path")
     remote_path = remote_path[:-1] if remote_path.endswith("/") else remote_path
-    staging_path = (
-        pathlib.Path(parser.get("local path", "staging_path")).expanduser().absolute()
+    staging_path = config_path.parent / pathlib.Path(
+        parser.get("local path", "staging_path")
     )
-    install_path = (
-        pathlib.Path(parser.get("local path", "install_path")).expanduser().absolute()
+    install_path = config_path.parent / pathlib.Path(
+        parser.get("local path", "install_path")
     )
     homologies = parser.has_option("compara", "homologies")
     species_dbs = {}
