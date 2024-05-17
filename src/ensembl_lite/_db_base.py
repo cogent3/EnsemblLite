@@ -125,9 +125,6 @@ class Hdf5Mixin(SerialisableMixin):
     _file = None
     _is_open = False
 
-    def __hash__(self):
-        return id(self)
-
     def __getstate__(self):
         if set(self.mode) & {"w", "a"}:
             raise NotImplementedError(f"pickling not supported for mode={self.mode!r}")

@@ -189,6 +189,14 @@ def test_hdf5_genome_skip_duplicates(small_h5_genome):
     genome.add_records(records=data.items())
 
 
+def test_hdf5_genome_errors_sameid_diff_seq(small_h5_genome):
+    genome, data = small_h5_genome
+    # same eqid but diff seq should fail
+    data = {"s1": "AAA"}
+    with pytest.raises(ValueError):
+        genome.add_records(records=data.items())
+
+
 def test_hdf5_genome_error_duplicate_names(small_h5_genome):
     genome, data = small_h5_genome
     with pytest.raises(ValueError):
@@ -255,3 +263,7 @@ def test_species_setting(small_data, tmp_path):
     assert genome.species == "homo_sapiens"
     with pytest.raises(ValueError):
         _ = SeqsDataHdf5(mode="r", source=path, species="cat")
+
+
+def test_has_of_seqsdata(h5_genome):
+    assert hash(h5_genome) == id(h5_genome)

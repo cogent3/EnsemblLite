@@ -39,8 +39,8 @@ class SeqsDataABC(ABC):
     _is_open = False
     _file: Optional[Any] = None
 
-    def __hash__(self):
-        return id(self)
+    @abstractmethod
+    def __hash__(self): ...
 
     @abstractmethod
     def add_record(self, *, seqid: str, seq: str): ...
@@ -59,14 +59,10 @@ class SeqsDataABC(ABC):
     ) -> NDArray[numpy.uint8]: ...
 
     @abstractmethod
-    def get_coord_names(self) -> tuple[str]:
-        """names of chromosomes / contig"""
-        ...
+    def get_coord_names(self) -> tuple[str]: ...
 
     @abstractmethod
-    def close(self):
-        """closes the resource"""
-        ...
+    def close(self): ...
 
 
 @define_app
