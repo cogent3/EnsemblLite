@@ -255,3 +255,7 @@ def test_species_setting(small_data, tmp_path):
     assert genome.species == "homo_sapiens"
     with pytest.raises(ValueError):
         _ = SeqsDataHdf5(mode="r", source=path, species="cat")
+
+
+def test_has_of_seqsdata(h5_genome):
+    assert hash(h5_genome) == id(h5_genome)
