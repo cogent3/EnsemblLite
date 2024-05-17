@@ -1,7 +1,6 @@
 from configparser import ConfigParser
 from random import shuffle
 
-import numpy
 import pytest
 
 from ensembl_lite._config import (
