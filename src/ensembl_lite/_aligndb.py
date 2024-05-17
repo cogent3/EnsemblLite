@@ -11,7 +11,6 @@ import numpy
 
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
-from numpy.typing import NDArray
 from rich.progress import track
 
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
@@ -352,26 +351,6 @@ def get_alignment(
         if mask_features:
             aln = aln.with_masked_annotations(biotypes=mask_features)
         yield aln
-
-
-def _gap_spans(
-    gap_pos: NDArray[int], gap_cum_lengths: NDArray[int]
-) -> tuple[NDArray[int], NDArray[int]]:
-    """returns 1D arrays in alignment coordinates of
-    gap start, gap stop"""
-    if not len(gap_pos):
-        r = numpy.array([], dtype=gap_pos.dtype)
-        return r, r
-
-    sum_to_prev = 0
-    gap_starts = numpy.empty(gap_pos.shape[0], dtype=gap_pos.dtype)
-    gap_ends = numpy.empty(gap_pos.shape[0], dtype=gap_pos.dtype)
-    for i, pos in enumerate(gap_pos):
-        gap_starts[i] = sum_to_prev + pos
-        gap_ends[i] = pos + gap_cum_lengths[i]
-        sum_to_prev = gap_cum_lengths[i]
-
-    return numpy.array(gap_starts), numpy.array(gap_ends)
 
 
 def write_alignments(
