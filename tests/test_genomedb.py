@@ -189,6 +189,14 @@ def test_hdf5_genome_skip_duplicates(small_h5_genome):
     genome.add_records(records=data.items())
 
 
+def test_hdf5_genome_errors_sameid_diff_seq(small_h5_genome):
+    genome, data = small_h5_genome
+    # same eqid but diff seq should fail
+    data = {"s1": "AAA"}
+    with pytest.raises(ValueError):
+        genome.add_records(records=data.items())
+
+
 def test_hdf5_genome_error_duplicate_names(small_h5_genome):
     genome, data = small_h5_genome
     with pytest.raises(ValueError):
