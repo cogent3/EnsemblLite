@@ -85,3 +85,17 @@ class TestSpeciesNamemaps(TestCase):
 )
 def test_contains(name):
     assert name in Species
+
+
+@pytest.mark.parametrize("feature_prefix", ("E", "FM", "G", "GT", "P", "R", "T"))
+def test_db_prefix_from_stableid(feature_prefix):
+    stableid = f"ENSPTI{feature_prefix}012345678911"
+    expect = "panthera_tigris_altaica"
+    got = Species.get_db_prefix_from_stableid(stableid)
+    assert got == expect
+
+
+@pytest.mark.parametrize("invalid", ("blah", "ENSPTIX012345678911")[1:])
+def test_db_prefix_from_stableid_fail(invalid):
+    with pytest.raises(ValueError):
+        Species.get_db_prefix_from_stableid(invalid)
