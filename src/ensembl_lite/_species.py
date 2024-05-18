@@ -12,23 +12,20 @@ from ._util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 
 _invalid_chars = re.compile("[^a-zA-Z _]")
+_stableid_prefix = re.compile(r"(E|FM|GT|G|P|R|T)\d+")
 
 StrOrNone = typing.Union[str, type(None)]
 
 
 def load_species(species_path):
-    """returns [[latin_name, common_name],..] from species_path
+    """returns [[latin_name, common_name, stableid prefix],..] from species_path
 
     if species_path does not exist, defaults to default one"""
     if not os.path.exists(species_path):
         species_path = get_resource_path("species.tsv")
 
     table = load_table(species_path)
-    try:
-        # remove this after 2023 Q4 (when the to_list() deprecation has been released)
-        return table.to_list()
-    except AttributeError:
-        return table.tolist()
+    return table.to_list()
 
 
 _species_common_map = load_species(os.path.join(ENSEMBLDBRC, "species.tsv"))
@@ -43,6 +40,7 @@ class SpeciesNameMap:
         self._common_species = {}
         self._species_ensembl = {}
         self._ensembl_species = {}
+        self._stableid_species = {}  # stable id prefix to species map
         for names in species_common:
             names = list(map(CaseInsensitiveString, names))
             self.amend_species(*names)
@@ -115,7 +113,7 @@ class SpeciesNameMap:
         """returns the list of species names"""
         return sorted(self._species_common.keys())
 
-    def get_ensembl_db_prefix(self, name) -> str:
+    def get_ensembl_db_prefix(self, name: str) -> str:
         """returns a string of the species name in the format used by
         ensembl"""
         name = CaseInsensitiveString(name)
@@ -130,6 +128,21 @@ class SpeciesNameMap:
 
         return str(species_name.lower().replace(" ", "_"))
 
+    def get_db_prefix_from_stableid(self, stableid: str) -> str:
+        """returns the db name from a stableid"""
+        prefix = _stableid_prefix.search(stableid)
+
+        if not prefix:
+            raise ValueError(f"does not match prefix pattern {prefix!r}")
+
+        prefix = stableid[: prefix.start()]
+
+        if prefix not in self._stableid_species:
+            raise ValueError(f"unknown prefix {prefix!r}")
+
+        species = self._stableid_species[prefix]
+        return species.replace(" ", "_").lower()
+
     def _purge_species(self, species_name):
         """removes a species record"""
         species_name = CaseInsensitiveString(species_name)
@@ -140,7 +153,7 @@ class SpeciesNameMap:
         self._ensembl_species.pop(ensembl_name)
         self._common_species.pop(common_name)
 
-    def amend_species(self, species_name, common_name):
+    def amend_species(self, species_name, common_name, stableid_prefix=None):
         """add a new species, and common name"""
         species_name = CaseInsensitiveString(species_name)
         common_name = CaseInsensitiveString(common_name)
@@ -151,6 +164,9 @@ class SpeciesNameMap:
         ensembl_name = species_name.lower().replace(" ", "_")
         self._species_ensembl[species_name] = ensembl_name
         self._ensembl_species[ensembl_name] = species_name
+        if stableid_prefix:
+            # make sure stableid just a string
+            self._stableid_species[str(stableid_prefix)] = species_name
 
     def to_table(self):
         """returns cogent3 Table"""
