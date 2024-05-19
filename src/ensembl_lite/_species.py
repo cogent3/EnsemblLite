@@ -12,7 +12,21 @@ from ._util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 
 _invalid_chars = re.compile("[^a-zA-Z _]")
-_stableid_prefix = re.compile(r"(E|FM|GT|G|P|R|T)\d+")
+
+# From http://mart.ensembl.org/info/genome/stable_ids/prefixes.html
+# The Ensembl stable id structure is
+# [species prefix][feature type prefix][a unique eleven digit number]
+# feature type prefixes are
+# E exon
+# FM Ensembl protein family
+# G gene
+# GT gene tree
+# P protein
+# R regulatory feature
+# T transcript
+_feature_type_1 = {"E", "G", "P", "R", "T"}
+_feature_type_2 = {"FM", "GT"}
+
 
 StrOrNone = typing.Union[str, type(None)]
 
@@ -130,12 +144,17 @@ class SpeciesNameMap:
 
     def get_db_prefix_from_stableid(self, stableid: str) -> str:
         """returns the db name from a stableid"""
-        prefix = _stableid_prefix.search(stableid)
+        if len(stableid) < 18:
+            raise ValueError(f"{stableid!r} too short")
 
-        if not prefix:
-            raise ValueError(f"does not match prefix pattern {prefix!r}")
-
-        prefix = stableid[: prefix.start()]
+        if stableid[-14:-12] in _feature_type_2:
+            prefix = stableid[:-14]
+        else:
+            if stableid[-13] not in _feature_type_1:
+                raise ValueError(
+                    f"{stableid!r} has unknown feature type {stableid[-13]!r}"
+                )
+            prefix = stableid[:-13]
 
         if prefix not in self._stableid_species:
             raise ValueError(f"unknown prefix {prefix!r}")
