@@ -270,35 +270,40 @@ class LoadHomologies:
             "homology_type",
             "species",
             "gene_stable_id",
-            "protein_stable_id",
             "homology_species",
             "homology_gene_stable_id",
-            "homology_protein_stable_id",
         )
         self.dest_col = (
             "relationship",
             "species_1",
             "gene_id_1",
-            "prot_id_1",
             "species_2",
             "gene_id_2",
-            "prot_id_2",
-            "source",
         )
         self._reader = FilteringParser(
             row_condition=self._matching_species, columns=self.src_cols, sep="\t"
         )
 
     def _matching_species(self, row):
-        return {row[1], row[4]} <= self._allowed_species
+        return {row[1], row[3]} <= self._allowed_species
 
-    def __call__(self, paths: typing.Iterable[PathType]) -> list:
+    def __call__(self, paths: typing.Iterable[PathType]) -> list[HomologyRecord]:
         final = []
         for path in paths:
             rows = list(self._reader(iter_splitlines(path)))
             header = rows.pop(0)
             assert list(header) == list(self.src_cols), (header, self.src_cols)
-            rows = [r + [path.name] for r in rows]
-            final.extend(rows)
+            # we select only the relationship type and gene IDs
+            final.extend(
+                [
+                    HomologyRecord(
+                        relationship=row[0],
+                        gene_id_1=row[2],
+                        gene_id_2=row[4],
+                        source=path,
+                    )
+                    for row in rows
+                ]
+            )
 
         return final

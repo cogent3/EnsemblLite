@@ -16,11 +16,11 @@ from ensembl_lite._install import LoadHomologies
 
 def _make_expected_o2o(table):
     """return dict with keys stable ID's values list[tuple[str,str]]"""
-    data = table.to_list(["species_1", "gene_id_1", "species_2", "gene_id_2"])
+    data = table.to_list(["gene_id_1", "gene_id_2"])
 
     result = {}
-    for sp1, g1, sp2, g2 in data:
-        value = {(sp1, g1), (sp2, g2)}
+    for g1, g2 in data:
+        value = {g1, g2}
         result[g1] = result.get(g1, set()) | value
         result[g2] = result.get(g2, set()) | value
 
@@ -46,11 +46,14 @@ def o2o_db(DATA_DIR, tmp_dir):
 
     table = load_table(raw).get_columns(loader.src_cols)
 
-    table = table.with_new_header(loader.src_cols, loader.dest_col[:-1])
-
+    table = table.with_new_header(loader.src_cols, loader.dest_col)
+    table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
     data = loader([raw])
+    # convert HomologyRecords into homology_group instances
+    hom_groups = grouped_related(data)
     homdb = HomologyDb(tmp_dir / _HOMOLOGYDB_NAME)
-    homdb.add_records(records=data, col_order=loader.dest_col)
+    for rel_type, data in hom_groups.items():
+        homdb.add_records(records=data, relationship_type=rel_type)
     return homdb, table
 
 
@@ -69,22 +72,16 @@ def test_hdb(o2o_db, gene_id):
     expect = _make_expected_o2o(table)
 
     got = homdb.get_related_to(gene_id=gene_id, relationship_type="ortholog_one2one")
-    assert got == expect[gene_id]
+    assert set(got) == expect[gene_id]
 
 
 @pytest.fixture
 def orth_records():
     common = dict(relationship="ortholog_one2one")
     return [
-        HomologyRecord(
-            species_1="a", gene_id_1="1", species_2="b", gene_id_2="2", **common
-        ),  # grp 1
-        HomologyRecord(
-            species_1="b", gene_id_1="2", species_2="c", gene_id_2="3", **common
-        ),  # grp 1
-        HomologyRecord(
-            species_1="a", gene_id_1="4", species_2="b", gene_id_2="5", **common
-        ),
+        HomologyRecord(gene_id_1="1", gene_id_2="2", **common),  # grp 1
+        HomologyRecord(gene_id_1="2", gene_id_2="3", **common),  # grp 1
+        HomologyRecord(gene_id_1="4", gene_id_2="5", **common),
     ]
 
 
@@ -92,20 +89,21 @@ def orth_records():
 def hom_records(orth_records):
     return orth_records + [
         HomologyRecord(
-            species_1="a",
             gene_id_1="6",
-            species_2="e",
             gene_id_2="7",
             relationship="ortholog_one2many",
         ),
     ]
 
 
-def _reduced_to_ids(groups):
-    result = []
-    for group in groups:
-        result.append(group.all_gene_ids())
-    return result
+def test_set_hom_set_value():
+    r = HomologyRecord(
+        gene_id_1="6",
+        gene_id_2="7",
+    )
+    assert r.relationship is None
+    r["relationship"] = "ortholog_one2many"
+    assert r.relationship == "ortholog_one2many"
 
 
 def test_hdb_get_related_groups(o2o_db):
@@ -119,12 +117,14 @@ def test_hdb_get_related_groups(o2o_db):
 def hom_hdb(hom_records):
     col_order = (
         "relationship",
-        "species_1",
         "gene_id_1",
-        "species_2",
         "gene_id_2",
     )
-    records = [[r[c] for c in col_order] for r in hom_records]
+    records = [
+        HomologyRecord(**dict(zip(col_order, [r[c] for c in col_order])))
+        for r in hom_records
+    ]
+    groups = grouped_related(records)
     hdb = HomologyDb(source=":memory:")
     hdb.add_records(records=records, col_order=col_order)
     return hdb
@@ -135,20 +135,10 @@ def test_group_related(hom_records):
     related = grouped_related(orths)
     got = sorted(related["ortholog_one2one"], key=lambda x: len(x), reverse=True)
     expect = [
+        homolog_group(relationship="ortholog_one2one", gene_ids=set("123")),
         homolog_group(
             relationship="ortholog_one2one",
-            data=(
-                species_genes(species="a", gene_ids=["1"]),
-                species_genes(species="b", gene_ids=["2"]),
-                species_genes(species="c", gene_ids=["3"]),
-            ),
-        ),
-        homolog_group(
-            relationship="ortholog_one2one",
-            data=(
-                species_genes(species="a", gene_ids=["4"]),
-                species_genes(species="b", gene_ids=["5"]),
-            ),
+            gene_ids=set("45"),
         ),
     ]
     assert got == expect
@@ -164,19 +154,9 @@ def test_homology_db(hom_hdb):
     expect = [
         homolog_group(
             relationship="ortholog_one2one",
-            data=(
-                species_genes(species="a", gene_ids=["1"]),
-                species_genes(species="b", gene_ids=["2"]),
-                species_genes(species="c", gene_ids=["3"]),
-            ),
+            gene_ids={"1", "2", "3"},
         ),
-        homolog_group(
-            relationship="ortholog_one2one",
-            data=(
-                species_genes(species="a", gene_ids=["4"]),
-                species_genes(species="b", gene_ids=["5"]),
-            ),
-        ),
+        homolog_group(relationship="ortholog_one2one", gene_ids={"4", "5"}),
     ]
     assert got == expect
 
