@@ -193,65 +193,140 @@ def merge_grouped(group1: T, group2: T) -> T:
 
 # the homology db stores pairwise relationship information
 class HomologyDb(SqliteDbMixin):
-    table_name = "homology"
+    table_names = "homology", "relationship", "member"
 
-    _homology_schema = {
-        "source": "TEXT",  # the file path
-        "species_1": "TEXT",
-        "gene_id_1": "TEXT",
-        "prot_id_1": "TEXT",
-        "species_2": "TEXT",
-        "gene_id_2": "TEXT",
-        "prot_id_2": "TEXT",
-        "relationship": "TEXT",  # defined by Ensembl
+    _relationship_schema = {
+        "homology_type": "TEXT",
+        "id": "INTEGER PRIMARY KEY",
     }
-    _index_columns = "relationship", "gene_id_1", "gene_id_2"
+    _homology_schema = {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "relationship_id": "INTEGER",
+    }
+    _member_schema = {
+        "gene_id": "TEXT",  # stableid of gene, defined by Ensembl
+        "homology_id": "INTEGER",
+    }
+
+    _index_columns = {
+        "homology": ("relationship_id",),
+        "relationship": ("homology_type",),
+        "member": ("gene_id", "homology_id"),
+    }
 
     def __init__(self, source=":memory:"):
         self.source = source
+        self._relationship_types = {}
         self._init_tables()
+        self._create_views()
+
+    def _create_views(self):
+        """define views to simplify queries"""
+        # we want to be able to query for all ortholog groups of a
+        # particular type. For example, get all groups of IDs of
+        # type one-to-one orthologs
+        sql = """
+        CREATE VIEW IF NOT EXISTS related_groups AS
+        SELECT r.homology_type as homology_type, 
+                h.id as homology_id , m.gene_id as gene_id
+        FROM homology h JOIN relationship r ON h.relationship_id = r.id
+        JOIN member as m ON m.homology_id = h.id
+        """
+        self._execute_sql(sql)
+
+    def _make_relationship_type_id(self, rel_type: str) -> int:
+        """returns the relationship.id value for relationship_type"""
+        if rel_type not in self._relationship_types:
+            sql = "INSERT INTO relationship(homology_type) VALUES (?) RETURNING id"
+            result = self.db.execute(sql, (rel_type,)).fetchone()[0]
+            self._relationship_types[rel_type] = result
+        return self._relationship_types[rel_type]
+
+    def _get_homology_group_id(self, *, relationship_id: int) -> int:
+        """creates a new homolog table entry for this relationship id"""
+        sql = "INSERT INTO homology(relationship_id) VALUES (?) RETURNING id"
+        return self.db.execute(sql, (relationship_id,)).fetchone()[0]
 
     def add_records(
         self,
         *,
-        records: typing.Sequence,
-        col_order: typing.Sized[str],
+        records: typing.Sequence[homolog_group],
+        relationship_type: str,
     ) -> None:
-        # bulk insert
-        val_placeholder = ", ".join("?" * len(col_order))
-        sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder})"
-        self.db.executemany(sql, records)
+        """inserts homology data from records
+
+        Parameters
+        ----------
+        records
+            a sequence of homolog group instances, all with the same
+            relationship type
+        relationship_type
+            the relationship type
+        """
+        assert relationship_type is not None
+        rel_type_id = self._make_relationship_type_id(relationship_type)
+        # we now iterate over the homology groups
+        # we get a new homology id, then add all genes for that group
+        sql = "INSERT INTO member(gene_id,homology_id) VALUES (?, ?)"
+        for group in records:
+            if group.relationship != relationship_type:
+                raise ValueError(f"{group.relationship=} != {relationship_type=}")
+
+            homology_id = self._get_homology_group_id(relationship_id=rel_type_id)
+            values = [(gene_id, homology_id) for gene_id in group.gene_ids]
+            self.db.executemany(sql, values)
         self.db.commit()
 
     def get_related_to(
         self, *, gene_id: str, relationship_type: str
-    ) -> set[tuple[str, str]]:
+    ) -> tuple[str, ...]:
         """return genes with relationship type to gene_id"""
-        sql = (
-            f"SELECT species_1, gene_id_1, species_2, gene_id_2 from {self.table_name}"
-            f" WHERE relationship = ? AND (gene_id_1=? OR gene_id_2=?)"
-        )
-        result = set()
-        for r in self._execute_sql(
-            sql, (relationship_type, gene_id, gene_id)
-        ).fetchall():
-            for num in (1, 2):
-                species_key = f"species_{num}"
-                gene_id_key = f"gene_id_{num}"
-                result.add((r[species_key], r[gene_id_key]))
-        return result
+        sql = """
+        SELECT r.homology_id as homology_id
+        FROM related_groups r
+        WHERE r.homology_type = ? AND r.gene_id = ?
+        """
+        homology_id = self._execute_sql(sql, (relationship_type, gene_id)).fetchone()
+        if not homology_id:
+            return ()
+        homology_id = homology_id["homology_id"]
+        sql = """
+        SELECT GROUP_CONCAT(r.gene_id) as gene_ids
+        FROM related_groups r
+        WHERE r.homology_id = ?
+        """
+        result = self._execute_sql(sql, (homology_id,)).fetchone()
+        return result["gene_ids"].split(",")
 
     def get_related_groups(
         self, relationship_type: str
     ) -> typing.Sequence[homolog_group]:
         """returns all groups of relationship type"""
-        # get all gene ID's first
-        sql = f"SELECT * from {self.table_name} WHERE relationship=?"
-        results = [
-            HomologyRecord(**dict(zip(r.keys(), r)))
-            for r in self._execute_sql(sql, (relationship_type,)).fetchall()
+        sql = """
+        SELECT GROUP_CONCAT(r.gene_id) as gene_ids
+        FROM related_groups r
+        WHERE r.homology_type = ?
+        GROUP BY r.homology_id
+        """
+        return [
+            homolog_group(
+                relationship=relationship_type,
+                gene_ids=set(group["gene_ids"].split(",")),
+            )
+            for group in self._execute_sql(sql, (relationship_type,)).fetchall()
         ]
-        return grouped_related(results)
+
+    def make_indexes(self):
+        """adds db indexes for core attributes"""
+        sql = "CREATE INDEX IF NOT EXISTS %s on %s(%s)"
+        for table_name, cols in self._index_columns.items():
+            for col in cols:
+                self._execute_sql(sql % (col, table_name, col))
+
+    def num_records(self):
+        return list(
+            self._execute_sql("SELECT COUNT(*) as count FROM member").fetchone()
+        )[0]
 
 
 def load_homology_db(

@@ -109,8 +109,7 @@ def test_set_hom_set_value():
 def test_hdb_get_related_groups(o2o_db):
     homdb, _ = o2o_db
     got = homdb.get_related_groups(relationship_type="ortholog_one2one")
-    groups = _reduced_to_ids(got)
-    assert len(groups) == 5
+    assert len(got) == 5
 
 
 @pytest.fixture
@@ -126,7 +125,8 @@ def hom_hdb(hom_records):
     ]
     groups = grouped_related(records)
     hdb = HomologyDb(source=":memory:")
-    hdb.add_records(records=records, col_order=col_order)
+    for rel_type, data in groups.items():
+        hdb.add_records(records=data, relationship_type=rel_type)
     return hdb
 
 
@@ -173,19 +173,43 @@ def test_species_genes_eq():
     assert a != e
 
 
-@pytest.mark.parametrize("col", tuple(HomologyDb._index_columns))
-def test_indexing(o2o_db, col):
+def test_species_genes_hash():
+    a = species_genes(species="a", gene_ids=["1"])
+    assert hash(a) == hash("a")
+
+
+@pytest.mark.parametrize("table_name", tuple(HomologyDb.table_names))
+def test_indexing(o2o_db, table_name):
     db, _ = o2o_db
-    expect = ("index", col, db.table_name)
+    # we just get the first column for the table
+    col = HomologyDb._index_columns[table_name][0]
+    expect = ("index", col, table_name)
     db.make_indexes()
     sql_template = (
         f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
-        f"tbl_name = {db.table_name!r} and name = {col!r}"  # nosec B608
+        f"tbl_name = {table_name!r} and name = {col!r}"  # nosec B608
     )
 
     result = db._execute_sql(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
+
+
+@pytest.mark.parametrize("sp,geneids", (("abc", ()), ("abc", ["a", "b"])))
+def test_species_genes_pickle_roundtrip(sp, geneids):
+    import pickle
+
+    orig = species_genes(species=sp, gene_ids=geneids)
+    got = pickle.loads(pickle.dumps(orig))
+    assert got == orig
+
+
+def test_homolog_group_pickle_roundtrip():
+    import pickle
+
+    orig = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
+    got = pickle.loads(pickle.dumps(orig))
+    assert got == orig
 
 
 def test_homolog_group_union():
@@ -209,3 +233,26 @@ def test_merge_grouped():
     got = merge_grouped({"one2one": (a1,), "one2many": (a2,)}, {"one2one": (c,)})
     expect = {"one2one": (a1 | c,), "one2many": (a2,)}
     assert got == expect
+
+
+def test_homdb_add_invalid_record():
+    hom_db = HomologyDb()
+    records = (
+        homolog_group(relationship="one2one", gene_ids={"1", "2", "3"}),
+        homolog_group(relationship="one2many", gene_ids={"3", "5", "6"}),
+    )
+
+    with pytest.raises(ValueError):
+        hom_db.add_records(records=records, relationship_type="one2one")
+
+
+@pytest.mark.parametrize(
+    "gene_id,rel_type",
+    (
+        ("blah", "ortholog_one2one"),
+        ("ENSMMUG00000065353", "ortholog_one2many"),
+    ),
+)
+def test_homdb_get_related_to_non(o2o_db, gene_id, rel_type):
+    db, _ = o2o_db
+    assert not db.get_related_to(gene_id=gene_id, relationship_type=rel_type)
