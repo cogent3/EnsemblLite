@@ -235,7 +235,7 @@ def test_h5_get_seq(small_h5_genome, name, start, stop):
 
 
 def test_pickling_round_trip(small_data, tmp_path):
-    import pickle  # nosec B301
+    import pickle  # nosec B403
 
     path = tmp_path / f"small.{_SEQDB_NAME}"
     kwargs = dict(source=path, species="human")

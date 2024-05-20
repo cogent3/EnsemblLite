@@ -133,7 +133,10 @@ def hom_hdb(hom_records):
 def test_group_related(hom_records):
     orths = [r for r in hom_records if r["relationship"] == "ortholog_one2one"]
     related = grouped_related(orths)
-    got = sorted(related["ortholog_one2one"], key=lambda x: len(x), reverse=True)
+    # the lambda is essential!
+    got = sorted(
+        related["ortholog_one2one"], key=lambda x: len(x), reverse=True
+    )  # pylint: disable=unnecessary-lambda
     expect = [
         homolog_group(relationship="ortholog_one2one", gene_ids=set("123")),
         homolog_group(
@@ -197,15 +200,15 @@ def test_indexing(o2o_db, table_name):
 
 @pytest.mark.parametrize("sp,geneids", (("abc", ()), ("abc", ["a", "b"])))
 def test_species_genes_pickle_roundtrip(sp, geneids):
-    import pickle  # nosec B301
+    import pickle  # nosec B403
 
     orig = species_genes(species=sp, gene_ids=geneids)
-    got = pickle.loads(pickle.dumps(orig))
+    got = pickle.loads(pickle.dumps(orig))  # nosec B301
     assert got == orig
 
 
 def test_homolog_group_pickle_roundtrip():
-    import pickle  # nosec B301
+    import pickle  # nosec B403
 
     orig = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
     got = pickle.loads(pickle.dumps(orig))  # nosec B301

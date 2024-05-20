@@ -1,4 +1,4 @@
-import pickle  # nosec B301
+import pickle  # nosec B403
 
 import numpy
 import pytest
