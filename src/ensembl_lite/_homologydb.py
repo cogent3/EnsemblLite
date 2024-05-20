@@ -18,12 +18,8 @@ _HOMOLOGYDB_NAME = "homologies.sqlitedb"
 @dataclasses.dataclass(slots=True, eq=True)
 class HomologyRecord:
     source: str | None = None
-    species_1: str | None = None
     gene_id_1: str | None = None
-    prot_id_1: str | None = None
-    species_2: str | None = None
     gene_id_2: str | None = None
-    prot_id_2: str | None = None
     relationship: str | None = None
 
     def __getitem__(self, item):
@@ -56,38 +52,41 @@ class homolog_group:
     """has species_genes instances belonging to the same ortholog group"""
 
     relationship: str
-    data: dataclasses.InitVar[typing.Optional[tuple[species_genes, ...]]] = None
-    _species_genes: dict[str, species_genes] = dataclasses.field(init=False, repr=False)
+    gene_ids: typing.Optional[set[str, ...]] = None
 
-    def __post_init__(self, data: typing.Optional[tuple[species_genes]]):
-        if data is None:
-            self._species_genes = {}
-            return
-        self._species_genes = {e.species: e for e in data}
+    def __post_init__(self):
+        self.gene_ids = self.gene_ids if self.gene_ids else set()
+
+    def __hash__(self):
+        # allow hashing, but bearing in mind we are updating
+        # gene values
+        return hash((hash(self.relationship), id(self.gene_ids)))
 
     def __eq__(self, other):
         return (
-            self.relationship == other.relationship
-            and self._species_genes == other._species_genes
+            self.relationship == other.relationship and self.gene_ids == other.gene_ids
         )
 
-    def __getitem__(self, item: str):
-        return self._species_genes.get(item)
+    def __getstate__(self) -> tuple[str, set[str]]:
+        return self.relationship, self.gene_ids
 
-    def __setitem__(self, key: str, value: species_genes):
-        self._species_genes[key] = value
-
-    def items(self):
-        yield from self._species_genes.items()
+    def __setstate__(self, state):
+        relationship, gene_ids = state
+        self.relationship = relationship
+        self.gene_ids = gene_ids
 
     def __len__(self):
-        return len(self._species_genes)
+        return len(self.gene_ids)
 
-    def all_gene_ids(self):
-        result = []
-        for sp_gene in self._species_genes.values():
-            result.extend(sp_gene.gene_ids)
-        return result
+    def __or__(self, other):
+        if other.relationship != self.relationship:
+            raise ValueError(
+                f"relationship type {self.relationship!r} != {other.relationship!r}"
+            )
+        return self.__class__(
+            relationship=self.relationship, gene_ids=self.gene_ids | other.gene_ids
+        )
+
 
 
 def grouped_related(

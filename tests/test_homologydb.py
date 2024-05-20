@@ -204,3 +204,17 @@ def test_indexing(o2o_db, col):
     result = db._execute_sql(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
+def test_homolog_group_union():
+    a = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
+    b = homolog_group(relationship="one2one", gene_ids={"3", "4"})
+    c = a | b
+    assert c.gene_ids == {"1", "2", "3", "4"}
+
+
+def test_homolog_group_union_invalid():
+    a = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
+    b = homolog_group(relationship="one2many", gene_ids={"3", "4"})
+    with pytest.raises(ValueError):
+        _ = a | b
+
+
