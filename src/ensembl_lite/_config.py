@@ -18,6 +18,19 @@ _HOMOLOGIES_NAME: str = "homologies"
 _GENOMES_NAME: str = "genomes"
 
 
+def make_relative_to(
+    staging_path: pathlib.Path, install_path: pathlib.Path
+) -> pathlib.Path:
+    assert staging_path.is_absolute() and install_path.is_absolute()
+
+    for i, (s_part, i_part) in enumerate(zip(staging_path.parts, install_path.parts)):
+        if s_part != i_part:
+            break
+    change_up = ("..",) * (len(staging_path.parts) - i)
+    rel_path = change_up + install_path.parts[i:]
+    return pathlib.Path(*rel_path)
+
+
 @dataclass
 class Config:
     host: str
@@ -67,16 +80,23 @@ class Config:
     def install_aligns(self):
         return self.install_path / _COMPARA_NAME / _ALIGNS_NAME
 
-    def to_dict(self):
+    def to_dict(self, relative_paths: bool = True) -> dict[str, str]:
         """returns cfg as a dict"""
         if not self.db_names:
             raise ValueError("no db names")
 
+        if not relative_paths:
+            staging_path = str(self.staging_path)
+            install_path = str(self.install_path)
+        else:
+            staging_path = "."
+            install_path = str(make_relative_to(self.staging_path, self.install_path))
+
         data = {
             "remote path": {"path": str(self.remote_path), "host": str(self.host)},
             "local path": {
-                "staging_path": str(self.staging_path),
-                "install_path": str(self.install_path),
+                "staging_path": staging_path,
+                "install_path": install_path,
             },
             "release": {"release": self.release},
         }
@@ -89,13 +109,22 @@ class Config:
         if self.tree_names:
             data["compara"]["tree_names"] = "".join(self.tree_names)
 
+        if self.homologies:
+            data["compara"]["homologies"] = ""
+
         for db_name in self.db_names:
             data[db_name] = {"db": "core"}
 
         return data
 
     def write(self):
-        """writes a ini to staging_path/DOWNLOADED_CONFIG_NAME"""
+        """writes a ini to staging_path/DOWNLOADED_CONFIG_NAME
+
+        Notes
+        -----
+        Updates value for staging_path to '.', and install directories to be
+        relative to staging_path.
+        """
         parser = configparser.ConfigParser()
         cfg = self.to_dict()
         for section, settings in cfg.items():
@@ -192,7 +221,12 @@ def read_installed_cfg(path: PathType) -> InstalledConfig:
     return InstalledConfig(release=release, install_path=path.parent)
 
 
-def read_config(config_path) -> Config:
+def _standardise_path(path: str, config_path: pathlib.Path) -> pathlib.Path:
+    path = pathlib.Path(path).expanduser()
+    return path if path.is_absolute() else (config_path.parent / path).resolve()
+
+
+def read_config(config_path: pathlib.Path) -> Config:
     """returns ensembl release, local path, and db specifics from the provided
     config path"""
     from ensembl_lite._download import download_ensembl_tree
@@ -206,12 +240,14 @@ def read_config(config_path) -> Config:
     host = parser.get("remote path", "host")
     remote_path = parser.get("remote path", "path")
     remote_path = remote_path[:-1] if remote_path.endswith("/") else remote_path
-    staging_path = config_path.parent / pathlib.Path(
-        parser.get("local path", "staging_path")
+    # paths
+    staging_path = _standardise_path(
+        parser.get("local path", "staging_path"), config_path
     )
-    install_path = config_path.parent / pathlib.Path(
-        parser.get("local path", "install_path")
+    install_path = _standardise_path(
+        parser.get("local path", "install_path"), config_path
     )
+
     homologies = parser.has_option("compara", "homologies")
     species_dbs = {}
     get_option = parser.get
