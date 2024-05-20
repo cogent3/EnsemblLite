@@ -16,7 +16,12 @@ from ensembl_lite import _maf
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
-from ensembl_lite._homologydb import HomologyDb, LoadHomologies
+from ensembl_lite._homologydb import (
+    HomologyDb,
+    LoadHomologies,
+    grouped_related,
+    merge_grouped,
+)
 from ensembl_lite._species import Species
 from ensembl_lite._util import PathType, get_iterable_tasks
 
@@ -274,16 +279,20 @@ def local_install_homology(
     if verbose:
         print(f"homologies {max_workers=}")
 
+    related = {}
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
         tasks = get_iterable_tasks(
             func=loader, series=dirnames, max_workers=max_workers
         )
-        for rows in tasks:
-            db.add_records(records=rows, col_order=loader.dest_col)
-            del rows
+        for result in tasks:
+            grouped = grouped_related(result)
+            related = merge_grouped(grouped, related)
             progress.update(writing, description=msg, advance=1)
+
+    for rel_type, records in related.items():
+        db.add_records(records=records, relationship_type=rel_type)
 
     no_records = len(db) == 0
     db.close()
