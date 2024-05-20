@@ -9,7 +9,6 @@ from cogent3 import load_annotations, make_seq, open_
 from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 from cogent3.parse.fasta import MinimalFastaParser
-from cogent3.parse.table import FilteringParser
 from cogent3.util.io import iter_splitlines
 from rich.progress import Progress, track
 
@@ -17,7 +16,12 @@ from ensembl_lite import _maf
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._config import _COMPARA_NAME, Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
-from ensembl_lite._homologydb import HomologyDb
+from ensembl_lite._homologydb import (
+    HomologyDb,
+    LoadHomologies,
+    grouped_related,
+    merge_grouped,
+)
 from ensembl_lite._species import Species
 from ensembl_lite._util import PathType, get_iterable_tasks
 
@@ -249,49 +253,6 @@ def local_install_compara(
     return
 
 
-class LoadHomologies:
-    def __init__(self, allowed_species: set):
-        self._allowed_species = allowed_species
-        # map the Ensembl columns to HomologyDb columns
-
-        self.src_cols = (
-            "homology_type",
-            "species",
-            "gene_stable_id",
-            "protein_stable_id",
-            "homology_species",
-            "homology_gene_stable_id",
-            "homology_protein_stable_id",
-        )
-        self.dest_col = (
-            "relationship",
-            "species_1",
-            "gene_id_1",
-            "prot_id_1",
-            "species_2",
-            "gene_id_2",
-            "prot_id_2",
-            "source",
-        )
-        self._reader = FilteringParser(
-            row_condition=self._matching_species, columns=self.src_cols, sep="\t"
-        )
-
-    def _matching_species(self, row):
-        return {row[1], row[4]} <= self._allowed_species
-
-    def __call__(self, paths: typing.Iterable[PathType]) -> list:
-        final = []
-        for path in paths:
-            rows = list(self._reader(iter_splitlines(path)))
-            header = rows.pop(0)
-            assert list(header) == list(self.src_cols), (header, self.src_cols)
-            rows = [r + [path.name] for r in rows]
-            final.extend(rows)
-
-        return final
-
-
 def local_install_homology(
     config: Config,
     force_overwrite: bool,
@@ -318,16 +279,20 @@ def local_install_homology(
     if verbose:
         print(f"homologies {max_workers=}")
 
+    related = {}
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
         tasks = get_iterable_tasks(
             func=loader, series=dirnames, max_workers=max_workers
         )
-        for rows in tasks:
-            db.add_records(records=rows, col_order=loader.dest_col)
-            del rows
+        for result in tasks:
+            grouped = grouped_related(result)
+            related = merge_grouped(grouped, related)
             progress.update(writing, description=msg, advance=1)
+
+    for rel_type, records in related.items():
+        db.add_records(records=records, relationship_type=rel_type)
 
     no_records = len(db) == 0
     db.close()

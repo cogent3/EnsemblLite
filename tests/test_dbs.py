@@ -1,4 +1,4 @@
-import pickle
+import pickle  # nosec B403
 
 import numpy
 import pytest
@@ -6,7 +6,7 @@ import pytest
 from cogent3 import load_table
 
 from ensembl_lite._aligndb import AlignDb, AlignRecord
-from ensembl_lite._homologydb import HomologyDb
+from ensembl_lite._homologydb import HomologyDb, grouped_related
 from ensembl_lite._install import LoadHomologies, _load_one_align
 
 
@@ -75,26 +75,29 @@ def test_extract_homology_data(hom_dir):
     )
     got = loader(hom_dir.glob("*.tsv.gz"))
     assert len(got) == 2
-    # loader dest cols matches the db schema
-    assert set(loader.dest_col) == HomologyDb._homology_schema.keys()
 
 
 def test_homology_db(hom_dir):
     loader = LoadHomologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
-    got = loader(hom_dir.glob("*.tsv.gz"))
+    records = loader(hom_dir.glob("*.tsv.gz"))
+    got = grouped_related(records)
     outpath = hom_dir / "species.sqlitedb"
     db = HomologyDb(source=outpath)
-    db.add_records(records=got, col_order=loader.dest_col)
-    assert len(db) == 2
+    num_genes = 0
+    for rel_type, data in got.items():
+        db.add_records(records=data, relationship_type=rel_type)
+        for record in data:
+            num_genes += len(record.gene_ids)
+    assert len(db) == num_genes
     db.close()
     got = HomologyDb(source=outpath)
-    assert len(got) == 2
+    assert len(got) == num_genes
 
 
 def test_pickling_db(db_align):
     # should not fail
-    pkl = pickle.dumps(db_align)
-    upkl = pickle.loads(pkl)
+    pkl = pickle.dumps(db_align)  # nosec B301
+    upkl = pickle.loads(pkl)  # nosec B301
     assert db_align.source == upkl.source
