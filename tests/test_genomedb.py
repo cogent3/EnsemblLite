@@ -235,18 +235,18 @@ def test_h5_get_seq(small_h5_genome, name, start, stop):
 
 
 def test_pickling_round_trip(small_data, tmp_path):
-    import pickle
+    import pickle  # nosec B301
 
     path = tmp_path / f"small.{_SEQDB_NAME}"
     kwargs = dict(source=path, species="human")
     genome = SeqsDataHdf5(mode="w", **kwargs)
     genome.add_records(records=small_data.items())
     with pytest.raises(NotImplementedError):
-        pickle.dumps(genome)
+        pickle.dumps(genome)  # nosec B301
 
     ro = SeqsDataHdf5(mode="r", **kwargs)
     assert ro.get_seq_str(seqid="s1") == small_data["s1"]
-    unpkl = pickle.loads(pickle.dumps(ro))
+    unpkl = pickle.loads(pickle.dumps(ro))  # nosec B301
     got = unpkl.get_seq_str(seqid="s1")
     assert got == small_data["s1"]
 

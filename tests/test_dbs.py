@@ -1,4 +1,4 @@
-import pickle
+import pickle  # nosec B301
 
 import numpy
 import pytest
@@ -98,6 +98,6 @@ def test_homology_db(hom_dir):
 
 def test_pickling_db(db_align):
     # should not fail
-    pkl = pickle.dumps(db_align)
-    upkl = pickle.loads(pkl)
+    pkl = pickle.dumps(db_align)  # nosec B301
+    upkl = pickle.loads(pkl)  # nosec B301
     assert db_align.source == upkl.source

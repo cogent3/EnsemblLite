@@ -197,7 +197,7 @@ def test_indexing(o2o_db, table_name):
 
 @pytest.mark.parametrize("sp,geneids", (("abc", ()), ("abc", ["a", "b"])))
 def test_species_genes_pickle_roundtrip(sp, geneids):
-    import pickle
+    import pickle  # nosec B301
 
     orig = species_genes(species=sp, gene_ids=geneids)
     got = pickle.loads(pickle.dumps(orig))
@@ -205,10 +205,10 @@ def test_species_genes_pickle_roundtrip(sp, geneids):
 
 
 def test_homolog_group_pickle_roundtrip():
-    import pickle
+    import pickle  # nosec B301
 
     orig = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
-    got = pickle.loads(pickle.dumps(orig))
+    got = pickle.loads(pickle.dumps(orig))  # nosec B301
     assert got == orig
 
 
