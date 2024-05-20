@@ -202,14 +202,14 @@ class _load_one_align:
         return records
 
 
-def local_install_compara(
+def local_install_alignments(
     config: Config,
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
 ):
     if force_overwrite:
-        shutil.rmtree(config.install_path / _COMPARA_NAME, ignore_errors=True)
+        shutil.rmtree(config.install_aligns, ignore_errors=True)
 
     aln_loader = _load_one_align(set(config.db_names))
 
