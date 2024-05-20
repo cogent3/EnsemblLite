@@ -43,8 +43,18 @@ class species_genes:
         return self.species == other.species and self.gene_ids == other.gene_ids
 
     def __post_init__(self):
-        if self.gene_ids is None:
+        if not self.gene_ids:
             self.gene_ids = []
+        else:
+            self.gene_ids = list(self.gene_ids)
+
+    def __getstate__(self) -> tuple[str, tuple[str, ...]]:
+        return self.species, tuple(self.gene_ids)
+
+    def __setstate__(self, args):
+        species, gene_ids = args
+        self.species = species
+        self.gene_ids = list(gene_ids)
 
 
 @dataclasses.dataclass
