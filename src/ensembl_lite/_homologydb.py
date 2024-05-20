@@ -3,10 +3,13 @@ from __future__ import annotations
 import dataclasses
 import typing
 
+from cogent3.parse.table import FilteringParser
+from cogent3.util.io import iter_splitlines
 from rich.progress import track
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite._util import PathType
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
@@ -206,3 +209,46 @@ def load_homology_db(
     config: InstalledConfig,
 ) -> HomologyDb:
     return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
+
+
+class LoadHomologies:
+    def __init__(self, allowed_species: set):
+        self._allowed_species = allowed_species
+        # map the Ensembl columns to HomologyDb columns
+
+        self.src_cols = (
+            "homology_type",
+            "species",
+            "gene_stable_id",
+            "protein_stable_id",
+            "homology_species",
+            "homology_gene_stable_id",
+            "homology_protein_stable_id",
+        )
+        self.dest_col = (
+            "relationship",
+            "species_1",
+            "gene_id_1",
+            "prot_id_1",
+            "species_2",
+            "gene_id_2",
+            "prot_id_2",
+            "source",
+        )
+        self._reader = FilteringParser(
+            row_condition=self._matching_species, columns=self.src_cols, sep="\t"
+        )
+
+    def _matching_species(self, row):
+        return {row[1], row[4]} <= self._allowed_species
+
+    def __call__(self, paths: typing.Iterable[PathType]) -> list:
+        final = []
+        for path in paths:
+            rows = list(self._reader(iter_splitlines(path)))
+            header = rows.pop(0)
+            assert list(header) == list(self.src_cols), (header, self.src_cols)
+            rows = [r + [path.name] for r in rows]
+            final.extend(rows)
+
+        return final
