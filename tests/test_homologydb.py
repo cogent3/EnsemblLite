@@ -8,6 +8,7 @@ from ensembl_lite._homologydb import (
     HomologyRecord,
     grouped_related,
     homolog_group,
+    merge_grouped,
     species_genes,
 )
 from ensembl_lite._install import LoadHomologies
@@ -131,7 +132,8 @@ def hom_hdb(hom_records):
 
 def test_group_related(hom_records):
     orths = [r for r in hom_records if r["relationship"] == "ortholog_one2one"]
-    got = sorted(grouped_related(orths), key=lambda x: len(x), reverse=True)
+    related = grouped_related(orths)
+    got = sorted(related["ortholog_one2one"], key=lambda x: len(x), reverse=True)
     expect = [
         homolog_group(
             relationship="ortholog_one2one",
@@ -204,6 +206,8 @@ def test_indexing(o2o_db, col):
     result = db._execute_sql(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
+
+
 def test_homolog_group_union():
     a = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
     b = homolog_group(relationship="one2one", gene_ids={"3", "4"})
@@ -218,3 +222,10 @@ def test_homolog_group_union_invalid():
         _ = a | b
 
 
+def test_merge_grouped():
+    a1 = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
+    a2 = homolog_group(relationship="one2many", gene_ids={"3", "5", "6"})
+    c = homolog_group(relationship="one2one", gene_ids={"3", "2", "4"})
+    got = merge_grouped({"one2one": (a1,), "one2many": (a2,)}, {"one2one": (c,)})
+    expect = {"one2one": (a1 | c,), "one2many": (a2,)}
+    assert got == expect

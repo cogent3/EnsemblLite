@@ -88,10 +88,12 @@ class homolog_group:
         )
 
 
+T = dict[str, tuple[homolog_group, ...]]
+
 
 def grouped_related(
     data: list[HomologyRecord],
-) -> typing.Sequence[homolog_group]:
+) -> T:
     """determines related groups of genes
 
     Parameters
@@ -108,36 +110,85 @@ def grouped_related(
     I assume that for a specific relationship type, a gene can only belong
     to one group.
     """
-    # grouped is {gene id: set(group)}. So gene's that belong to the same
-    # group have the same value
+    # grouped is {<relationship type>: {gene id: homolog_group}. So gene's
+    # that belong to the same group have the same value
     grouped = {}
-    relationship_type = []
-    for record in track(data, description="Grouping related...", transient=True):
-        relationship_type.append(record.relationship)
-        pair = [
-            (record.species_1, record.gene_id_1),
-            (record.species_2, record.gene_id_2),
-        ]
-        if record.gene_id_1 in grouped:
-            val = grouped[record.gene_id_1]
-        elif record.gene_id_2 in grouped:
-            val = grouped[record.gene_id_2]
-        else:
-            val = set()
-        val.update(pair)
-        grouped[record.gene_id_1] = grouped[record.gene_id_2] = val
+    for record in data:
+        rel_type = record.relationship
+        relationship = grouped.get(rel_type, {})
+        pair = {record.gene_id_1, record.gene_id_2}
 
-    ortholog_groups = {frozenset(v) for v in grouped.values()}
-    relationship_type = ",".join(sorted(set(relationship_type)))
-    result = []
-    for group in ortholog_groups:
-        homologs = homolog_group(relationship=relationship_type)
-        for species, gene_id in group:
-            record = species_genes(species=species)
-            record.gene_ids.append(gene_id)
-            homologs[species] = record
-        result.append(homologs)
+        if record.gene_id_1 in relationship:
+            val = relationship[record.gene_id_1]
+        elif record.gene_id_2 in relationship:
+            val = relationship[record.gene_id_2]
+        else:
+            val = homolog_group(relationship=record.relationship)
+        val.gene_ids |= pair
+
+        relationship[record.gene_id_1] = relationship[record.gene_id_2] = val
+        grouped[rel_type] = relationship
+
+    reduced = {}
+    for rel_type, groups in grouped.items():
+        reduced[rel_type] = tuple(set(groups.values()))
+
+    return reduced
+
+
+def _gene_id_to_group(series: tuple[homolog_group, ...]) -> dict[str:homolog_group]:
+    """converts series of homolog_group instances to {geneid: groupl, ..}"""
+    result = {}
+    for group in series:
+        result.update({gene_id: group for gene_id in group.gene_ids})
     return result
+
+
+def _add_unique(
+    a: dict[str, homolog_group],
+    b: dict[str, homolog_group],
+    combined: dict[str, homolog_group],
+) -> dict[str, homolog_group]:
+    unique = a.keys() - b.keys()
+    combined.update(**{gene_id: a[gene_id] for gene_id in unique})
+    return combined
+
+
+def merge_grouped(group1: T, group2: T) -> T:
+    """merges homolog_group with overlapping members"""
+    joint = {}
+    groups = group1, group2
+    rel_types = group1.keys() | group2.keys()
+    for rel_type in rel_types:
+        if any(rel_type not in grp for grp in groups):
+            joint[rel_type] = group1.get(rel_type, group2.get(rel_type))
+            continue
+
+        # expand values to dicts
+        grp1 = _gene_id_to_group(group1[rel_type])
+        grp2 = _gene_id_to_group(group2[rel_type])
+
+        # if a group is unique for a relationship type, not one member
+        # will be present in the other group
+        # add groups that are truly unique to each
+        rel_type_group = {}
+        # unique to grp 1
+        rel_type_group = _add_unique(grp1, grp2, rel_type_group)
+        # unique to grp 2
+        rel_type_group = _add_unique(grp2, grp1, rel_type_group)
+
+        shared_ids = grp1.keys() & grp2.keys()
+        skip = set()  # id's for groups already processed
+        for gene_id in shared_ids:
+            if gene_id in skip:
+                continue
+            merged = grp1[gene_id] | grp2[gene_id]
+            rel_type_group.update({gene_id: merged for gene_id in merged.gene_ids})
+            skip.update(merged.gene_ids)
+
+        joint[rel_type] = tuple(set(rel_type_group.values()))
+
+    return joint
 
 
 # the homology db stores pairwise relationship information
