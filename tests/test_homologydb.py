@@ -135,8 +135,10 @@ def test_group_related(hom_records):
     related = grouped_related(orths)
     # the lambda is essential!
     got = sorted(
-        related["ortholog_one2one"], key=lambda x: len(x), reverse=True
-    )  # pylint: disable=unnecessary-lambda
+        related["ortholog_one2one"],
+        key=lambda x: len(x),  # pylint: disable=unnecessary-lambda
+        reverse=True,
+    )
     expect = [
         homolog_group(relationship="ortholog_one2one", gene_ids=set("123")),
         homolog_group(
