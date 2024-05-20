@@ -255,7 +255,7 @@ def download(configpath, debug, verbose):
 def install(download, num_procs, force_overwrite, verbose):
     """create the local representations of the data"""
     from ensembl_lite._install import (
-        local_install_compara,
+        local_install_alignments,
         local_install_genomes,
         local_install_homology,
     )
@@ -285,7 +285,7 @@ def install(download, num_procs, force_overwrite, verbose):
         local_install_homology(
             config, force_overwrite=force_overwrite, max_workers=1, verbose=verbose
         )
-        local_install_compara(
+        local_install_alignments(
             config,
             force_overwrite=force_overwrite,
             max_workers=num_procs,
