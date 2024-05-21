@@ -215,6 +215,7 @@ class HomologyDb(SqliteDbMixin):
     _member_schema = {
         "gene_id": "TEXT",  # stableid of gene, defined by Ensembl
         "homology_id": "INTEGER",
+        "PRIMARY KEY": ("gene_id", "homology_id"),
     }
 
     _index_columns = {
