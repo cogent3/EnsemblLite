@@ -20,7 +20,6 @@ from ensembl_lite._homologydb import (
     HomologyDb,
     LoadHomologies,
     grouped_related,
-    merge_grouped,
 )
 from ensembl_lite._species import Species
 from ensembl_lite._util import PathType, get_iterable_tasks
@@ -279,7 +278,6 @@ def local_install_homology(
     if verbose:
         print(f"homologies {max_workers=}")
 
-    related = {}
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
@@ -288,11 +286,9 @@ def local_install_homology(
         )
         for result in tasks:
             grouped = grouped_related(result)
-            related = merge_grouped(grouped, related)
+            for rel_type, records in grouped.items():
+                db.add_records(records=records, relationship_type=rel_type)
             progress.update(writing, description=msg, advance=1)
-
-    for rel_type, records in related.items():
-        db.add_records(records=records, relationship_type=rel_type)
 
     no_records = len(db) == 0
     db.close()

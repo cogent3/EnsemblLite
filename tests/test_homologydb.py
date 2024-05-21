@@ -261,3 +261,17 @@ def test_homdb_add_invalid_record():
 def test_homdb_get_related_to_non(o2o_db, gene_id, rel_type):
     db, _ = o2o_db
     assert not db.get_related_to(gene_id=gene_id, relationship_type=rel_type)
+
+
+def test_homology_db_update(orth_records):
+    rel_type = "ortholog_one2one"
+    hom_db = HomologyDb()
+    rec_2 = orth_records.pop(1)
+    grouped = grouped_related(orth_records)
+    hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
+    grouped = grouped_related([rec_2])
+    hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
+    got = hom_db.get_related_groups(relationship_type=rel_type)
+    assert len(got) == 2
+    expect = {frozenset(["4", "5"]), frozenset(["1", "2", "3"])}
+    assert {frozenset(m.gene_ids) for m in got} == expect

@@ -253,10 +253,27 @@ class HomologyDb(SqliteDbMixin):
             self._relationship_types[rel_type] = result
         return self._relationship_types[rel_type]
 
-    def _get_homology_group_id(self, *, relationship_id: int) -> int:
+    def _get_homology_group_id(
+        self, *, relationship_id: int, gene_ids: typing.Optional[tuple[str]] = None
+    ) -> int:
         """creates a new homolog table entry for this relationship id"""
-        sql = "INSERT INTO homology(relationship_id) VALUES (?) RETURNING id"
-        return self.db.execute(sql, (relationship_id,)).fetchone()[0]
+        if gene_ids is None:
+            sql = "INSERT INTO homology(relationship_id) VALUES (?) RETURNING id"
+            return self.db.execute(sql, (relationship_id,)).fetchone()[0]
+
+        # check if gene_ids exist
+        id_placeholders = ",".join("?" * len(gene_ids))
+        sql = f"""
+        SELECT r.homology_id as homology_id
+        FROM related_groups r
+        WHERE r.relationship_id = ? AND r.gene_id IN ({id_placeholders}) 
+        LIMIT 1
+        """
+        result = self.db.execute(sql, (relationship_id,) + gene_ids).fetchone()
+        if result is None:
+            return self._get_homology_group_id(relationship_id=relationship_id)
+
+        return result[0]
 
     def add_records(
         self,
@@ -278,12 +295,15 @@ class HomologyDb(SqliteDbMixin):
         rel_type_id = self._make_relationship_type_id(relationship_type)
         # we now iterate over the homology groups
         # we get a new homology id, then add all genes for that group
-        sql = "INSERT INTO member(gene_id,homology_id) VALUES (?, ?)"
+        # using the IGNORE to skip duplicates
+        sql = "INSERT OR IGNORE INTO member(gene_id,homology_id) VALUES (?, ?)"
         for group in records:
             if group.relationship != relationship_type:
                 raise ValueError(f"{group.relationship=} != {relationship_type=}")
 
-            homology_id = self._get_homology_group_id(relationship_id=rel_type_id)
+            homology_id = self._get_homology_group_id(
+                relationship_id=rel_type_id, gene_ids=tuple(group.gene_ids)
+            )
             values = [(gene_id, homology_id) for gene_id in group.gene_ids]
             self.db.executemany(sql, values)
         self.db.commit()
