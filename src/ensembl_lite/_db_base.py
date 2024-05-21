@@ -24,8 +24,12 @@ def _make_table_sql(
     -------
     str
     """
+    primary_key = columns.pop("PRIMARY KEY", None)
     columns_types = ", ".join([f"{name} {ctype}" for name, ctype in columns.items()])
-    return f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types});"
+    if primary_key:
+        columns_types = f"{columns_types}, PRIMARY KEY ({','.join(primary_key)})"
+    sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
+    return sql
 
 
 class SqliteDbMixin(SerialisableMixin):
