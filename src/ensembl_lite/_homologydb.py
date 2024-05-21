@@ -5,7 +5,6 @@ import typing
 
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import iter_splitlines
-from rich.progress import track
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin

@@ -14,7 +14,7 @@ from rich.progress import Progress, track
 
 from ensembl_lite import _maf
 from ensembl_lite._aligndb import AlignDb, AlignRecord
-from ensembl_lite._config import _COMPARA_NAME, Config
+from ensembl_lite._config import Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import (
     HomologyDb,
