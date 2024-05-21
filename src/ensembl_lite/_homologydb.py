@@ -237,7 +237,8 @@ class HomologyDb(SqliteDbMixin):
         # type one-to-one orthologs
         sql = """
         CREATE VIEW IF NOT EXISTS related_groups AS
-        SELECT r.homology_type as homology_type, 
+        SELECT r.homology_type as homology_type,
+                r.id as relationship_id,
                 h.id as homology_id , m.gene_id as gene_id
         FROM homology h JOIN relationship r ON h.relationship_id = r.id
         JOIN member as m ON m.homology_id = h.id
