@@ -13,7 +13,6 @@ from cogent3.util.io import iter_splitlines
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
-from ensembl_lite._util import PathType
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
