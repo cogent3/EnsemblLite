@@ -7,7 +7,7 @@ from cogent3 import load_table
 
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._homologydb import HomologyDb, grouped_related
-from ensembl_lite._install import LoadHomologies, _load_one_align
+from ensembl_lite._install import _load_one_align, load_homologies
 
 
 @pytest.fixture(scope="function")
@@ -70,7 +70,7 @@ def hom_dir(DATA_DIR, tmp_path):
 
 
 def test_extract_homology_data(hom_dir):
-    loader = LoadHomologies(
+    loader = load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
     got = loader(hom_dir.glob("*.tsv.gz"))
@@ -78,7 +78,7 @@ def test_extract_homology_data(hom_dir):
 
 
 def test_homology_db(hom_dir):
-    loader = LoadHomologies(
+    loader = load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
     records = loader(hom_dir.glob("*.tsv.gz"))

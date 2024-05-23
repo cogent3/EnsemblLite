@@ -11,7 +11,7 @@ from ensembl_lite._homologydb import (
     merge_grouped,
     species_genes,
 )
-from ensembl_lite._install import LoadHomologies
+from ensembl_lite._install import load_homologies
 
 
 def _make_expected_o2o(table):
@@ -42,7 +42,7 @@ def o2o_db(DATA_DIR, tmp_dir):
         "chlorocebus_sabaeus",
         "pan_paniscus",
     }
-    loader = LoadHomologies(species)
+    loader = load_homologies(species)
 
     table = load_table(raw).get_columns(loader.src_cols)
 
