@@ -9,24 +9,111 @@ import click
 import h5py
 import numpy
 
-from cogent3 import get_moltype, make_seq, make_table, make_unaligned_seqs
+from cogent3 import (
+    get_moltype,
+    load_annotations,
+    make_seq,
+    make_table,
+    make_unaligned_seqs,
+    open_,
+)
 from cogent3.app.composable import NotCompleted, define_app
 from cogent3.app.typing import UnalignedSeqsType
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
+from cogent3.parse.fasta import MinimalFastaParser
+from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
+from rich.progress import Progress
 
-from ensembl_lite._config import InstalledConfig
+from ensembl_lite._config import Config, InstalledConfig
 from ensembl_lite._db_base import Hdf5Mixin
 from ensembl_lite._homologydb import homolog_group
 from ensembl_lite._species import Species
-from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
+from ensembl_lite._util import (
+    _HDF5_BLOSC2_KWARGS,
+    PathType,
+    get_iterable_tasks,
+)
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.gff3db"
+
+
+def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
+    src, dest = src_dest
+    if dest.exists():
+        return True
+
+    db = load_annotations(path=src, write_path=dest)
+    db.close()
+    del db
+    return True
+
+
+def _rename(label: str) -> str:
+    return label.split()[0]
+
+
+@define_app
+class fasta_to_hdf5:
+    def __init__(self, config: Config, label_to_name=_rename):
+        self.config = config
+        self.label_to_name = label_to_name
+
+    def main(self, db_name: str) -> bool:
+        src_dir = self.config.staging_genomes / db_name
+        dest_dir = self.config.install_genomes / db_name
+
+        seq_store = SeqsDataHdf5(
+            source=dest_dir / _SEQDB_NAME,
+            species=Species.get_species_name(db_name),
+            mode="w",
+        )
+
+        src_dir = src_dir / "fasta"
+        for path in src_dir.glob("*.fa.gz"):
+            for label, seq in MinimalFastaParser(iter_splitlines(path)):
+                seqid = self.label_to_name(label)
+                seq_store.add_record(seqid=seqid, seq=seq)
+                del seq
+
+        seq_store.close()
+
+        return True
+
+
+def _get_seqs(src: PathType) -> list[tuple[str, str]]:
+    with open_(src) as infile:
+        data = infile.read().splitlines()
+    name_seqs = list(MinimalFastaParser(data))
+    return [(_rename(name), seq) for name, seq in name_seqs]
+
+
+T = tuple[PathType, list[tuple[str, str]]]
+
+
+def _prepped_seqs(
+    src_dir: PathType, dest_dir: PathType, progress: Progress, max_workers: int
+) -> T:
+    src_dir = src_dir / "fasta"
+    paths = list(src_dir.glob("*.fa.gz"))
+    dest = dest_dir / _SEQDB_NAME
+    all_seqs = []
+
+    common_name = Species.get_common_name(src_dir.parent.name)
+    msg = f"📚🗜️ {common_name} seqs"
+    load = progress.add_task(msg, total=len(paths))
+    tasks = get_iterable_tasks(func=_get_seqs, series=paths, max_workers=max_workers)
+    for result in tasks:
+        all_seqs.extend(result)
+        progress.update(load, advance=1, description=msg)
+
+    progress.update(load, visible=False)
+    return dest, all_seqs
 
 
 class SeqsDataABC(ABC):

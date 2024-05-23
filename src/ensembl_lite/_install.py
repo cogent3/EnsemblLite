@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 import shutil
-import typing
 
-import numpy
-
-from cogent3 import load_annotations, make_seq, open_
-from cogent3.app.composable import LOADER, define_app
-from cogent3.app.typing import IdentifierType
-from cogent3.parse.fasta import MinimalFastaParser
-from cogent3.util.io import iter_splitlines
 from rich.progress import Progress, track
 
-from ensembl_lite import _maf
-from ensembl_lite._aligndb import AlignDb, AlignRecord
+from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
-from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
+from ensembl_lite._genomedb import (
+    _ANNOTDB_NAME,
+    _load_one_annotations,
+    fasta_to_hdf5,
+)
 from ensembl_lite._homologydb import (
     HomologyDb,
     compressor,
@@ -24,57 +19,8 @@ from ensembl_lite._homologydb import (
     load_homologies,
     pickler,
 )
-from ensembl_lite._species import Species
 from ensembl_lite._util import PathType, get_iterable_tasks
-
-
-def _rename(label: str) -> str:
-    return label.split()[0]
-
-
-@define_app
-class fasta_to_hdf5:
-    def __init__(self, config: Config):
-        self.config = config
-
-    def main(self, db_name: str) -> bool:
-        src_dir = self.config.staging_genomes / db_name
-        dest_dir = self.config.install_genomes / db_name
-
-        seq_store = SeqsDataHdf5(
-            source=dest_dir / _SEQDB_NAME,
-            species=Species.get_species_name(db_name),
-            mode="w",
-        )
-
-        src_dir = src_dir / "fasta"
-        for path in src_dir.glob("*.fa.gz"):
-            for label, seq in MinimalFastaParser(iter_splitlines(path)):
-                seqid = _rename(label)
-                seq_store.add_record(seqid=seqid, seq=seq)
-                del seq
-
-        seq_store.close()
-
-        return True
-
-
-def _get_seqs(src: PathType) -> list[tuple[str, str]]:
-    with open_(src) as infile:
-        data = infile.read().splitlines()
-    name_seqs = list(MinimalFastaParser(data))
-    return [(_rename(name), seq) for name, seq in name_seqs]
-
-
-def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
-    src, dest = src_dest
-    if dest.exists():
-        return True
-
-    db = load_annotations(path=src, write_path=dest)
-    db.db.close()
-    del db
-    return True
+from src.ensembl_lite._maf import load_align_records
 
 
 def _make_src_dest_annotation_paths(
@@ -84,29 +30,6 @@ def _make_src_dest_annotation_paths(
     dest = dest_dir / _ANNOTDB_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
     return [(path, dest) for path in paths]
-
-
-T = tuple[PathType, list[tuple[str, str]]]
-
-
-def _prepped_seqs(
-    src_dir: PathType, dest_dir: PathType, progress: Progress, max_workers: int
-) -> T:
-    src_dir = src_dir / "fasta"
-    paths = list(src_dir.glob("*.fa.gz"))
-    dest = dest_dir / _SEQDB_NAME
-    all_seqs = []
-
-    common_name = Species.get_common_name(src_dir.parent.name)
-    msg = f"📚🗜️ {common_name} seqs"
-    load = progress.add_task(msg, total=len(paths))
-    tasks = get_iterable_tasks(func=_get_seqs, series=paths, max_workers=max_workers)
-    for result in tasks:
-        all_seqs.extend(result)
-        progress.update(load, advance=1, description=msg)
-
-    progress.update(load, visible=False)
-    return dest, all_seqs
 
 
 def local_install_genomes(
@@ -171,39 +94,6 @@ def local_install_genomes(
     return
 
 
-def seq2gaps(record: dict) -> AlignRecord:
-    seq = make_seq(record.pop("seq"))
-    indel_map, _ = seq.parse_out_gaps()
-    if indel_map.num_gaps:
-        record["gap_spans"] = numpy.array(
-            [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
-        ).T
-    else:
-        record["gap_spans"] = numpy.array([], dtype=numpy.int32)
-    return AlignRecord(**record)
-
-
-@define_app(app_type=LOADER)
-class _load_one_align:
-    def __init__(self, species: set[str] | None = None):
-        self.species = species or {}
-
-    def main(self, path: IdentifierType) -> typing.Iterable[dict]:
-        records = []
-        for block_id, align in enumerate(_maf.parse(path)):
-            converted = []
-            for maf_name, seq in align.items():
-                if maf_name.species not in self.species:
-                    continue
-                record = maf_name.to_dict()
-                record["block_id"] = f"{path.name}-{block_id}"
-                record["source"] = path.name
-                record["seq"] = seq
-                converted.append(seq2gaps(record))
-            records.extend(converted)
-        return records
-
-
 def local_install_alignments(
     config: Config,
     force_overwrite: bool,
@@ -213,7 +103,7 @@ def local_install_alignments(
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
 
-    aln_loader = _load_one_align(set(config.db_names))
+    aln_loader = load_align_records(set(config.db_names))
 
     for align_name in config.align_names:
         src_dir = config.staging_aligns / align_name

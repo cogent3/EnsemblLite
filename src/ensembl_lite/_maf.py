@@ -1,13 +1,18 @@
 # parser for MAF, defined at
 # https://genome.ucsc.edu/FAQ/FAQformat.html#format5
-
+from __future__ import annotations
 
 import typing
 
-from cogent3 import open_
+import numpy
+
+from cogent3 import make_seq, open_
+from cogent3.app.composable import LOADER, define_app
+from cogent3.app.typing import IdentifierType
 
 from ensembl_lite._name import MafName
 from ensembl_lite._util import PathType
+from src.ensembl_lite._aligndb import AlignRecord
 
 
 def _get_alignment_block_indices(data: list[str]) -> list[tuple[int, int]]:
@@ -63,3 +68,36 @@ def parse(path: PathType) -> typing.Iterable[dict[MafName, str]]:
     blocks = _get_alignment_block_indices(data)
     for block_start, block_end in blocks:
         yield _get_seqs(data[block_start:block_end])
+
+
+def seq2gaps(record: dict) -> AlignRecord:
+    seq = make_seq(record.pop("seq"))
+    indel_map, _ = seq.parse_out_gaps()
+    if indel_map.num_gaps:
+        record["gap_spans"] = numpy.array(
+            [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
+        ).T
+    else:
+        record["gap_spans"] = numpy.array([], dtype=numpy.int32)
+    return AlignRecord(**record)
+
+
+@define_app(app_type=LOADER)
+class load_align_records:
+    def __init__(self, species: set[str] | None = None):
+        self.species = species or {}
+
+    def main(self, path: IdentifierType) -> list[AlignRecord]:
+        records = []
+        for block_id, align in enumerate(parse(path)):
+            converted = []
+            for maf_name, seq in align.items():
+                if self.species and maf_name.species not in self.species:
+                    continue
+                record = maf_name.to_dict()
+                record["block_id"] = f"{path.name}-{block_id}"
+                record["source"] = path.name
+                record["seq"] = seq
+                converted.append(seq2gaps(record))
+            records.extend(converted)
+        return records
