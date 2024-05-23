@@ -14,7 +14,6 @@ from ensembl_lite._genomedb import (
 from ensembl_lite._homologydb import (
     HomologyDb,
     compressor,
-    grouped_related,
     inflate,
     load_homologies,
     pickler,
@@ -185,8 +184,7 @@ def local_install_homology(
                 # reconstitute the blosc compressed data
                 result = inflate(result)
 
-            grouped = grouped_related(result)
-            for rel_type, records in grouped.items():
+            for rel_type, records in result.items():
                 db.add_records(records=records, relationship_type=rel_type)
             progress.update(writing, description=msg, advance=1)
 

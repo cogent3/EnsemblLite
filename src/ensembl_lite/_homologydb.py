@@ -24,20 +24,6 @@ unpickler = unpickle_it()
 inflate = decompressor + unpickler
 
 
-@dataclasses.dataclass(slots=True, eq=True)
-class HomologyRecord:
-    source: str | None = None
-    gene_id_1: str | None = None
-    gene_id_2: str | None = None
-    relationship: str | None = None
-
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-    def __setitem__(self, item, value):
-        setattr(self, item, value)
-
-
 @dataclasses.dataclass(slots=True)
 class species_genes:
     """contains gene IDs for species"""
@@ -111,7 +97,7 @@ T = dict[str, tuple[homolog_group, ...]]
 
 
 def grouped_related(
-    data: list[HomologyRecord],
+    data: typing.Iterable[tuple[str, str, str]],
 ) -> T:
     """determines related groups of genes
 
@@ -132,20 +118,19 @@ def grouped_related(
     # grouped is {<relationship type>: {gene id: homolog_group}. So gene's
     # that belong to the same group have the same value
     grouped = {}
-    for record in data:
-        rel_type = record.relationship
+    for rel_type, gene_id_1, gene_id_2 in data:
         relationship = grouped.get(rel_type, {})
-        pair = {record.gene_id_1, record.gene_id_2}
+        pair = {gene_id_1, gene_id_2}
 
-        if record.gene_id_1 in relationship:
-            val = relationship[record.gene_id_1]
-        elif record.gene_id_2 in relationship:
-            val = relationship[record.gene_id_2]
+        if gene_id_1 in relationship:
+            val = relationship[gene_id_1]
+        elif gene_id_2 in relationship:
+            val = relationship[gene_id_2]
         else:
-            val = homolog_group(relationship=record.relationship)
+            val = homolog_group(relationship=rel_type)
         val.gene_ids |= pair
 
-        relationship[record.gene_id_1] = relationship[record.gene_id_2] = val
+        relationship[gene_id_1] = relationship[gene_id_2] = val
         grouped[rel_type] = relationship
 
     reduced = {}
@@ -405,21 +390,7 @@ class load_homologies:
         return {row[1], row[3]} <= self._allowed_species
 
     def main(self, path: IdentifierType) -> SerialisableType:
-        final = []
-        header = None
-        for row in self._reader(iter_splitlines(path)):
-            if header is None:
-                header = row
-                assert list(header) == list(self.src_cols), (header, self.src_cols)
-                continue
-            # we select only the relationship type and gene IDs
-            final.append(
-                HomologyRecord(
-                    relationship=row[0],
-                    gene_id_1=row[2],
-                    gene_id_2=row[4],
-                    source=path,
-                )
-            )
-
-        return final
+        parser = self._reader(iter_splitlines(path, chunk_size=500_000))
+        header = next(parser)
+        assert list(header) == list(self.src_cols), (header, self.src_cols)
+        return grouped_related((row[0], row[2], row[4]) for row in parser)

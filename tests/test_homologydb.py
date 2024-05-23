@@ -5,7 +5,6 @@ from cogent3 import load_table
 from ensembl_lite._homologydb import (
     _HOMOLOGYDB_NAME,
     HomologyDb,
-    HomologyRecord,
     grouped_related,
     homolog_group,
     merge_grouped,
@@ -48,9 +47,7 @@ def o2o_db(DATA_DIR, tmp_dir):
 
     table = table.with_new_header(loader.src_cols, loader.dest_col)
     table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
-    data = loader(raw)
-    # convert HomologyRecords into homology_group instances
-    hom_groups = grouped_related(data)
+    hom_groups = loader(raw)  # pylint: disable=not-callable
     homdb = HomologyDb(tmp_dir / _HOMOLOGYDB_NAME)
     for rel_type, data in hom_groups.items():
         homdb.add_records(records=data, relationship_type=rel_type)
@@ -77,33 +74,16 @@ def test_hdb(o2o_db, gene_id):
 
 @pytest.fixture
 def orth_records():
-    common = dict(relationship="ortholog_one2one")
     return [
-        HomologyRecord(gene_id_1="1", gene_id_2="2", **common),  # grp 1
-        HomologyRecord(gene_id_1="2", gene_id_2="3", **common),  # grp 1
-        HomologyRecord(gene_id_1="4", gene_id_2="5", **common),
+        ("ortholog_one2one", "1", "2"),  # grp 1
+        ("ortholog_one2one", "2", "3"),  # grp 1
+        ("ortholog_one2one", "4", "5"),
     ]
 
 
 @pytest.fixture
 def hom_records(orth_records):
-    return orth_records + [
-        HomologyRecord(
-            gene_id_1="6",
-            gene_id_2="7",
-            relationship="ortholog_one2many",
-        ),
-    ]
-
-
-def test_set_hom_set_value():
-    r = HomologyRecord(
-        gene_id_1="6",
-        gene_id_2="7",
-    )
-    assert r.relationship is None
-    r["relationship"] = "ortholog_one2many"
-    assert r.relationship == "ortholog_one2many"
+    return orth_records + [("ortholog_one2many", "6", "7")]
 
 
 def test_hdb_get_related_groups(o2o_db):
@@ -114,16 +94,7 @@ def test_hdb_get_related_groups(o2o_db):
 
 @pytest.fixture
 def hom_hdb(hom_records):
-    col_order = (
-        "relationship",
-        "gene_id_1",
-        "gene_id_2",
-    )
-    records = [
-        HomologyRecord(**dict(zip(col_order, [r[c] for c in col_order])))
-        for r in hom_records
-    ]
-    groups = grouped_related(records)
+    groups = grouped_related(hom_records)
     hdb = HomologyDb(source=":memory:")
     for rel_type, data in groups.items():
         hdb.add_records(records=data, relationship_type=rel_type)
@@ -131,7 +102,7 @@ def hom_hdb(hom_records):
 
 
 def test_group_related(hom_records):
-    orths = [r for r in hom_records if r["relationship"] == "ortholog_one2one"]
+    orths = [r for r in hom_records if r[0] == "ortholog_one2one"]
     related = grouped_related(orths)
     # the lambda is essential!
     got = sorted(
