@@ -7,7 +7,8 @@ from cogent3 import load_table
 
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._homologydb import HomologyDb, grouped_related
-from ensembl_lite._install import _load_one_align, load_homologies
+from ensembl_lite._install import load_homologies
+from src.ensembl_lite._maf import _load_one_align
 
 
 @pytest.fixture(scope="function")

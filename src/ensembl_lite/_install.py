@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 import shutil
-import typing
 
-import numpy
-
-from cogent3 import make_seq
-from cogent3.app.composable import LOADER, define_app
-from cogent3.app.typing import IdentifierType
 from rich.progress import Progress, track
 
-from ensembl_lite import _maf
-from ensembl_lite._aligndb import AlignDb, AlignRecord
+from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
@@ -27,6 +20,7 @@ from ensembl_lite._homologydb import (
     pickler,
 )
 from ensembl_lite._util import PathType, get_iterable_tasks
+from src.ensembl_lite._maf import _load_one_align
 
 
 def _make_src_dest_annotation_paths(
@@ -98,39 +92,6 @@ def local_install_genomes(
     if verbose:
         print("Finished installing sequences ")
     return
-
-
-def seq2gaps(record: dict) -> AlignRecord:
-    seq = make_seq(record.pop("seq"))
-    indel_map, _ = seq.parse_out_gaps()
-    if indel_map.num_gaps:
-        record["gap_spans"] = numpy.array(
-            [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
-        ).T
-    else:
-        record["gap_spans"] = numpy.array([], dtype=numpy.int32)
-    return AlignRecord(**record)
-
-
-@define_app(app_type=LOADER)
-class _load_one_align:
-    def __init__(self, species: set[str] | None = None):
-        self.species = species or {}
-
-    def main(self, path: IdentifierType) -> typing.Iterable[dict]:
-        records = []
-        for block_id, align in enumerate(_maf.parse(path)):
-            converted = []
-            for maf_name, seq in align.items():
-                if maf_name.species not in self.species:
-                    continue
-                record = maf_name.to_dict()
-                record["block_id"] = f"{path.name}-{block_id}"
-                record["source"] = path.name
-                record["seq"] = seq
-                converted.append(seq2gaps(record))
-            records.extend(converted)
-        return records
 
 
 def local_install_alignments(
