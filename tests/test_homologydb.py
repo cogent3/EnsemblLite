@@ -48,7 +48,7 @@ def o2o_db(DATA_DIR, tmp_dir):
 
     table = table.with_new_header(loader.src_cols, loader.dest_col)
     table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
-    data = loader([raw])
+    data = loader(raw)
     # convert HomologyRecords into homology_group instances
     hom_groups = grouped_related(data)
     homdb = HomologyDb(tmp_dir / _HOMOLOGYDB_NAME)

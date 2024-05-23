@@ -3,6 +3,11 @@ from __future__ import annotations
 import dataclasses
 import typing
 
+import blosc2
+
+from cogent3.app.composable import LOADER, define_app
+from cogent3.app.io import compress, decompress, pickle_it, unpickle_it
+from cogent3.app.typing import IdentifierType, SerialisableType
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import iter_splitlines
 
@@ -12,6 +17,12 @@ from ensembl_lite._util import PathType
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
+
+compressor = compress(compressor=blosc2.compress2)
+decompressor = decompress(decompressor=blosc2.decompress2)
+pickler = pickle_it()
+unpickler = unpickle_it()
+inflate = decompressor + unpickler
 
 
 @dataclasses.dataclass(slots=True, eq=True)
@@ -367,6 +378,7 @@ def load_homology_db(
     return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
 
 
+@define_app(app_type=LOADER)
 class load_homologies:
     def __init__(self, allowed_species: set):
         self._allowed_species = allowed_species
@@ -393,23 +405,22 @@ class load_homologies:
     def _matching_species(self, row):
         return {row[1], row[3]} <= self._allowed_species
 
-    def __call__(self, paths: typing.Iterable[PathType]) -> list[HomologyRecord]:
+    def main(self, path: IdentifierType) -> list[SerialisableType]:
         final = []
-        for path in paths:
-            rows = list(self._reader(iter_splitlines(path)))
-            header = rows.pop(0)
-            assert list(header) == list(self.src_cols), (header, self.src_cols)
+        header = None
+        for row in self._reader(iter_splitlines(path)):
+            if header is None:
+                header = row
+                assert list(header) == list(self.src_cols), (header, self.src_cols)
+                continue
             # we select only the relationship type and gene IDs
-            final.extend(
-                [
-                    HomologyRecord(
-                        relationship=row[0],
-                        gene_id_1=row[2],
-                        gene_id_2=row[4],
-                        source=path,
-                    )
-                    for row in rows
-                ]
+            final.append(
+                HomologyRecord(
+                    relationship=row[0],
+                    gene_id_1=row[2],
+                    gene_id_2=row[4],
+                    source=path,
+                )
             )
 
         return final

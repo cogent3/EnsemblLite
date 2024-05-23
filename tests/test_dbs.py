@@ -73,15 +73,19 @@ def test_extract_homology_data(hom_dir):
     loader = load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
-    got = loader(hom_dir.glob("*.tsv.gz"))
-    assert len(got) == 2
+    records = []
+    for result in loader.as_completed(hom_dir.glob("*.tsv.gz")):
+        records.extend(result.obj)
+    assert len(records) == 2
 
 
 def test_homology_db(hom_dir):
     loader = load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
-    records = loader(hom_dir.glob("*.tsv.gz"))
+    records = []
+    for r in loader.as_completed(hom_dir.glob("*.tsv.gz")):
+        records.extend(r.obj)
     got = grouped_related(records)
     outpath = hom_dir / "species.sqlitedb"
     db = HomologyDb(source=outpath)
