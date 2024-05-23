@@ -34,8 +34,9 @@ def _rename(label: str) -> str:
 
 @define_app
 class fasta_to_hdf5:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, label_to_name=_rename):
         self.config = config
+        self.label_to_name = label_to_name
 
     def main(self, db_name: str) -> bool:
         src_dir = self.config.staging_genomes / db_name
@@ -50,7 +51,7 @@ class fasta_to_hdf5:
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
             for label, seq in MinimalFastaParser(iter_splitlines(path)):
-                seqid = _rename(label)
+                seqid = self.label_to_name(label)
                 seq_store.add_record(seqid=seqid, seq=seq)
                 del seq
 
