@@ -8,15 +8,15 @@ from cogent3 import load_table
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._homologydb import HomologyDb, grouped_related
 from ensembl_lite._install import load_homologies
-from src.ensembl_lite._maf import load_align_records
+from ensembl_lite._maf import load_align_records
 
 
 @pytest.fixture(scope="function")
 def db_align(DATA_DIR, tmp_path):
     # apps are callable
-    records = load_align_records()(
+    records = load_align_records()(  # pylint: disable=not-callable
         DATA_DIR / "tiny.maf"
-    )  # pylint: disable=not-callable
+    )
     outpath = tmp_path / "blah.sqlitedb"
     db = AlignDb(source=outpath)
     db.add_records(records)
