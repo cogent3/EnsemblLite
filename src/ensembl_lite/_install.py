@@ -18,8 +18,11 @@ from ensembl_lite._config import Config
 from ensembl_lite._genomedb import _ANNOTDB_NAME, _SEQDB_NAME, SeqsDataHdf5
 from ensembl_lite._homologydb import (
     HomologyDb,
-    LoadHomologies,
+    compressor,
     grouped_related,
+    inflate,
+    load_homologies,
+    pickler,
 )
 from ensembl_lite._species import Species
 from ensembl_lite._util import PathType, get_iterable_tasks
@@ -269,14 +272,17 @@ def local_install_homology(
     dirnames = []
     for sp in config.db_names:
         path = config.staging_homologies / sp
-        dirnames.append(list(path.glob("*.tsv.gz")))
+        dirnames.extend(list(path.glob("*.tsv.gz")))
 
-    loader = LoadHomologies(allowed_species=set(config.db_names))
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
 
     if verbose:
         print(f"homologies {max_workers=}")
+
+    loader = load_homologies(allowed_species=set(config.db_names))
+    if max_workers > 1:
+        loader = loader + pickler + compressor
 
     with Progress(transient=True) as progress:
         msg = "Installing homologies"
@@ -285,6 +291,10 @@ def local_install_homology(
             func=loader, series=dirnames, max_workers=max_workers
         )
         for result in tasks:
+            if max_workers > 1:
+                # reconstitute the blosc compressed data
+                result = inflate(result)
+
             grouped = grouped_related(result)
             for rel_type, records in grouped.items():
                 db.add_records(records=records, relationship_type=rel_type)

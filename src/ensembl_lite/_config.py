@@ -1,6 +1,7 @@
 import configparser
 import fnmatch
 import pathlib
+import typing
 
 from dataclasses import dataclass
 from typing import Iterable
@@ -223,10 +224,12 @@ def read_installed_cfg(path: PathType) -> InstalledConfig:
 
 def _standardise_path(path: str, config_path: pathlib.Path) -> pathlib.Path:
     path = pathlib.Path(path).expanduser()
-    return path if path.is_absolute() else (config_path.parent / path).resolve()
+    return path if path.is_absolute() else (config_path / path).resolve()
 
 
-def read_config(config_path: pathlib.Path) -> Config:
+def read_config(
+    config_path: pathlib.Path, root_dir: typing.Optional[pathlib.Path] = None
+) -> Config:
     """returns ensembl release, local path, and db specifics from the provided
     config path"""
     from ensembl_lite._download import download_ensembl_tree
@@ -236,17 +239,16 @@ def read_config(config_path: pathlib.Path) -> Config:
     with config_path.expanduser().open() as f:
         parser.read_file(f)
 
+    if root_dir is None:
+        root_dir = config_path.parent
+
     release = parser.get("release", "release")
     host = parser.get("remote path", "host")
     remote_path = parser.get("remote path", "path")
     remote_path = remote_path[:-1] if remote_path.endswith("/") else remote_path
     # paths
-    staging_path = _standardise_path(
-        parser.get("local path", "staging_path"), config_path
-    )
-    install_path = _standardise_path(
-        parser.get("local path", "install_path"), config_path
-    )
+    staging_path = _standardise_path(parser.get("local path", "staging_path"), root_dir)
+    install_path = _standardise_path(parser.get("local path", "install_path"), root_dir)
 
     homologies = parser.has_option("compara", "homologies")
     species_dbs = {}
