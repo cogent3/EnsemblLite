@@ -405,7 +405,7 @@ class load_homologies:
     def _matching_species(self, row):
         return {row[1], row[3]} <= self._allowed_species
 
-    def main(self, path: IdentifierType) -> list[SerialisableType]:
+    def main(self, path: IdentifierType) -> SerialisableType:
         final = []
         header = None
         for row in self._reader(iter_splitlines(path)):
