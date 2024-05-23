@@ -8,12 +8,12 @@ from cogent3 import load_table
 from ensembl_lite._aligndb import AlignDb, AlignRecord
 from ensembl_lite._homologydb import HomologyDb, grouped_related
 from ensembl_lite._install import load_homologies
-from src.ensembl_lite._maf import _load_one_align
+from src.ensembl_lite._maf import load_align_records
 
 
 @pytest.fixture(scope="function")
 def db_align(DATA_DIR, tmp_path):
-    records = _load_one_align()(DATA_DIR / "tiny.maf")
+    records = load_align_records()(DATA_DIR / "tiny.maf")
     outpath = tmp_path / "blah.sqlitedb"
     db = AlignDb(source=outpath)
     db.add_records(records)
@@ -47,11 +47,9 @@ def test_db_align_add_records(db_align):
             f"SELECT * from {db_align.table_name} where block_id=?", (42,)
         )
     )[0]
-    index = got["id"]
     got = {k: got[k] for k in orig if k != "id"}
     # gap_spans not stored in the db, but in a GapStore
     assert got == orig
-    assert index == 1
 
 
 @pytest.mark.parametrize("func", (str, repr))

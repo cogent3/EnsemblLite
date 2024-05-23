@@ -83,16 +83,16 @@ def seq2gaps(record: dict) -> AlignRecord:
 
 
 @define_app(app_type=LOADER)
-class _load_one_align:
+class load_align_records:
     def __init__(self, species: set[str] | None = None):
         self.species = species or {}
 
-    def main(self, path: IdentifierType) -> typing.Iterable[dict]:
+    def main(self, path: IdentifierType) -> list[AlignRecord]:
         records = []
         for block_id, align in enumerate(parse(path)):
             converted = []
             for maf_name, seq in align.items():
-                if maf_name.species not in self.species:
+                if self.species and maf_name.species not in self.species:
                     continue
                 record = maf_name.to_dict()
                 record["block_id"] = f"{path.name}-{block_id}"

@@ -20,7 +20,7 @@ from ensembl_lite._homologydb import (
     pickler,
 )
 from ensembl_lite._util import PathType, get_iterable_tasks
-from src.ensembl_lite._maf import _load_one_align
+from src.ensembl_lite._maf import load_align_records
 
 
 def _make_src_dest_annotation_paths(
@@ -103,7 +103,7 @@ def local_install_alignments(
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
 
-    aln_loader = _load_one_align(set(config.db_names))
+    aln_loader = load_align_records(set(config.db_names))
 
     for align_name in config.align_names:
         src_dir = config.staging_aligns / align_name
