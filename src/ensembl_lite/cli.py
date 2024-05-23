@@ -217,11 +217,15 @@ def exportrc(outpath):
 def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
     if configpath.name == elt_download._cfg:
+        # todo is this statement correct if we're seting a root dir now?
         click.secho(
             "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
         )
+    config = elt_config.read_config(configpath, root_dir=pathlib.Path(".").resolve())
 
-    config = elt_config.read_config(configpath)
+    if verbose:
+        print(config)
+
     if not any((config.species_dbs, config.align_names)):
         click.secho("No genomes, no alignments specified", fg="red")
         exit(1)
