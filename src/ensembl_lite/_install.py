@@ -19,8 +19,8 @@ from ensembl_lite._homologydb import (
     load_homologies,
     pickler,
 )
+from ensembl_lite._maf import load_align_records
 from ensembl_lite._util import PathType, get_iterable_tasks
-from src.ensembl_lite._maf import load_align_records
 
 
 def _make_src_dest_annotation_paths(
