@@ -73,7 +73,7 @@ def local_install_genomes(
     if verbose:
         print("Finished installing features ")
 
-    with Progress(transient=True) as progress:
+    with Progress(transient=False) as progress:
         writing = progress.add_task(
             total=len(db_names), description="Installing  🧬", advance=0
         )
