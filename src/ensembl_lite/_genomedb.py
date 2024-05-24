@@ -9,16 +9,8 @@ import click
 import h5py
 import numpy
 
-from cogent3 import (
-    get_moltype,
-    load_annotations,
-    make_seq,
-    make_table,
-    make_unaligned_seqs,
-    open_,
-)
-from cogent3.app.composable import NotCompleted, define_app
-from cogent3.app.typing import UnalignedSeqsType
+from cogent3 import get_moltype, load_annotations, make_seq, make_table, open_
+from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
@@ -26,17 +18,11 @@ from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
-from rich.progress import Progress
 
 from ensembl_lite._config import Config, InstalledConfig
 from ensembl_lite._db_base import Hdf5Mixin
-from ensembl_lite._homologydb import homolog_group
 from ensembl_lite._species import Species
-from ensembl_lite._util import (
-    _HDF5_BLOSC2_KWARGS,
-    PathType,
-    get_iterable_tasks,
-)
+from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
@@ -493,51 +479,3 @@ def get_species_summary(
         data=list(counts.items()),
         title=f"{common_name} features",
     )
-
-
-@define_app
-class collect_seqs:
-    """given a config and homolog group, loads genome instances on demand
-    and extracts sequences"""
-
-    def __init__(self, config: InstalledConfig, make_seq_name: typing.Callable = None):
-        self._config = config
-        self._genomes = {}
-        self._namer = make_seq_name
-
-    def main(self, homologs: homolog_group) -> UnalignedSeqsType:
-        namer = self._namer
-        seqs = []
-        for species, sp_genes in homologs.items():
-            if species not in self._genomes:
-                self._genomes[species] = load_genome(
-                    config=self._config, species=species
-                )
-            genome = self._genomes[species]
-            for name in sp_genes.gene_ids:
-                feature = list(genome.get_features(name=f"%{name}"))[0]
-                transcripts = list(feature.get_children(biotype="mRNA"))
-                if not transcripts:
-                    continue
-
-                longest = max(transcripts, key=lambda x: len(x))
-                cds = list(longest.get_children(biotype="CDS"))
-                if not cds:
-                    continue
-
-                feature = cds[0]
-                seq = feature.get_slice()
-                seq.name = f"{species}-{name}" if namer is None else namer(feature)
-                seq.info["species"] = species
-                seq.info["name"] = name
-                # disconnect from annotation so the closure of the genome
-                # does not cause issues when run in parallel
-                seq.annotation_db = None
-                seqs.append(seq)
-
-        if not seqs:
-            return NotCompleted(
-                type="FAIL", origin=self, message=f"no CDS for {homologs}"
-            )
-
-        return make_unaligned_seqs(data=seqs, moltype="dna")

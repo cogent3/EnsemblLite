@@ -5,14 +5,21 @@ import typing
 
 import blosc2
 
-from cogent3.app.composable import LOADER, define_app
+from cogent3 import make_unaligned_seqs
+from cogent3.app.composable import LOADER, NotCompleted, define_app
 from cogent3.app.io import compress, decompress, pickle_it, unpickle_it
-from cogent3.app.typing import IdentifierType, SerialisableType
+from cogent3.app.typing import (
+    IdentifierType,
+    SerialisableType,
+    UnalignedSeqsType,
+)
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import iter_splitlines
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
+from ensembl_lite._genomedb import load_genome
+from ensembl_lite._species import Species
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
@@ -394,3 +401,55 @@ class load_homologies:
         header = next(parser)
         assert list(header) == list(self.src_cols), (header, self.src_cols)
         return grouped_related((row[0], row[2], row[4]) for row in parser)
+
+
+@define_app
+class collect_seqs:
+    """given a config and homolog group, loads genome instances on demand
+    and extracts sequences"""
+
+    def __init__(self, config: InstalledConfig, make_seq_name: typing.Callable = None):
+        self._config = config
+        self._genomes = {}
+        self._namer = make_seq_name
+
+    def main(self, homologs: homolog_group) -> UnalignedSeqsType:
+        namer = self._namer
+        seqs = []
+        for species, sp_genes in homologs.species_ids().items():
+            if species not in self._genomes:
+                self._genomes[species] = load_genome(
+                    config=self._config, species=species
+                )
+            genome = self._genomes[species]
+            for name in sp_genes:
+                feature = list(genome.get_features(name=f"%{name}"))
+                if not feature:
+                    break
+
+                feature = feature[0]
+                transcripts = list(feature.get_children(biotype="mRNA"))
+                if not transcripts:
+                    continue
+
+                longest = max(transcripts, key=lambda x: len(x))
+                cds = list(longest.get_children(biotype="CDS"))
+                if not cds:
+                    continue
+
+                feature = cds[0]
+                seq = feature.get_slice()
+                seq.name = f"{species}-{name}" if namer is None else namer(feature)
+                seq.info["species"] = species
+                seq.info["name"] = name
+                # disconnect from annotation so the closure of the genome
+                # does not cause issues when run in parallel
+                seq.annotation_db = None
+                seqs.append(seq)
+
+        if not seqs:
+            return NotCompleted(
+                type="FAIL", origin=self, message=f"no CDS for {homologs}"
+            )
+
+        return make_unaligned_seqs(data=seqs, moltype="dna")
