@@ -144,17 +144,17 @@ class SpeciesNameMap:
 
     def get_db_prefix_from_stableid(self, stableid: str) -> str:
         """returns the db name from a stableid"""
-        if len(stableid) < 18:
+        if len(stableid) < 15:
             raise ValueError(f"{stableid!r} too short")
 
-        if stableid[-14:-12] in _feature_type_2:
-            prefix = stableid[:-14]
+        if stableid[-13:-11] in _feature_type_2:
+            prefix = stableid[:-13]
         else:
-            if stableid[-13] not in _feature_type_1:
+            if stableid[-12] not in _feature_type_1:
                 raise ValueError(
                     f"{stableid!r} has unknown feature type {stableid[-13]!r}"
                 )
-            prefix = stableid[:-13]
+            prefix = stableid[:-12]
 
         if prefix not in self._stableid_species:
             raise ValueError(f"unknown prefix {prefix!r}")
