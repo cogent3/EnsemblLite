@@ -103,26 +103,6 @@ def _get_seqs(src: PathType) -> list[tuple[str, str]]:
 T = tuple[PathType, list[tuple[str, str]]]
 
 
-def _prepped_seqs(
-    src_dir: PathType, dest_dir: PathType, progress: Progress, max_workers: int
-) -> T:
-    src_dir = src_dir / "fasta"
-    paths = list(src_dir.glob("*.fa.gz"))
-    dest = dest_dir / _SEQDB_NAME
-    all_seqs = []
-
-    common_name = Species.get_common_name(src_dir.parent.name)
-    msg = f"📚🗜️ {common_name} seqs"
-    load = progress.add_task(msg, total=len(paths))
-    tasks = get_iterable_tasks(func=_get_seqs, series=paths, max_workers=max_workers)
-    for result in tasks:
-        all_seqs.extend(result)
-        progress.update(load, advance=1, description=msg)
-
-    progress.update(load, visible=False)
-    return dest, all_seqs
-
-
 class SeqsDataABC(ABC):
     """interface for genome sequence storage"""
 
