@@ -464,18 +464,19 @@ def alignments(
     default="ortholog_one2one",
     help="type of homology",
 )
+@_ref
 @_nprocs
 @_limit
 @_force
 @_verbose
 def homologs(
-    installed, outpath, relationship, num_procs, limit, force_overwrite, verbose
+    installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
     """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress
 
-    from ensembl_lite._genomedb import collect_seqs
-    from ensembl_lite._homologydb import load_homology_db
+    from ensembl_lite._genomedb import load_genome
+    from ensembl_lite._homologydb import collect_seqs, load_homology_db
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
@@ -483,15 +484,19 @@ def homologs(
     outpath.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
+    # we all the protein coding gene IDs from the reference species
+    genome = load_genome(config=config, species=ref)
+    gene_ids = list(genome.get_ids_for_biotype(biotype="gene", limit=limit))
     db = load_homology_db(config=config)
-    related = db.get_related_groups(relationship_type=relationship)
-    if limit:
-        related = list(related)[:limit]
+    related = []
+    for gid in gene_ids:
+        if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):
+            related.append(rel)
 
     # todo create a directory data store writer and write all output to
     #  that. This requires homolog_group has a .source attribute
     get_seqs = collect_seqs(config=config)
-    with Progress(transient=True) as progress:
+    with Progress(transient=False) as progress:
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
         for i, seqs in enumerate(
             get_seqs.as_completed(
