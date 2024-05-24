@@ -8,8 +8,8 @@ from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
-    _load_one_annotations,
     fasta_to_hdf5,
+    make_annotation_db,
 )
 from ensembl_lite._homologydb import (
     HomologyDb,
@@ -65,7 +65,7 @@ def local_install_genomes(
         msg = "Installing  🧬 features"
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
         tasks = get_iterable_tasks(
-            func=_load_one_annotations, series=src_dest_paths, max_workers=max_workers
+            func=make_annotation_db, series=src_dest_paths, max_workers=max_workers
         )
         for _ in tasks:
             progress.update(writing, description=msg, advance=1)

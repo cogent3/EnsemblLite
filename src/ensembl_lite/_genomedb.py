@@ -43,7 +43,14 @@ _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.gff3db"
 
 
-def _load_one_annotations(src_dest: tuple[PathType, PathType]) -> bool:
+def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
+    """convert gff3 file into aan AnnotationDb
+
+    Parameters
+    ----------
+    src_dest
+        path to gff3 file, path to write AnnotationDb
+    """
     src, dest = src_dest
     if dest.exists():
         return True
