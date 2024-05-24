@@ -89,13 +89,27 @@ def test_contains(name):
 
 @pytest.mark.parametrize("feature_prefix", ("E", "FM", "G", "GT", "P", "R", "T"))
 def test_db_prefix_from_stableid(feature_prefix):
-    stableid = f"ENSPTI{feature_prefix}012345678911"
+    stableid = f"ENSPTI{feature_prefix}00000025624"
     expect = "panthera_tigris_altaica"
     got = Species.get_db_prefix_from_stableid(stableid)
     assert got == expect
 
 
-@pytest.mark.parametrize("invalid", ("blah", "ENSPTIX012345678911")[1:])
+@pytest.mark.parametrize("invalid", ("blah", "ENSPTIX012345678911"))
 def test_db_prefix_from_stableid_fail(invalid):
     with pytest.raises(ValueError):
         Species.get_db_prefix_from_stableid(invalid)
+
+
+@pytest.mark.parametrize(
+    "stableid,expect",
+    (
+        ("ENSCSAG00000025624", "chlorocebus_sabaeus"),
+        ("ENSGGOG00000041075", "gorilla_gorilla"),
+        ("ENSPPAG00000009915", "pan_paniscus"),
+        ("ENSG00000278672", "homo_sapiens"),
+    ),
+)
+def test_db_prefixes_from_stablesids(stableid, expect):
+    got = Species.get_db_prefix_from_stableid(stableid)
+    assert got == expect

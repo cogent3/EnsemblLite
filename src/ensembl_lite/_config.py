@@ -6,6 +6,8 @@ import typing
 from dataclasses import dataclass
 from typing import Iterable
 
+import click
+
 from ensembl_lite._species import Species, species_from_ensembl_tree
 from ensembl_lite._util import PathType
 
@@ -233,6 +235,10 @@ def read_config(
     """returns ensembl release, local path, and db specifics from the provided
     config path"""
     from ensembl_lite._download import download_ensembl_tree
+
+    if not config_path.exists():
+        click.secho(f"File not found {config_path.resolve()!s}", fg="red")
+        exit(1)
 
     parser = configparser.ConfigParser()
 

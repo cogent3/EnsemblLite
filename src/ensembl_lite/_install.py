@@ -8,8 +8,8 @@ from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
-    _load_one_annotations,
     fasta_to_hdf5,
+    make_annotation_db,
 )
 from ensembl_lite._homologydb import (
     HomologyDb,
@@ -61,11 +61,11 @@ def local_install_genomes(
         dest_dir = config.install_genomes / db_name
         src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
 
-    with Progress(transient=True) as progress:
+    with Progress(transient=False) as progress:
         msg = "Installing  🧬 features"
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
         tasks = get_iterable_tasks(
-            func=_load_one_annotations, series=src_dest_paths, max_workers=max_workers
+            func=make_annotation_db, series=src_dest_paths, max_workers=max_workers
         )
         for _ in tasks:
             progress.update(writing, description=msg, advance=1)
@@ -73,7 +73,7 @@ def local_install_genomes(
     if verbose:
         print("Finished installing features ")
 
-    with Progress(transient=True) as progress:
+    with Progress(transient=False) as progress:
         writing = progress.add_task(
             total=len(db_names), description="Installing  🧬", advance=0
         )
@@ -126,7 +126,7 @@ def local_install_alignments(
 
         for result in track(
             series,
-            transient=True,
+            transient=False,
             description="Installing alignments",
             total=len(paths),
         ):
@@ -173,7 +173,7 @@ def local_install_homology(
     if max_workers > 1:
         loader = loader + pickler + compressor
 
-    with Progress(transient=True) as progress:
+    with Progress(transient=False) as progress:
         msg = "Installing homologies"
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
         tasks = get_iterable_tasks(
