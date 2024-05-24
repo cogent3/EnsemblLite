@@ -69,7 +69,7 @@ def test_hdb(o2o_db, gene_id):
     expect = _make_expected_o2o(table)
 
     got = homdb.get_related_to(gene_id=gene_id, relationship_type="ortholog_one2one")
-    assert set(got) == expect[gene_id]
+    assert got.gene_ids == expect[gene_id]
 
 
 @pytest.fixture

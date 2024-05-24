@@ -99,6 +99,16 @@ class homolog_group:
             relationship=self.relationship, gene_ids=self.gene_ids | other.gene_ids
         )
 
+    def species_ids(self) -> dict[str, tuple[str, ...]]:
+        """returns {species: gene_ids, ...}"""
+        result = {}
+        for gene_id in self.gene_ids:
+            sp = Species.get_db_prefix_from_stableid(gene_id)
+            ids = result.get(sp, [])
+            ids.append(gene_id)
+            result[sp] = ids
+        return result
+
 
 T = dict[str, tuple[homolog_group, ...]]
 
@@ -310,9 +320,7 @@ class HomologyDb(SqliteDbMixin):
             self.db.executemany(sql, values)
         self.db.commit()
 
-    def get_related_to(
-        self, *, gene_id: str, relationship_type: str
-    ) -> tuple[str, ...]:
+    def get_related_to(self, *, gene_id: str, relationship_type: str) -> homolog_group:
         """return genes with relationship type to gene_id"""
         sql = """
         SELECT r.homology_id as homology_id
@@ -329,7 +337,9 @@ class HomologyDb(SqliteDbMixin):
         WHERE r.homology_id = ?
         """
         result = self._execute_sql(sql, (homology_id,)).fetchone()
-        return result["gene_ids"].split(",")
+        return homolog_group(
+            relationship=relationship_type, gene_ids=set(result["gene_ids"].split(","))
+        )
 
     def get_related_groups(
         self, relationship_type: str
