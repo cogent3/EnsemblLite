@@ -346,6 +346,14 @@ class Genome:
             seq.name = seqid
             yield from seq.get_features(**kwargs)
 
+    def get_ids_for_biotype(self, biotype, limit=None):
+        annot_db = self.annotation_db
+        sql = "SELECT name from gff WHERE biotype=?"
+        if limit:
+            sql += " LIMIT ?"
+        for result in annot_db._execute_sql(sql, (biotype, limit)):
+            yield result["name"].split(":")[-1]
+
     def close(self):
         self._seqs.close()
         self.annotation_db.db.close()
