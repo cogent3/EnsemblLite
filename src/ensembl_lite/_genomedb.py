@@ -27,6 +27,75 @@ from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.gff3db"
+_typed_id = re.compile(
+    r"\b[a-z]+:", flags=re.IGNORECASE
+)  # ensembl stableid's prefixed by the type
+_feature_id = re.compile(r"(?<=\bID=)[^;]+")
+_exon_id = re.compile(r"(?<=\bexon_id=)[^;]+")
+_parent_id = re.compile(r"(?<=\bParent=)[^;]+")
+
+
+def _lower_case_match(match) -> str:
+    return match.group(0).lower()
+
+
+def tidy_gff3_stableids(attrs: str) -> str:
+    """makes the feature type prefix lowercase in gff3 attribute fields"""
+    return _typed_id.sub(_lower_case_match, attrs)
+
+
+class EnsemblGffRecord(GffRecord):
+    __slots__ = GffRecord.__slots__ + ("feature_id",)
+
+    def __init__(self, feature_id: Optional[int] = None, **kwargs):
+        is_canonical = kwargs.pop("is_canonical", None)
+        super().__init__(**kwargs)
+        self.feature_id = feature_id
+        if is_canonical:
+            self.attrs = "Ensembl_canonical;" + self.attrs or ""
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return self.name == getattr(other, "name", other)
+
+    @property
+    def stableid(self):
+        return _typed_id.sub("", self.name or "")
+
+    @property
+    def is_canonical(self):
+        attrs = self.attrs or ""
+        return "Ensembl_canonical" in attrs
+
+    def update_from_attrs(self) -> None:
+        """updates attributes from the attrs string
+
+        Notes
+        -----
+        also updates biotype from the prefix in the name
+        """
+        attrs = self.attrs
+        id_regex = _feature_id if "ID=" in attrs else _exon_id
+        attr = tidy_gff3_stableids(attrs)
+        if feature_id := id_regex.search(attr):
+            self.name = feature_id.group()
+
+        if pid := _parent_id.search(attr):
+            parents = pid.group().split(",")
+            # now sure how to handle multiple-parent features
+            # so taking first ID as the parent for now
+            self.parent_id = parents[0]
+
+        if ":" in (self.name or ""):
+            biotype = self.name.split(":")[0]
+            self.biotype = "mrna" if biotype == "transcript" else biotype
+
+    @property
+    def size(self) -> int:
+        """the sum of span segments"""
+        return 0 if self.spans is None else sum(abs(s - e) for s, e in self.spans)
 
 
 def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:

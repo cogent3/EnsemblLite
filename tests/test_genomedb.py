@@ -5,11 +5,13 @@ from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._genomedb import (
     _SEQDB_NAME,
+    EnsemblGffRecord,
     Genome,
     SeqsDataHdf5,
     get_gene_table_for_species,
     get_species_summary,
     str2arr,
+    tidy_gff3_stableids,
 )
 
 
@@ -267,3 +269,69 @@ def test_species_setting(small_data, tmp_path):
 
 def test_has_of_seqsdata(h5_genome):
     assert hash(h5_genome) == id(h5_genome)
+
+
+def test_tidying_stableids_in_gff3():
+
+    orig = (
+        "ID=Transcript:ENST00000461467;Parent=Gene:ENSG00000237613;Name=FAM138A-202;bio"
+    )
+    expect = (
+        "ID=transcript:ENST00000461467;Parent=gene:ENSG00000237613;Name=FAM138A-202;bio"
+    )
+    assert tidy_gff3_stableids(orig) == expect
+
+
+
+
+def test_gff_record_size(DATA_DIR):
+    merged, _ = custom_gff_parser(DATA_DIR / "c_elegans_WS199_shortened.gff3", 0)
+    # record CDS:B0019.1 has spans [(9, 20), (29, 45), (59, 70)] which sum to 38
+    starts, stops = numpy.array([(9, 20), (29, 45), (59, 70)]).T
+    expect = (stops - starts).sum()
+    assert merged["cds:B0019.1"].size == expect
+
+
+@pytest.mark.parametrize("val", ((), [], numpy.array([]), None))
+def tess_gff_record_size_zero(val):
+    record = EnsemblGffRecord(spans=val)
+    assert record.size == 0
+
+
+@pytest.mark.parametrize(
+    "attrs", ("Ensembl_canonical", "text;other;Ensembl_canonical;than")
+)
+def test_is_canonical(attrs):
+    f = EnsemblGffRecord(attrs=attrs)
+    assert f.is_canonical
+
+
+@pytest.mark.parametrize("attrs", (None, "text;other;than"))
+def test_not_is_canonical(attrs):
+    f = EnsemblGffRecord(attrs=attrs)
+    assert not f.is_canonical
+
+
+@pytest.mark.parametrize(
+    "val",
+    (
+        [(10, 48)],
+        [(9, 20), (29, 45), (59, 70)],
+        numpy.array([(9, 20), (29, 45), (59, 70)]),
+    ),
+)
+def tess_gff_record_size_nonzero(val):
+    record = EnsemblGffRecord(spans=val)
+    assert record.size == 38
+
+
+def test_gff_record_hashing():
+    name = "abcd"
+    record = EnsemblGffRecord(name=name)
+    assert hash(record) == hash(name)
+    v = {record: 21}
+    assert v[name] == 21
+    n = {name: 21}
+    assert v == n
+
+
