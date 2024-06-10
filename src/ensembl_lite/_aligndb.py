@@ -337,6 +337,7 @@ def get_alignment(
                 start=genome_start + seq_start,
                 stop=genome_start + seq_start + seq_length,
                 namer=namer,
+                with_annotations=False,
             )
             # we now trim the gaps for this sequence to the sub-alignment
             gaps = gaps[align_start:align_end]
@@ -348,6 +349,7 @@ def get_alignment(
             seqs.append(aligned)
 
         aln = Alignment(seqs)
+        aln.annotation_db = genome.annotation_db
         if mask_features:
             aln = aln.with_masked_annotations(biotypes=mask_features)
         yield aln
