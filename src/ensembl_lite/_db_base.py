@@ -116,9 +116,11 @@ class SqliteDbMixin(SerialisableMixin):
 
     def make_indexes(self):
         """adds db indexes for core attributes"""
-        sql = f"CREATE INDEX IF NOT EXISTS %s on {self.table_name}(%s)"
-        for col in self._index_columns:
-            self._execute_sql(sql % (col, col))
+        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
+        for table_name, columns in self._index_columns.items():
+            for col in columns:
+                index = f"{col}_index"
+                self._execute_sql(sql % dict(table=table_name, index=index, col=col))
 
 
 # HDF5 base class

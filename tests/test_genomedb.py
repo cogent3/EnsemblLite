@@ -335,3 +335,21 @@ def test_gff_record_hashing():
     assert v == n
 
 
+@pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))
+def test_indexing(canonical_related, table_name):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    db.add_records(records=records.values(), gene_relations=related)
+    col = EnsemblGffDb._index_columns[table_name][0]
+    expect = ("index", f"{col}_index", table_name)
+    db.make_indexes()
+    sql_template = (
+        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
+        f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
+    )
+
+    result = db._execute_sql(sql_template).fetchone()
+    got = tuple(result)[:3]
+    assert got == expect
+
+

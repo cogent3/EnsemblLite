@@ -359,13 +359,6 @@ class HomologyDb(SqliteDbMixin):
             for group in self._execute_sql(sql, (relationship_type,)).fetchall()
         ]
 
-    def make_indexes(self):
-        """adds db indexes for core attributes"""
-        sql = "CREATE INDEX IF NOT EXISTS %s on %s(%s)"
-        for table_name, cols in self._index_columns.items():
-            for col in cols:
-                self._execute_sql(sql % (col, table_name, col))
-
     def num_records(self):
         return list(
             self._execute_sql("SELECT COUNT(*) as count FROM member").fetchone()
