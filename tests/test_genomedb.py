@@ -13,6 +13,7 @@ from ensembl_lite._genomedb import (
     custom_gff_parser,
     get_gene_table_for_species,
     get_species_summary,
+    make_annotation_db,
     make_gene_relationships,
     str2arr,
     tidy_gff3_stableids,
@@ -32,6 +33,8 @@ def small_annots():
             name="gene-01",
             biotype="gene",
             spans=[(1, 3), (7, 9)],
+            start=1,
+            stop=9,
             strand="+",
         ),
         dict(
@@ -39,6 +42,8 @@ def small_annots():
             name="exon-01",
             biotype="exon",
             spans=[(1, 3)],
+            start=1,
+            stop=3,
             strand="+",
             parent_id="gene-01",
         ),
@@ -47,6 +52,8 @@ def small_annots():
             name="exon-02",
             biotype="exon",
             spans=[(7, 9)],
+            start=7,
+            stop=9,
             strand="+",
             parent_id="gene-01",
         ),
@@ -55,6 +62,8 @@ def small_annots():
             name="gene-02",
             biotype="gene",
             spans=[(2, 4), (6, 8)],
+            start=2,
+            stop=8,
             strand="-",
         ),
     ]
@@ -117,8 +126,9 @@ def test_selected_seq_is_annotated(small_h5_genome, small_annotdb, namer):
     gen_seqs_db, _ = small_h5_genome
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1", namer=namer)
-    assert len(seq.annotation_db) == 3
-    gene = list(genome.get_features(seqid="s1", biotype="gene"))[0]
+    assert len(seq.annotation_db) == 4
+    genes = list(genome.get_features(seqid="s1", biotype="gene"))
+    gene = genes[0]
     gene_seq = gene.get_slice()
     assert str(gene_seq) == "AAAA"
     assert gene.name == "gene-01"
@@ -146,7 +156,7 @@ def test_get_seq_num_annotations_correct(
     genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid=seqid, namer=namer)
     expect = list(small_coll.get_features(seqid=seqid))
-    assert len(seq.annotation_db) == len(expect)
+    assert len(list(seq.get_features())) == len(expect)
 
 
 @pytest.mark.parametrize(
@@ -166,7 +176,8 @@ def test_get_seq_feature_seq_correct(
     coll_seq = small_coll.get_seq(seqid)
     assert seq == coll_seq[start:stop]
     expect = list(coll_seq[start:stop].get_features(allow_partial=True))[0]
-    got = list(seq.get_features(allow_partial=True))[0]
+    got = list(seq.get_features(allow_partial=True))
+    got = got[0]
     # should also get the same slice
     assert got.get_slice() == expect.get_slice()
 
@@ -402,6 +413,14 @@ def test_featuredb_num_records(canonical_related):
     assert db.num_records() == 0
     db.add_records(records=records.values(), gene_relations=related)
     assert db.num_records() == 11
+
+
+def test_make_annotation_db(DATA_DIR, tmp_path):
+    src = DATA_DIR / "c_elegans_WS199_shortened.gff3"
+    dest = tmp_path / _ANNOTDB_NAME
+    make_annotation_db((src, dest))
+    got = EnsemblGffDb(source=dest)
+    assert got.num_records() == 11
 
 
 @pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))

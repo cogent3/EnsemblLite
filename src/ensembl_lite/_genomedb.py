@@ -15,7 +15,7 @@ import h5py
 import numpy
 import typing_extensions
 
-from cogent3 import get_moltype, load_annotations, make_seq, make_table, open_
+from cogent3 import get_moltype, make_seq, make_table, open_
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import (
@@ -498,7 +498,7 @@ def make_gene_relationships(
 
 
 def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
-    """convert gff3 file into aan AnnotationDb
+    """convert gff3 file into a EnsemblGffDb
 
     Parameters
     ----------
@@ -509,7 +509,11 @@ def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
     if dest.exists():
         return True
 
-    db = load_annotations(path=src, write_path=dest)
+    db = EnsemblGffDb(source=dest)
+    records, _ = custom_gff_parser(src, 0)
+    related = make_gene_relationships(records)
+    db.add_records(records=records.values(), gene_relations=related)
+    db.make_indexes()
     db.close()
     del db
     return True
@@ -737,7 +741,7 @@ class Genome:
         *,
         species: str,
         seqs: SeqsDataABC,
-        annots: GffAnnotationDb,
+        annots: EnsemblGffDb,
     ) -> None:
         self.species = species
         self._seqs = seqs
@@ -832,7 +836,7 @@ def load_genome(*, config: InstalledConfig, species: str):
     genome_path = config.installed_genome(species) / _SEQDB_NAME
     seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
     ann_path = config.installed_genome(species) / _ANNOTDB_NAME
-    ann = GffAnnotationDb(source=ann_path)
+    ann = EnsemblGffDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
 
 

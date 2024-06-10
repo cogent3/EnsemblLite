@@ -1,7 +1,7 @@
 # this will be used to test integrated features
 import pytest
 
-from cogent3 import load_annotations, load_seq
+from cogent3 import load_seq
 
 from ensembl_lite._config import (
     InstalledConfig,
@@ -13,6 +13,7 @@ from ensembl_lite._genomedb import (
     _SEQDB_NAME,
     SeqsDataHdf5,
     get_seqs_for_ids,
+    make_annotation_db,
 )
 
 
@@ -41,8 +42,7 @@ def one_genome(DATA_DIR, tmp_dir):
 
     annot_path = celegans / _ANNOTDB_NAME
     input_ann = DATA_DIR / "c_elegans_WS199_shortened.gff3"
-    ann_db = load_annotations(path=input_ann, write_path=annot_path)
-    ann_db.db.close()
+    make_annotation_db((input_ann, annot_path))
     seq = load_seq(input_seq, input_ann, moltype="dna")
     write_installed_cfg(cfg)
     return tmp_dir, seq
@@ -53,8 +53,8 @@ def test_get_genes(one_genome, make_seq_name):
     inst, seq = one_genome
     config = read_installed_cfg(inst)
     species = "caenorhabditis_elegans"
-    name = "Gene:WBGene00000138"
-    cds_name = "CDS:B0019.1"
+    name = "WBGene00000138"
+    cds_name = "B0019.1"
     if make_seq_name:
         # silly hack to make sure function applied
         make_seq_name = lambda x: x.name * 2  # noqa: E731
@@ -64,7 +64,7 @@ def test_get_genes(one_genome, make_seq_name):
             config=config, species=species, names=[name], make_seq_name=make_seq_name
         )
     )[0]
-    expect = [ft.get_slice() for ft in seq.get_features(name=cds_name)][0]
+    expect = [ft.get_slice() for ft in seq.get_features(name=f"CDS:{cds_name}")][0]
     assert gene.name == (
         cds_name * 2 if make_seq_name else f"caenorhabditis_elegans-{name}"
     )
