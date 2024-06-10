@@ -424,6 +424,14 @@ def test_make_annotation_db(DATA_DIR, tmp_path):
     assert got.num_records() == 11
 
 
+def test_get_features_matching(canonical_related):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    db.add_records(records=records.values(), gene_relations=related)
+    got = list(db.get_features_matching(biotype="cds"))
+    print(got)
+
+
 @pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))
 def test_indexing(canonical_related, table_name):
     records, related = canonical_related
@@ -440,3 +448,32 @@ def test_indexing(canonical_related, table_name):
     result = db._execute_sql(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
+
+
+def test_get_feature_parent(canonical_related):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    db.add_records(records=records.values(), gene_relations=related)
+    got = list(db.get_feature_parent(name="B0019.1"))[0]
+    assert got["name"] == "WBGene00000138"
+
+
+def test_get_feature_children(canonical_related):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    db.add_records(records=records.values(), gene_relations=related)
+    got = list(
+        db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
+    )[0]
+    assert got["name"] == "B0019.1"
+
+
+def test_add_feature():
+    db = EnsemblGffDb(source=":memory:")
+    feature = EnsemblGffRecord(
+        start=2, stop=3, seqid="s0", name="demo", spans=[(2, 3)], biotype="gene"
+    )
+    db.add_feature(feature=feature)
+    got = list(db.get_features_matching(seqid="s0"))
+    assert len(got) == 1
+    assert got[0]["name"] == "demo"
