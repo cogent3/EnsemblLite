@@ -795,30 +795,35 @@ class Genome:
     def get_features(
         self,
         *,
-        biotype: str = None,
-        seqid: str = None,
-        name: str = None,
-        start: int = None,
-        stop: int = None,
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
     ) -> typing.Iterable[Feature]:
-        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid") and v}
-        if seqid:
-            seqids = [seqid]
-        else:
-            seqids = {
-                ft["seqid"] for ft in self.annotation_db.get_features_matching(**kwargs)
-            }
-        for seqid in seqids:
-            try:
-                seq = self.get_seq(seqid=seqid)
-            except TypeError:
-                msg = f"ERROR (report me): {self.species!r}, {seqid!r}"
-                raise TypeError(msg)
+        for ft in self.annotation_db.get_features_matching(
+            biotype=biotype, seqid=seqid, name=name, start=start, stop=stop
+        ):
+            seq = self.get_seq(
+                seqid=seqid, start=start, stop=stop, with_annotations=True
+            )
             # because self.get_seq() automatically names seqs differently
             seq.name = seqid
-            yield from seq.get_features(**kwargs)
+            yield seq.make_feature(ft)
 
-    def get_ids_for_biotype(self, biotype, limit=None):
+    def get_gene_cds(self, name: str, is_canonical: bool = True):
+        for cds in self.annotation_db.get_feature_children(
+            name=name, biotype="cds", is_canonical=False
+        ):
+            seqid = cds.pop("seqid")
+            cds["spans"] = numpy.array(cds["spans"])
+            start = cds["spans"].min()
+            stop = cds["spans"].max()
+            seq = self.get_seq(seqid=seqid, start=start, stop=stop)
+            cds["spans"] = cds["spans"] - start
+            yield seq.make_feature(feature=cds)
+
+    def get_ids_for_biotype(self, biotype: str, limit: OptionalInt = None):
         annot_db = self.annotation_db
         sql = "SELECT name from gff WHERE biotype=?"
         if limit:
@@ -850,13 +855,7 @@ def get_seqs_for_ids(
     genome = load_genome(config=config, species=species)
     # is it possible to do batch query for all names?
     for name in names:
-        feature = list(genome.get_features(name=f"%{name}"))[0]
-        transcripts = list(feature.get_children(biotype="mRNA"))
-        if not transcripts:
-            continue
-
-        longest = max(transcripts, key=lambda x: len(x))
-        cds = list(longest.get_children(biotype="CDS"))
+        cds = list(genome.get_gene_cds(name=name, is_canonical=False))
         if not cds:
             continue
 
@@ -879,22 +878,22 @@ def get_seqs_for_ids(
 
 def get_annotations_for_species(
     *, config: InstalledConfig, species: str
-) -> GffAnnotationDb:
+) -> EnsemblGffDb:
     """returns the annotation Db for species"""
     path = config.installed_genome(species=species)
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
         exit(1)
-    # TODO: this filename should be defined in one place
-    path = path / "features.gff3db"
+
+    path = path / _ANNOTDB_NAME
     if not path.exists():
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
-    return GffAnnotationDb(source=path)
+    return EnsemblGffDb(source=path)
 
 
 def get_gene_table_for_species(
-    *, annot_db: GffAnnotationDb, limit: Optional[int], species: Optional[str] = None
+    *, annot_db: EnsemblGffDb, limit: Optional[int], species: Optional[str] = None
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -932,7 +931,7 @@ def get_gene_table_for_species(
 
 
 def get_species_summary(
-    *, annot_db: GffAnnotationDb, species: Optional[str] = None
+    *, annot_db: EnsemblGffDb, species: Optional[str] = None
 ) -> Table:
     """
     returns the Table summarising data for species_name
