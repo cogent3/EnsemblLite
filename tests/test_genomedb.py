@@ -1,7 +1,8 @@
+import numpy
 import pytest
 
 from cogent3 import make_unaligned_seqs
-from cogent3.core.annotation_db import GffAnnotationDb
+from numpy.testing import assert_allclose
 
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
