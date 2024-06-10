@@ -8,6 +8,7 @@ from ensembl_lite._genomedb import (
     EnsemblGffRecord,
     Genome,
     SeqsDataHdf5,
+    custom_gff_parser,
     get_gene_table_for_species,
     get_species_summary,
     str2arr,
@@ -282,6 +283,22 @@ def test_tidying_stableids_in_gff3():
     assert tidy_gff3_stableids(orig) == expect
 
 
+def test_custom_gff3_parser(DATA_DIR):
+    path = DATA_DIR / "c_elegans_WS199_shortened.gff3"
+    records, _ = custom_gff_parser(path, 0)
+
+    rel = make_gene_relationships(records.values())
+    children = rel["gene:WBGene00000138"]
+    # as the records are hashable by their .name attribute, we can just
+    # check returned value against their names
+    assert children == {"cds:B0019.1", "transcript:B0019.1"}
+    # check that multi row records have the correct spans, start, stop and strand
+    assert_allclose(
+        records["cds:B0019.1"].spans, numpy.array([(9, 20), (29, 45), (59, 70)])
+    )
+    assert records["cds:B0019.1"].start == 9
+    assert records["cds:B0019.1"].stop == 70
+    assert records["cds:B0019.1"].strand == "-"
 
 
 def test_gff_record_size(DATA_DIR):
@@ -351,5 +368,3 @@ def test_indexing(canonical_related, table_name):
     result = db._execute_sql(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
-
-

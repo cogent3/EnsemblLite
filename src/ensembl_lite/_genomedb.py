@@ -15,6 +15,7 @@ from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import GffAnnotationDb
 from cogent3.core.sequence import Sequence
 from cogent3.parse.fasta import MinimalFastaParser
+from cogent3.parse.gff import GffRecord, gff_parser, is_gff3
 from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
@@ -96,6 +97,33 @@ class EnsemblGffRecord(GffRecord):
     def size(self) -> int:
         """the sum of span segments"""
         return 0 if self.spans is None else sum(abs(s - e) for s, e in self.spans)
+
+
+def custom_gff_parser(
+    path: PathType, num_fake_ids: int
+) -> tuple[dict[str, EnsemblGffRecord], int]:
+    """replacement for cogent3 merged_gff_records"""
+    reduced = {}
+    gff3 = is_gff3(path)
+    for record in gff_parser(
+        iter_splitlines(path),
+        gff3=gff3,
+        make_record=EnsemblGffRecord,
+    ):
+        record.update_from_attrs()
+        if not record.name:
+            record.name = f"unknown-{num_fake_ids}"
+            num_fake_ids += 1
+
+        if record.name not in reduced:
+            record.spans = record.spans or []
+            reduced[record] = record
+
+        reduced[record].spans.append([record.start, record.stop])
+        reduced[record].start = min(reduced[record].start, record.start)
+        reduced[record].stop = max(reduced[record].stop, record.stop)
+
+    return reduced, num_fake_ids
 
 
 def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
