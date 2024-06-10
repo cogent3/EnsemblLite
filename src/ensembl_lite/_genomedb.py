@@ -1,5 +1,10 @@
+import collections
 import dataclasses
+import functools
+import itertools
 import pathlib
+import re
+import sqlite3
 import typing
 
 from abc import ABC, abstractmethod
@@ -8,11 +13,17 @@ from typing import Any, Optional
 import click
 import h5py
 import numpy
+import typing_extensions
 
 from cogent3 import get_moltype, load_annotations, make_seq, make_table, open_
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
-from cogent3.core.annotation_db import GffAnnotationDb
+from cogent3.core.annotation_db import (
+    FeatureDataType,
+    OptionalInt,
+    OptionalStr,
+    _select_records_sql,
+)
 from cogent3.core.sequence import Sequence
 from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.gff import GffRecord, gff_parser, is_gff3
@@ -21,13 +32,14 @@ from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite._config import Config, InstalledConfig
-from ensembl_lite._db_base import Hdf5Mixin
+from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._species import Species
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
-_ANNOTDB_NAME = "features.gff3db"
+_ANNOTDB_NAME = "features.ensembl_gff3db"
+
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE
 )  # ensembl stableid's prefixed by the type
@@ -124,6 +136,365 @@ def custom_gff_parser(
         reduced[record].stop = max(reduced[record].stop, record.stop)
 
     return reduced, num_fake_ids
+
+
+DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
+
+
+class EnsemblGffDb(SqliteDbMixin):
+    _biotype_schema = {
+        "type": "TEXT COLLATE NOCASE",
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    }
+    _feature_schema = {
+        "seqid": "TEXT COLLATE NOCASE",
+        "source": "TEXT COLLATE NOCASE",
+        "biotype_id": "TEXT",
+        "start": "INTEGER",
+        "stop": "INTEGER",
+        "score": "TEXT",  # check defn
+        "strand": "TEXT",
+        "phase": "TEXT",
+        "attributes": "TEXT",
+        "comments": "TEXT",
+        "spans": "array",  # aggregation of coords across records
+        "stableid": "TEXT",
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "is_canonical": "INTEGER",
+    }
+    # relationships are directional, but can span levels, eg.
+    # gene -> transcript -> CDS / Exon
+    # gene -> CDS
+    _related_feature_schema = {"gene_id": "INTEGER", "related_id": "INTEGER"}
+
+    _index_columns = {
+        "feature": (
+            "seqid",
+            "stableid",
+            "start",
+            "stop",
+            "is_canonical",
+            "biotype_id",
+        ),
+        "related_feature": ("gene_id", "related_id"),
+    }
+
+    def __init__(
+        self,
+        source: PathType = ":memory:",
+        db: typing.Optional[DbTypes] = None,
+    ):
+        self.source = source
+        if isinstance(db, self.__class__):
+            db = db.db
+
+        self._db = db
+        self._init_tables()
+        self._create_views()
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other)
+
+    def _create_views(self) -> None:
+        """define views to simplify queries"""
+        sql = """
+        CREATE VIEW IF NOT EXISTS gff AS
+        SELECT f.seqid as seqid,
+               b.type as biotype,
+               f.start as start,
+               f.stop as stop,
+               f.strand as strand,
+               f.spans as spans,
+               f.stableid as name,
+               f.is_canonical as is_canonical,
+               f.id as feature_id
+        FROM feature f
+        JOIN biotype b ON f.biotype_id = b.id
+        """
+        self._execute_sql(sql)
+        # view to query for child given parent id and vice versa
+        p2c = """
+        CREATE VIEW IF NOT EXISTS parent_to_child AS
+        SELECT fc.stableid as name,
+               fp.stableid as parent_stableid,
+               fc.seqid as seqid,
+               b.type as biotype,
+               fc.start as start,
+               fc.stop as stop,
+               fc.strand as strand,
+               fc.spans as spans,
+               fc.is_canonical as is_canonical
+        FROM related_feature r 
+        JOIN biotype b ON fc.biotype_id = b.id
+        JOIN feature fp ON fp.id = r.gene_id
+        JOIN feature fc ON fc.id = r.related_id
+        """
+        self._execute_sql(p2c)
+        c2p = """
+        CREATE VIEW IF NOT EXISTS child_to_parent AS
+        SELECT fp.stableid as name,
+               fc.stableid as child_stableid,
+               fp.seqid as seqid,
+               b.type as biotype,
+               fp.start as start,
+               fp.stop as stop,
+               fp.strand as strand,
+               fp.is_canonical as is_canonical,
+               fp.spans as spans
+        FROM related_feature r 
+        JOIN biotype b ON fp.biotype_id = b.id
+        JOIN feature fp ON fp.id = r.gene_id
+        JOIN feature fc ON fc.id = r.related_id
+        """
+        self._execute_sql(c2p)
+
+    def __len__(self) -> int:
+        return self.num_records()
+
+    @functools.cache
+    def _get_biotype_id(self, biotype: str) -> int:
+        sql = "INSERT OR IGNORE INTO biotype(type) VALUES (?) RETURNING id"
+        result = self.db.execute(sql, (biotype,)).fetchone()
+        return result["id"]
+
+    def _build_feature(self, kwargs) -> EnsemblGffRecord:
+        # not supporting this at present, which comes from cogent3
+        # alignment objects
+        kwargs.pop("on_alignment", None)
+        return EnsemblGffRecord(**kwargs)
+
+    def add_feature(
+        self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
+    ) -> None:
+        """updates the feature_id attribute"""
+        if feature is None:
+            feature = self._build_feature(kwargs)
+
+        id_cols = ("biotype_id", "id")
+        cols = [col for col in self._feature_schema if col not in id_cols]
+        # do conversion to numpy array after the above statement to avoid issue of
+        # having a numpy array in a conditional
+        feature.spans = numpy.array(feature.spans)
+        feature.start = feature.start or int(feature.spans.min())
+        feature.stop = feature.stop or int(feature.spans.max())
+        vals = [feature[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
+        cols += ["biotype_id"]
+        placeholders = ",".join("?" * len(cols))
+        sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders}) RETURNING id"
+        result = self.db.execute(sql, tuple(vals)).fetchone()
+        feature.feature_id = result["id"]
+
+    def add_records(
+        self,
+        *,
+        records: typing.Iterable[EnsemblGffRecord],
+        gene_relations: dict[EnsemblGffRecord, set[EnsemblGffRecord]],
+    ) -> None:
+        for record in records:
+            self.add_feature(feature=record)
+
+        # now add the relationships
+        sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?,?)"
+        for gene, children in gene_relations.items():
+            if gene.feature_id is None:
+                raise ValueError(f"gene.feature_id not defined for {gene!r}")
+
+            child_ids = [child.feature_id for child in children]
+            if None in child_ids:
+                raise ValueError(f"child.feature_id not defined for {children!r}")
+
+            comb = [tuple(c) for c in itertools.product([gene.feature_id], child_ids)]
+            self.db.executemany(sql, comb)
+
+    def num_records(self) -> int:
+        return self._execute_sql("SELECT COUNT(*) as count FROM feature").fetchone()[
+            "count"
+        ]
+
+    def _get_records_matching(
+        self, table_name: str, **kwargs
+    ) -> typing.Iterator[sqlite3.Row]:
+        """return all fields"""
+        columns = kwargs.pop("columns", None)
+        allow_partial = kwargs.pop("allow_partial", False)
+        # now
+        sql, vals = _select_records_sql(
+            table_name=table_name,
+            conditions=kwargs,
+            columns=columns,
+            allow_partial=allow_partial,
+        )
+        yield from self._execute_sql(sql, values=vals)
+
+    def get_features_matching(
+        self,
+        *,
+        seqid: OptionalStr = None,
+        biotype: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+        **kwargs,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v
+            for k, v in locals().items()
+            if k not in ("self", "kwargs") and v is not None
+        }
+        # alignment features are created by the user specific
+        columns = ("seqid", "biotype", "spans", "strand", "name")
+        query_args = {**kwargs}
+
+        for result in self._get_records_matching(
+            table_name="gff", columns=columns, **query_args
+        ):
+            result = dict(zip(columns, result))
+            result["spans"] = [tuple(c) for c in result["spans"]]
+            yield result
+
+    def get_feature_children(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="parent_to_child", columns=cols, parent_stableid=name, **kwargs
+        ):
+            result = dict(zip(cols, result))
+            result["spans"] = [tuple(c) for c in result["spans"]]
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_feature_parent(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="child_to_parent", columns=cols, child_stableid=name
+        ):
+            result = dict(zip(cols, result))
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_records_matching(
+        self,
+        *,
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v for k, v in locals().items() if k not in ("self", "allow_partial")
+        }
+        sql, vals = _select_records_sql("gff", kwargs, allow_partial=allow_partial)
+        col_names = None
+        for result in self._execute_sql(sql, values=vals):
+            if col_names is None:
+                col_names = result.keys()
+            yield {c: result[c] for c in col_names}
+
+    def biotype_counts(self) -> dict[str, int]:
+        sql = "SELECT biotype, COUNT(*) as count FROM gff GROUP BY biotype"
+        result = self._execute_sql(sql).fetchall()
+        return {r["biotype"]: r["count"] for r in result}
+
+    def subset(
+        self,
+        *,
+        source: PathType = ":memory:",
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing_extensions.Self:
+        """returns a new db instance with records matching the provided conditions"""
+        # make sure python, not numpy, integers
+        start = start if start is None else int(start)
+        stop = stop if stop is None else int(stop)
+
+        kwargs = {k: v for k, v in locals().items() if k not in {"self", "source"}}
+
+        newdb = self.__class__(source=source)
+        if not len(self):
+            return newdb
+
+        # we need to recreate the values that get passed to add_records
+        # so first identify the feature IDs that match the criteria
+        cols = None
+
+        feature_ids = {}
+        for r in self._get_records_matching(table_name="gff", **kwargs):
+            if cols is None:
+                cols = r.keys()
+            r = dict(zip(cols, r))
+            feature_id = r.pop("feature_id")
+            feature = EnsemblGffRecord(**r)
+            feature_ids[feature_id] = feature
+
+        # now build the related features by selecting the rows with matches
+        # in both columns to feature_ids
+        ids = ",".join(str(i) for i in feature_ids)
+        sql = f"""
+        SELECT gene_id, related_id FROM related_feature 
+        WHERE gene_id IN ({ids}) AND related_id IN ({ids})
+        """
+        related = collections.defaultdict(set)
+        for record in self._execute_sql(sql):
+            gene_id, related_id = record["gene_id"], record["related_id"]
+            gene = feature_ids[gene_id]
+            related[gene].add(feature_ids[related_id])
+
+        newdb.add_records(records=feature_ids.values(), gene_relations=related)
+        return newdb
+
+
+def make_gene_relationships(
+    records: typing.Sequence[EnsemblGffRecord],
+) -> dict[EnsemblGffRecord, set[EnsemblGffRecord]]:
+    """returns all feature children of genes"""
+    related = {}
+    for record in records:
+        biotype = related.get(record.biotype.lower(), {})
+        biotype[record.name] = record
+        related[record.biotype.lower()] = biotype
+
+    # reduce the related dict into gene_id by child/grandchild ID
+    genes = {}
+    for cds_record in related["cds"].values():
+        mrna_record = related["mrna"][cds_record.parent_id]
+        if mrna_record.is_canonical:
+            # we make the CDS identifiable as being canonical
+            # this token is used by is_canonical property
+            cds_record.attrs = f"Ensembl_canonical;{cds_record.attrs}"
+
+        gene = related["gene"][mrna_record.parent_id]
+        gene_relationships = genes.get(gene.stableid, set())
+        gene_relationships.update((cds_record, mrna_record))
+        genes[gene] = gene_relationships
+
+    return genes
 
 
 def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:

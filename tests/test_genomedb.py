@@ -4,13 +4,16 @@ from cogent3 import make_unaligned_seqs
 from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._genomedb import (
+    _ANNOTDB_NAME,
     _SEQDB_NAME,
+    EnsemblGffDb,
     EnsemblGffRecord,
     Genome,
     SeqsDataHdf5,
     custom_gff_parser,
     get_gene_table_for_species,
     get_species_summary,
+    make_gene_relationships,
     str2arr,
     tidy_gff3_stableids,
 )
@@ -59,7 +62,7 @@ def small_annots():
 
 @pytest.fixture(scope="function")
 def small_annotdb(small_annots):
-    db = GffAnnotationDb(source=":memory:")
+    db = EnsemblGffDb(source=":memory:")
     for record in small_annots:
         db.add_feature(**record)
     return db
@@ -350,6 +353,55 @@ def test_gff_record_hashing():
     assert v[name] == 21
     n = {name: 21}
     assert v == n
+
+
+@pytest.fixture
+def ensembl_gff_records(DATA_DIR):
+    records, _ = custom_gff_parser(DATA_DIR / "c_elegans_WS199_shortened.gff3", 0)
+    return records
+
+
+@pytest.fixture
+def non_canonical_related(ensembl_gff_records):
+    return make_gene_relationships(ensembl_gff_records.values())
+
+
+@pytest.fixture
+def canonical_related(ensembl_gff_records):
+    transcript = ensembl_gff_records["transcript:B0019.1"]
+    transcript.attrs = f"Ensembl_canonical;{transcript.attrs}"
+    return ensembl_gff_records, make_gene_relationships(ensembl_gff_records.values())
+
+
+def test_make_gene_relationships(ensembl_gff_records):
+    # make the mRNA is_canonical
+    transcript = ensembl_gff_records["transcript:B0019.1"]
+    transcript.attrs = f"Ensembl_canonical;{transcript.attrs}"
+    # at this point the related CDS is not canonical
+    assert not ensembl_gff_records["cds:B0019.1"].is_canonical
+    related = make_gene_relationships(ensembl_gff_records.values())
+    got = {c.is_canonical for c in related["gene:WBGene00000138"]}
+    assert got == {True}
+    # the related CDS is now canonical
+    assert ensembl_gff_records["cds:B0019.1"].is_canonical
+
+
+def test_featuredb(canonical_related):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    db.add_records(records=records.values(), gene_relations=related)
+    cds = list(
+        db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
+    )[0]
+    assert cds["name"] == "B0019.1"
+
+
+def test_featuredb_num_records(canonical_related):
+    records, related = canonical_related
+    db = EnsemblGffDb(source=":memory:")
+    assert db.num_records() == 0
+    db.add_records(records=records.values(), gene_relations=related)
+    assert db.num_records() == 11
 
 
 @pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))
