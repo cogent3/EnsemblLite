@@ -957,4 +957,5 @@ def get_species_summary(
         header=("biotype", "count"),
         data=list(counts.items()),
         title=f"{common_name} features",
+        column_templates={"count": lambda x: f"{x:,}"},
     )

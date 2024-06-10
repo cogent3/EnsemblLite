@@ -291,7 +291,14 @@ def rich_display(c3t, title_justify="left"):
     from rich.table import Table
 
     cols = c3t.columns
-    columns = [formatted_array(cols[c], pad=False)[0] for c in c3t.header]
+    columns = []
+    for c in c3t.header:
+        if tmplt := c3t._column_templates.get(c, None):
+            col = [tmplt(v) for v in cols[c]]
+        else:
+            col = cols[c]
+        columns.append(col)
+
     rich_table = Table(
         title=c3t.title,
         highlight=True,
