@@ -754,6 +754,7 @@ class Genome:
         start: Optional[int] = None,
         stop: Optional[int] = None,
         namer: typing.Callable | None = None,
+        with_annotations: bool = True,
     ) -> str:
         """returns annotated sequence
 
@@ -771,9 +772,12 @@ class Genome:
             callback for naming the sequence. Callback must take four
             arguments: species, seqid,start, stop. Default is
             species:seqid:start-stop.
+        with_annotations
+            assign annotation_db to seq
+
         Notes
         -----
-        Annotations partially within region are included.
+        Full annotations are bound to the instance.
         """
         seq = self._seqs.get_seq_str(seqid=seqid, start=start, stop=stop)
         if namer:
@@ -784,11 +788,8 @@ class Genome:
         # parent seq identity, required for querying annotations
         seq = make_seq(seq, name=seqid, moltype="dna")
         seq.name = name
-        if self.annotation_db:
-            seq.annotation_offset = start or 0
-            seq.annotation_db = self.annotation_db.subset(
-                seqid=seqid, start=start, stop=stop, allow_partial=True
-            )
+        seq.annotation_offset = start or 0
+        seq.annotation_db = self.annotation_db if with_annotations else None
         return seq
 
     def get_features(
@@ -800,7 +801,6 @@ class Genome:
         start: int = None,
         stop: int = None,
     ) -> typing.Iterable[Feature]:
-        """yields features in blocks of seqid"""
         kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid") and v}
         if seqid:
             seqids = [seqid]
