@@ -65,7 +65,7 @@ class EnsemblGffRecord(GffRecord):
         super().__init__(**kwargs)
         self.feature_id = feature_id
         if is_canonical:
-            self.attrs = "Ensembl_canonical;" + self.attrs or ""
+            self.attrs = "Ensembl_canonical;" + (self.attrs or "")
 
     def __hash__(self) -> int:
         return hash(self.name)
