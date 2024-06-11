@@ -413,7 +413,11 @@ class SerialisableMixin:
 
 
 def get_iterable_tasks(
-    *, func: typing.Callable, series: typing.Sequence, max_workers: int, **kwargs
+    *,
+    func: typing.Callable,
+    series: typing.Sequence,
+    max_workers: typing.Optional[int],
+    **kwargs,
 ) -> typing.Iterator:
     if max_workers == 1:
         return map(func, series)
