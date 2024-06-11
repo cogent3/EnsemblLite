@@ -429,17 +429,7 @@ class collect_seqs:
                 )
             genome = self._genomes[species]
             for name in sp_genes:
-                feature = list(genome.get_features(name=f"%{name}"))
-                if not feature:
-                    break
-
-                feature = feature[0]
-                transcripts = list(feature.get_children(biotype="mRNA"))
-                if not transcripts:
-                    continue
-
-                longest = max(transcripts, key=lambda x: len(x))
-                cds = list(longest.get_children(biotype="CDS"))
+                cds = list(genome.get_gene_cds(name=name, is_canonical=True))
                 if not cds:
                     if self._verbose:
                         print(f"no cds for {name}")

@@ -475,8 +475,15 @@ def homologs(
     """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress
 
-    from ensembl_lite._genomedb import load_genome
-    from ensembl_lite._homologydb import collect_seqs, load_homology_db
+    from ensembl_lite._homologydb import (
+        _HOMOLOGYDB_NAME,
+        collect_seqs,
+        load_homology_db,
+    )
+
+    if ref is None:
+        click.secho("ERROR: a reference species name is required, use --ref", fg="red")
+        exit(1)
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
