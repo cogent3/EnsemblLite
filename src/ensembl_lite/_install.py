@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import shutil
 
+from cogent3 import make_table
 from rich.progress import Progress, track
 
 from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
+    _STABLEID_PREFIXES,
     fasta_to_hdf5,
     make_annotation_db,
 )
@@ -61,14 +63,26 @@ def local_install_genomes(
         dest_dir = config.install_genomes / db_name
         src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
 
+    species_prefixes = []
     with Progress(transient=False) as progress:
         msg = "Installing  🧬 features"
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
         tasks = get_iterable_tasks(
             func=make_annotation_db, series=src_dest_paths, max_workers=max_workers
         )
-        for _ in tasks:
+        for db_name, prefixes in tasks:
+            if verbose:
+                print(f"{db_name=} {prefixes=}")
+
+            if prefixes:
+                species_prefixes.append((db_name, ",".join(prefixes)))
+
             progress.update(writing, description=msg, advance=1)
+
+    species_prefix_table = make_table(
+        header=["species", "prefixes"], data=species_prefixes
+    )
+    species_prefix_table.write(config.install_genomes / _STABLEID_PREFIXES)
 
     if verbose:
         print("Finished installing features ")

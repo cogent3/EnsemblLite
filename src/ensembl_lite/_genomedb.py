@@ -15,7 +15,7 @@ import h5py
 import numpy
 import typing_extensions
 
-from cogent3 import get_moltype, make_seq, make_table, open_
+from cogent3 import get_moltype, load_table, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import (
@@ -33,12 +33,13 @@ from numpy.typing import NDArray
 from ensembl_lite._config import Config, InstalledConfig
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._faster_fasta import quicka_parser
-from ensembl_lite._species import Species
+from ensembl_lite._species import Species, get_stableid_prefix
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.ensembl_gff3db"
+_STABLEID_PREFIXES = "species_stableid_prefixes.tsv"
 
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE
@@ -497,7 +498,22 @@ def make_gene_relationships(
     return genes
 
 
-def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
+def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str]:
+    """returns the prefixes of the stableids"""
+    prefixes = set()
+    for record in records:
+        record.update_from_attrs()
+        try:
+            prefix = get_stableid_prefix(record.stableid)
+        except ValueError:
+            continue
+        prefixes.add(prefix)
+    return prefixes
+
+
+def make_annotation_db(
+    src_dest: tuple[pathlib.Path, pathlib.Path]
+) -> tuple[str, set[str]]:
     """convert gff3 file into a EnsemblGffDb
 
     Parameters
@@ -506,17 +522,19 @@ def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
         path to gff3 file, path to write AnnotationDb
     """
     src, dest = src_dest
+    db_name = dest.parent.name
     if dest.exists():
-        return True
+        return db_name, set()
 
     db = EnsemblGffDb(source=dest)
     records, _ = custom_gff_parser(src, 0)
+    prefixes = get_stableid_prefixes(tuple(records.keys()))
     related = make_gene_relationships(records)
     db.add_records(records=records.values(), gene_relations=related)
     db.make_indexes()
     db.close()
     del db
-    return True
+    return db_name, prefixes
 
 
 def _rename(label: str) -> str:
@@ -957,3 +975,12 @@ def get_species_summary(
         title=f"{common_name} features",
         column_templates={"count": lambda x: f"{x:,}"},
     )
+
+
+def update_stableid_prefixes(config: InstalledConfig):
+    """updates Species with stableid prefixes discovered in install"""
+    table = load_table(config.genomes_path / _STABLEID_PREFIXES)
+    for db, prefixes in table.to_list():
+        for prefix in prefixes.split(","):
+            Species.add_stableid_prefix(db, prefix)
+    return

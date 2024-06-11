@@ -387,7 +387,7 @@ def alignments(
     from cogent3 import load_table
 
     from ensembl_lite._aligndb import AlignDb, write_alignments
-    from ensembl_lite._genomedb import load_genome
+    from ensembl_lite._genomedb import load_genome, update_stableid_prefixes
     from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-stop:strand, for
@@ -406,6 +406,8 @@ def alignments(
     outdir.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
+    # update the prefixes
+    update_stableid_prefixes(config)
     align_path = config.path_to_alignment(align_name)
     if align_path is None:
         click.secho(
@@ -473,8 +475,9 @@ def homologs(
     installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
     """exports all homolog groups of type relationship in fasta format"""
-    from rich.progress import Progress
+    from rich.progress import Progress, track
 
+    from ensembl_lite._genomedb import load_genome, update_stableid_prefixes
     from ensembl_lite._homologydb import (
         _HOMOLOGYDB_NAME,
         collect_seqs,
@@ -491,15 +494,26 @@ def homologs(
     outpath.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
+    # update the prefixes
+    update_stableid_prefixes(config)
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
-    gene_ids = list(genome.get_ids_for_biotype(biotype="gene", limit=limit))
+    if verbose:
+        print(f"loaded genome for {ref}")
+    gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
+    if verbose:
+        print(f"found {len(gene_ids)} gene IDs for {ref}")
     db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
     related = []
-    for gid in gene_ids:
+    for gid in track(gene_ids, description="Homolog search"):
         if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):
             related.append(rel)
 
+        if limit and len(related) >= limit:
+            break
+
+    if verbose:
+        print(f"Found {len(related)} homolog groups")
     # todo create a directory data store writer and write all output to
     #  that. This requires homolog_group has a .source attribute
     get_seqs = collect_seqs(config=config)
@@ -513,6 +527,7 @@ def homologs(
                 par_kw=dict(max_workers=num_procs),
             )
         ):
+            progress.update(reading, advance=1)
             if not seqs:
                 if verbose:
                     print(f"{seqs=}")
@@ -525,7 +540,6 @@ def homologs(
             # todo also need to be writing out a logfile, plus a meta data table of
             #  gene IDs and location info
             txt = [seq.to_fasta() for seq in seqs.obj.seqs]
-            progress.update(reading, advance=1)
             outname = outpath / f"seqcoll-{i}.fasta"
             with outname.open(mode="w") as outfile:
                 outfile.write("".join(txt))
