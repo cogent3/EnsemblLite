@@ -219,7 +219,7 @@ def test_hdf5_genome_error_duplicate_names(small_h5_genome):
     genome, data = small_h5_genome
     with pytest.raises(ValueError):
         # duplicate name, but seq is different
-        genome.add_record(seqid="s1", seq=data["s1"][:-2])
+        genome.add_record(data["s1"][:-2], "s1")
 
 
 def test_hdf5_genome_coord_names(small_h5_genome):
@@ -429,7 +429,8 @@ def test_get_features_matching(canonical_related):
     db = EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
     got = list(db.get_features_matching(biotype="cds"))
-    print(got)
+    assert got[0]["name"] == "B0019.1"
+    assert got[0]["biotype"] == "cds"
 
 
 @pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))

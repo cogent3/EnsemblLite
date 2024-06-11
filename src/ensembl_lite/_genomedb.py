@@ -544,7 +544,7 @@ class fasta_to_hdf5:
             # for label, seq in quicka_parser(path, one_seq=False):
             for label, seq in quicka_parser(path):
                 seqid = self.label_to_name(label)
-                seq_store.add_record(seqid=seqid, seq=seq)
+                seq_store.add_record(seq, seqid)
                 del seq
 
         seq_store.close()
@@ -686,8 +686,13 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
     def __hash__(self):
         return id(self)
 
-    def add_record(self, *, seqid: str, seq: str):
+    @functools.singledispatchmethod
+    def add_record(self, seq: str, seqid: str):
         seq = self._str2arr(seq)
+        self.add_record(seq, seqid)
+
+    @add_record.register
+    def _(self, seq: numpy.ndarray, seqid: str):
         if seqid in self._file:
             stored = self._file[seqid]
             if (seq == stored).all():
@@ -695,13 +700,14 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
                 return
             # but it's different, which is a problem
             raise ValueError(f"{seqid!r} already present but with different seq")
+
         self._file.create_dataset(
             name=seqid, data=seq, chunks=True, **_HDF5_BLOSC2_KWARGS
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
         for seqid, seq in records:
-            self.add_record(seqid=seqid, seq=seq)
+            self.add_record(seq, seqid)
 
     def get_seq_str(
         self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
