@@ -258,6 +258,8 @@ def download(configpath, debug, verbose):
 @_verbose
 def install(download, num_procs, force_overwrite, verbose):
     """create the local representations of the data"""
+    from rich import progress
+
     from ensembl_lite._install import (
         local_install_alignments,
         local_install_genomes,
@@ -275,29 +277,39 @@ def install(download, num_procs, force_overwrite, verbose):
     config.install_path.mkdir(parents=True, exist_ok=True)
     elt_config.write_installed_cfg(config)
     with keep_running():
-        local_install_genomes(
-            config,
-            force_overwrite=force_overwrite,
-            max_workers=num_procs,
-            verbose=verbose,
-        )
-        # On test cases, only 30% speedup from running install homology data
-        # in parallel due to overhead of pickling the data, but considerable
-        # increase in memory. So, run in serial to avoid memory issues since
-        # it's reasonably fast anyway. (At least until we have
-        # a more robust solution.)
-        local_install_homology(
-            config,
-            force_overwrite=force_overwrite,
-            max_workers=num_procs,
-            verbose=verbose,
-        )
-        local_install_alignments(
-            config,
-            force_overwrite=force_overwrite,
-            max_workers=num_procs,
-            verbose=verbose,
-        )
+        with progress.Progress(
+            progress.TextColumn("[progress.description]{task.description}"),
+            progress.BarColumn(),
+            progress.TaskProgressColumn(),
+            progress.TimeRemainingColumn(),
+            progress.TimeElapsedColumn(),
+        ) as progress:
+            local_install_genomes(
+                config,
+                force_overwrite=force_overwrite,
+                max_workers=num_procs,
+                verbose=verbose,
+                progress=progress,
+            )
+            # On test cases, only 30% speedup from running install homology data
+            # in parallel due to overhead of pickling the data, but considerable
+            # increase in memory. So, run in serial to avoid memory issues since
+            # it's reasonably fast anyway. (At least until we have
+            # a more robust solution.)
+            local_install_homology(
+                config,
+                force_overwrite=force_overwrite,
+                max_workers=num_procs,
+                verbose=verbose,
+                progress=progress,
+            )
+            local_install_alignments(
+                config,
+                force_overwrite=force_overwrite,
+                max_workers=num_procs,
+                verbose=verbose,
+                progress=progress,
+            )
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 

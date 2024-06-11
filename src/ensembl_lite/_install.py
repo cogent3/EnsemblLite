@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import shutil
+import typing
 
 from cogent3 import make_table
-from rich.progress import Progress, track
+from rich.progress import Progress
 
 from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
@@ -38,6 +39,7 @@ def local_install_genomes(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
+    progress: typing.Optional[Progress] = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
@@ -64,19 +66,22 @@ def local_install_genomes(
         src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
 
     species_prefixes = []
-    with Progress(transient=False) as progress:
-        msg = "Installing  🧬 features"
+
+    msg = "Installing features 📚"
+    if progress is not None:
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
-        tasks = get_iterable_tasks(
-            func=make_annotation_db, series=src_dest_paths, max_workers=max_workers
-        )
-        for db_name, prefixes in tasks:
-            if verbose:
-                print(f"{db_name=} {prefixes=}")
 
-            if prefixes:
-                species_prefixes.append((db_name, ",".join(prefixes)))
+    tasks = get_iterable_tasks(
+        func=make_annotation_db, series=src_dest_paths, max_workers=max_workers
+    )
+    for db_name, prefixes in tasks:
+        if verbose:
+            print(f"{db_name=} {prefixes=}")
 
+        if prefixes:
+            species_prefixes.append((db_name, ",".join(prefixes)))
+
+        if progress is not None:
             progress.update(writing, description=msg, advance=1)
 
     species_prefix_table = make_table(
@@ -87,20 +92,19 @@ def local_install_genomes(
     if verbose:
         print("Finished installing features ")
 
-    with Progress(transient=False) as progress:
-        writing = progress.add_task(
-            total=len(db_names), description="Installing  🧬", advance=0
-        )
-        # we parallelise across databases
-        writer = fasta_to_hdf5(config=config)
-        tasks = get_iterable_tasks(
-            func=writer, series=db_names, max_workers=max_workers
-        )
-        for result in tasks:
-            if not result:
-                print(result)
-                raise RuntimeError
-            progress.update(writing, description="Installing  🧬", advance=1)
+    msg = "Installing  🧬🧬"
+    if progress is not None:
+        writing = progress.add_task(total=len(db_names), description=msg, advance=0)
+    # we parallelise across databases
+    writer = fasta_to_hdf5(config=config)
+    tasks = get_iterable_tasks(func=writer, series=db_names, max_workers=max_workers)
+    for result in tasks:
+        if not result:
+            print(result)
+            raise RuntimeError
+
+        if progress is not None:
+            progress.update(writing, description=msg, advance=1)
 
     if verbose:
         print("Finished installing sequences ")
@@ -112,6 +116,7 @@ def local_install_alignments(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
+    progress: typing.Optional[Progress] = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
@@ -138,16 +143,19 @@ def local_install_alignments(
             func=aln_loader, series=paths, max_workers=max_workers
         )
 
-        for result in track(
-            series,
-            transient=False,
-            description="Installing alignments",
-            total=len(paths),
-        ):
+        msg = "Installing alignments"
+        if progress is not None:
+            writing = progress.add_task(total=len(paths), description=msg, advance=0)
+
+        for result in series:
             if not result:
                 print(result)
                 raise RuntimeError
+
             records.extend(result)
+
+            if progress is not None:
+                progress.update(writing, description=msg, advance=1)
 
         db.add_records(records=records)
         db.close()
@@ -163,6 +171,7 @@ def local_install_homology(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
+    progress: typing.Optional[Progress] = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)
@@ -179,6 +188,8 @@ def local_install_homology(
 
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
+    else:
+        max_workers = 1
 
     if verbose:
         print(f"homologies {max_workers=}")
@@ -187,19 +198,20 @@ def local_install_homology(
     if max_workers > 1:
         loader = loader + pickler + compressor
 
-    with Progress(transient=False) as progress:
-        msg = "Installing homologies"
+    msg = "Installing homologies"
+    if progress is not None:
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
-        tasks = get_iterable_tasks(
-            func=loader, series=dirnames, max_workers=max_workers
-        )
-        for result in tasks:
-            if max_workers > 1:
-                # reconstitute the blosc compressed data
-                result = inflate(result)
 
-            for rel_type, records in result.items():
-                db.add_records(records=records, relationship_type=rel_type)
+    tasks = get_iterable_tasks(func=loader, series=dirnames, max_workers=max_workers)
+    for result in tasks:
+        if max_workers > 1:
+            # reconstitute the blosc compressed data
+            result = inflate(result)
+
+        for rel_type, records in result.items():
+            db.add_records(records=records, relationship_type=rel_type)
+
+        if progress is not None:
             progress.update(writing, description=msg, advance=1)
 
     no_records = len(db) == 0
