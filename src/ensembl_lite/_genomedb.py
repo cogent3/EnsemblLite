@@ -822,6 +822,11 @@ class Genome:
         for ft in self.annotation_db.get_features_matching(
             biotype=biotype, seqid=seqid, name=name, start=start, stop=stop
         ):
+            seqid = ft.pop("seqid")
+            ft["spans"] = numpy.array(ft["spans"])
+            start = int(ft["spans"].min())
+            stop = int(ft["spans"].max())
+            ft["spans"] = ft["spans"] - start
             seq = self.get_seq(
                 seqid=seqid, start=start, stop=stop, with_annotations=True
             )
@@ -844,9 +849,11 @@ class Genome:
     def get_ids_for_biotype(self, biotype: str, limit: OptionalInt = None):
         annot_db = self.annotation_db
         sql = "SELECT name from gff WHERE biotype=?"
+        val = (biotype,)
         if limit:
             sql += " LIMIT ?"
-        for result in annot_db._execute_sql(sql, (biotype, limit)):
+            val = val + (limit,)
+        for result in annot_db._execute_sql(sql, val):
             yield result["name"].split(":")[-1]
 
     def close(self):
