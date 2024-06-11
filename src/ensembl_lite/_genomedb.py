@@ -491,7 +491,7 @@ def make_gene_relationships(
             cds_record.attrs = f"Ensembl_canonical;{cds_record.attrs}"
 
         gene = related["gene"][mrna_record.parent_id]
-        gene_relationships = genes.get(gene.stableid, set())
+        gene_relationships = genes.get(gene.name, set())
         gene_relationships.update((cds_record, mrna_record))
         genes[gene] = gene_relationships
 

@@ -500,3 +500,22 @@ def test_faster_fasta(fasta_data):
     }
     got = dict(quicka_parser(fasta_data))
     assert (got["I"] == expect["I"]).all()
+
+
+def test_gff_parse_merge(DATA_DIR):
+    records, _ = custom_gff_parser(DATA_DIR / "gene-multi-transcript.gff3", 0)
+    related = make_gene_relationships(list(records.values()))
+    homologs = related["gene:ENSG00000160072"]
+    assert len(homologs) == 4
+    # we know that cds:ENSP00000500094 and transcript:ENST00000673477 are canonical
+    assert records["cds:ENSP00000500094"].is_canonical
+    assert records["transcript:ENST00000673477"].is_canonical
+    # and cds:ENSP00000311766 and transcript:ENST00000308647 are not
+    assert not records["cds:ENSP00000311766"].is_canonical
+    assert not records["transcript:ENST00000308647"].is_canonical
+    assert {
+        "transcript:ENST00000308647",
+        "cds:ENSP00000311766",
+        "transcript:ENST00000673477",
+        "cds:ENSP00000500094",
+    } == homologs
