@@ -836,7 +836,7 @@ class Genome:
 
     def get_gene_cds(self, name: str, is_canonical: bool = True):
         for cds in self.annotation_db.get_feature_children(
-            name=name, biotype="cds", is_canonical=False
+            name=name, biotype="cds", is_canonical=is_canonical
         ):
             seqid = cds.pop("seqid")
             cds["spans"] = numpy.array(cds["spans"])
