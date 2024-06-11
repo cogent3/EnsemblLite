@@ -55,6 +55,6 @@ def quicka_parser(
         eol = record.find(b"\n")
         if eol == -1:
             continue
-        label = record[:eol].decode("utf8")
+        label = record[:eol].strip().decode("utf8")
         seq = converter(record[eol + 1 :])
         yield label, seq

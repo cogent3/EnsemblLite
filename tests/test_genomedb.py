@@ -1,3 +1,5 @@
+import pathlib
+
 import numpy
 import pytest
 
@@ -480,13 +482,21 @@ def test_add_feature():
     assert got[0]["name"] == "demo"
 
 
-def test_faster_fasta(DATA_DIR):
+@pytest.fixture(params=("\n", "\r\n"))
+def fasta_data(DATA_DIR, tmp_path, request):
+    data = pathlib.Path(DATA_DIR / "c_elegans_WS199_shortened.fasta").read_text()
+    outpath = tmp_path / "demo.fasta"
+    outpath.write_text(data, newline=request.param)
+    yield outpath
+
+
+def test_faster_fasta(fasta_data):
     from cogent3.parse.fasta import MinimalFastaParser
 
     from ensembl_lite._faster_fasta import bytes_to_array, quicka_parser
 
-    path = DATA_DIR / "c_elegans_WS199_shortened.fasta"
-
-    expect = {n: bytes_to_array(s.encode("utf8")) for n, s in MinimalFastaParser(path)}
-    got = dict(quicka_parser(path))
+    expect = {
+        n: bytes_to_array(s.encode("utf8")) for n, s in MinimalFastaParser(fasta_data)
+    }
+    got = dict(quicka_parser(fasta_data))
     assert (got["I"] == expect["I"]).all()
