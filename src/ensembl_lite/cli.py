@@ -344,7 +344,11 @@ def installed(installed):
 @_species
 def species_summary(installed, species):
     """genome summary data for a species"""
-    from ._genomedb import get_annotations_for_species, get_species_summary
+    from ._genomedb import (
+        _ANNOTDB_NAME,
+        get_species_summary,
+        load_annotations_for_species,
+    )
     from ._util import rich_display
 
     config = elt_config.read_installed_cfg(installed)
@@ -357,7 +361,12 @@ def species_summary(installed, species):
         exit(1)
 
     species = species[0]
-    annot_db = get_annotations_for_species(config=config, species=species)
+    path = config.installed_genome(species=species) / _ANNOTDB_NAME
+    if not path.exists():
+        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
+        exit(1)
+
+    annot_db = load_annotations_for_species(path=path)
     summary = get_species_summary(annot_db=annot_db, species=species)
     rich_display(summary)
 
@@ -553,8 +562,9 @@ def homologs(
 def dump_genes(installed, species, outdir, limit):
     """Dump meta data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
     from ensembl_lite._genomedb import (
-        get_annotations_for_species,
+        _ANNOTDB_NAME,
         get_gene_table_for_species,
+        load_annotations_for_species,
     )
 
     config = elt_config.read_installed_cfg(installed)
@@ -566,7 +576,12 @@ def dump_genes(installed, species, outdir, limit):
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
         exit(1)
 
-    annot_db = get_annotations_for_species(config=config, species=species[0])
+    path = config.installed_genome(species=species[0]) / _ANNOTDB_NAME
+    if not path.exists():
+        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
+        exit(1)
+
+    annot_db = load_annotations_for_species(path=path)
     path = annot_db.source
     table = get_gene_table_for_species(annot_db=annot_db, limit=limit)
     outdir.mkdir(parents=True, exist_ok=True)

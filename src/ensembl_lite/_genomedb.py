@@ -901,16 +901,8 @@ def get_seqs_for_ids(
     del genome
 
 
-def get_annotations_for_species(
-    *, config: InstalledConfig, species: str
-) -> EnsemblGffDb:
+def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDb:
     """returns the annotation Db for species"""
-    path = config.installed_genome(species=species)
-    if not path.exists():
-        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
-
-    path = path / _ANNOTDB_NAME
     if not path.exists():
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
