@@ -665,7 +665,7 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
             h5_kwargs = {}
 
         try:
-            self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
+            self._file: h5py.File = h5py.File(source, mode=self.mode, **h5_kwargs)
         except OSError:
             print(source)
             raise
@@ -850,7 +850,7 @@ def get_seqs_for_ids(
     config: InstalledConfig,
     species: str,
     names: list[str],
-    make_seq_name: typing.Callable = None,
+    make_seq_name: typing.Optional[typing.Callable] = None,
 ) -> typing.Iterable[Sequence]:
     genome = load_genome(config=config, species=species)
     # is it possible to do batch query for all names?
@@ -943,8 +943,6 @@ def get_species_summary(
     species
         species name, overrides inference from annot_db.source
     """
-    from ._species import Species
-
     # for now, just biotype
     species = species or annot_db.source.parent.name
     counts = annot_db.biotype_counts()

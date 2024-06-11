@@ -408,10 +408,16 @@ class collect_seqs:
     """given a config and homolog group, loads genome instances on demand
     and extracts sequences"""
 
-    def __init__(self, config: InstalledConfig, make_seq_name: typing.Callable = None):
+    def __init__(
+        self,
+        config: InstalledConfig,
+        make_seq_name: typing.Optional[typing.Callable] = None,
+        verbose: bool = False,
+    ):
         self._config = config
         self._genomes = {}
         self._namer = make_seq_name
+        self._verbose = verbose
 
     def main(self, homologs: homolog_group) -> UnalignedSeqsType:
         namer = self._namer
@@ -435,6 +441,8 @@ class collect_seqs:
                 longest = max(transcripts, key=lambda x: len(x))
                 cds = list(longest.get_children(biotype="CDS"))
                 if not cds:
+                    if self._verbose:
+                        print(f"no cds for {name}")
                     continue
 
                 feature = cds[0]
