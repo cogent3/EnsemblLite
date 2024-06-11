@@ -477,3 +477,15 @@ def test_add_feature():
     got = list(db.get_features_matching(seqid="s0"))
     assert len(got) == 1
     assert got[0]["name"] == "demo"
+
+
+def test_faster_fasta(DATA_DIR):
+    from cogent3.parse.fasta import MinimalFastaParser
+
+    from ensembl_lite._faster_fasta import bytes_to_array, quicka_parser
+
+    path = DATA_DIR / "c_elegans_WS199_shortened.fasta"
+
+    expect = {n: bytes_to_array(s.encode("utf8")) for n, s in MinimalFastaParser(path)}
+    got = dict(quicka_parser(path))
+    assert (got["I"] == expect["I"]).all()

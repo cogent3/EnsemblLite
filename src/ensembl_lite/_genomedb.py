@@ -25,7 +25,6 @@ from cogent3.core.annotation_db import (
     _select_records_sql,
 )
 from cogent3.core.sequence import Sequence
-from cogent3.parse.fasta import MinimalFastaParser
 from cogent3.parse.gff import GffRecord, gff_parser, is_gff3
 from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
@@ -33,6 +32,7 @@ from numpy.typing import NDArray
 
 from ensembl_lite._config import Config, InstalledConfig
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
+from ensembl_lite._faster_fasta import quicka_parser
 from ensembl_lite._species import Species
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
@@ -541,7 +541,8 @@ class fasta_to_hdf5:
 
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
-            for label, seq in MinimalFastaParser(iter_splitlines(path)):
+            # for label, seq in quicka_parser(path, one_seq=False):
+            for label, seq in quicka_parser(path):
                 seqid = self.label_to_name(label)
                 seq_store.add_record(seqid=seqid, seq=seq)
                 del seq
@@ -549,13 +550,6 @@ class fasta_to_hdf5:
         seq_store.close()
 
         return True
-
-
-def _get_seqs(src: PathType) -> list[tuple[str, str]]:
-    with open_(src) as infile:
-        data = infile.read().splitlines()
-    name_seqs = list(MinimalFastaParser(data))
-    return [(_rename(name), seq) for name, seq in name_seqs]
 
 
 T = tuple[PathType, list[tuple[str, str]]]
