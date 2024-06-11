@@ -487,7 +487,7 @@ def homologs(
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene", limit=limit))
-    db = load_homology_db(config=config)
+    db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
     related = []
     for gid in gene_ids:
         if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):

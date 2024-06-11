@@ -14,7 +14,7 @@ from cogent3.app.typing import (
     UnalignedSeqsType,
 )
 from cogent3.parse.table import FilteringParser
-from cogent3.util.io import iter_splitlines
+from cogent3.util.io import PathType, iter_splitlines
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
@@ -36,7 +36,7 @@ class species_genes:
     """contains gene IDs for species"""
 
     species: str
-    gene_ids: list[str] = None
+    gene_ids: typing.Optional[list[str]] = None
 
     def __hash__(self):
         return hash(self.species)
@@ -367,9 +367,9 @@ class HomologyDb(SqliteDbMixin):
 
 def load_homology_db(
     *,
-    config: InstalledConfig,
+    path: PathType,
 ) -> HomologyDb:
-    return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
+    return HomologyDb(source=path)
 
 
 @define_app(app_type=LOADER)
