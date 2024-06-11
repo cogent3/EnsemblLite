@@ -491,7 +491,7 @@ def make_gene_relationships(
             cds_record.attrs = f"Ensembl_canonical;{cds_record.attrs}"
 
         gene = related["gene"][mrna_record.parent_id]
-        gene_relationships = genes.get(gene.stableid, set())
+        gene_relationships = genes.get(gene.name, set())
         gene_relationships.update((cds_record, mrna_record))
         genes[gene] = gene_relationships
 
@@ -901,16 +901,8 @@ def get_seqs_for_ids(
     del genome
 
 
-def get_annotations_for_species(
-    *, config: InstalledConfig, species: str
-) -> EnsemblGffDb:
+def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDb:
     """returns the annotation Db for species"""
-    path = config.installed_genome(species=species)
-    if not path.exists():
-        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
-
-    path = path / _ANNOTDB_NAME
     if not path.exists():
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
