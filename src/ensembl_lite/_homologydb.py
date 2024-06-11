@@ -14,7 +14,7 @@ from cogent3.app.typing import (
     UnalignedSeqsType,
 )
 from cogent3.parse.table import FilteringParser
-from cogent3.util.io import iter_splitlines
+from cogent3.util.io import PathType, iter_splitlines
 
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
@@ -36,7 +36,7 @@ class species_genes:
     """contains gene IDs for species"""
 
     species: str
-    gene_ids: list[str] = None
+    gene_ids: typing.Optional[list[str]] = None
 
     def __hash__(self):
         return hash(self.species)
@@ -45,10 +45,7 @@ class species_genes:
         return self.species == other.species and self.gene_ids == other.gene_ids
 
     def __post_init__(self):
-        if not self.gene_ids:
-            self.gene_ids = []
-        else:
-            self.gene_ids = list(self.gene_ids)
+        self.gene_ids = [] if not self.gene_ids else list(self.gene_ids)
 
     def __getstate__(self) -> tuple[str, tuple[str, ...]]:
         return self.species, tuple(self.gene_ids)
@@ -359,13 +356,6 @@ class HomologyDb(SqliteDbMixin):
             for group in self._execute_sql(sql, (relationship_type,)).fetchall()
         ]
 
-    def make_indexes(self):
-        """adds db indexes for core attributes"""
-        sql = "CREATE INDEX IF NOT EXISTS %s on %s(%s)"
-        for table_name, cols in self._index_columns.items():
-            for col in cols:
-                self._execute_sql(sql % (col, table_name, col))
-
     def num_records(self):
         return list(
             self._execute_sql("SELECT COUNT(*) as count FROM member").fetchone()
@@ -374,9 +364,9 @@ class HomologyDb(SqliteDbMixin):
 
 def load_homology_db(
     *,
-    config: InstalledConfig,
+    path: PathType,
 ) -> HomologyDb:
-    return HomologyDb(source=config.homologies_path / _HOMOLOGYDB_NAME)
+    return HomologyDb(source=path)
 
 
 @define_app(app_type=LOADER)
@@ -418,10 +408,16 @@ class collect_seqs:
     """given a config and homolog group, loads genome instances on demand
     and extracts sequences"""
 
-    def __init__(self, config: InstalledConfig, make_seq_name: typing.Callable = None):
+    def __init__(
+        self,
+        config: InstalledConfig,
+        make_seq_name: typing.Optional[typing.Callable] = None,
+        verbose: bool = False,
+    ):
         self._config = config
         self._genomes = {}
         self._namer = make_seq_name
+        self._verbose = verbose
 
     def main(self, homologs: homolog_group) -> UnalignedSeqsType:
         namer = self._namer
@@ -433,18 +429,10 @@ class collect_seqs:
                 )
             genome = self._genomes[species]
             for name in sp_genes:
-                feature = list(genome.get_features(name=f"%{name}"))
-                if not feature:
-                    break
-
-                feature = feature[0]
-                transcripts = list(feature.get_children(biotype="mRNA"))
-                if not transcripts:
-                    continue
-
-                longest = max(transcripts, key=lambda x: len(x))
-                cds = list(longest.get_children(biotype="CDS"))
+                cds = list(genome.get_gene_cds(name=name, is_canonical=True))
                 if not cds:
+                    if self._verbose:
+                        print(f"no cds for {name}")
                     continue
 
                 feature = cds[0]

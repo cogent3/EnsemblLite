@@ -2,7 +2,6 @@ import numpy
 import pytest
 
 from cogent3 import load_aligned_seqs
-from cogent3.core.annotation_db import GffAnnotationDb
 
 from ensembl_lite._aligndb import (
     AlignDb,
@@ -11,7 +10,7 @@ from ensembl_lite._aligndb import (
     get_alignment,
     write_alignments,
 )
-from ensembl_lite._genomedb import Genome, SeqsDataHdf5
+from ensembl_lite._genomedb import EnsemblGffDb, Genome, SeqsDataHdf5
 
 
 def small_seqs():
@@ -28,23 +27,19 @@ def small_seqs():
         array_align=False,
         info=dict(species=dict(s1="human", s2="mouse", s3="dog")),
     )
-    annot_db = GffAnnotationDb(source=":memory:")
-    annot_db.add_feature(
-        seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)], on_alignment=False
-    )
+    annot_db = EnsemblGffDb(source=":memory:")
+    annot_db.add_feature(seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)])
     annot_db.add_feature(
         seqid="s2",
         biotype="gene",
         name="includes-s2-gap",
         spans=[(2, 6)],
-        on_alignment=False,
     )
     annot_db.add_feature(
         seqid="s3",
         biotype="gene",
         name="includes-s3-gap",
         spans=[(22, 27)],
-        on_alignment=False,
     )
     seqs.annotation_db = annot_db
     return seqs
@@ -272,7 +267,6 @@ def test_select_alignment_minus_strand(start_end, namer):
         biotype="custom",
         name="selected",
         seqid="s2",
-        on_alignment=False,
         spans=[(max(1, start or 0), min(end or 12, 12))],
     )
     expect = aln[ft.map.start : min(ft.map.end, 12)]
@@ -454,13 +448,14 @@ def small_db(small_records):
     return db
 
 
-@pytest.mark.parametrize("col", tuple(AlignDb._index_columns))
+@pytest.mark.parametrize("col", tuple(AlignDb._index_columns["align"]))
 def test_indexing(small_db, col):
-    expect = ("index", col, small_db.table_name)
+    table_name = "align"
+    expect = ("index", f"{col}_index", table_name)
     small_db.make_indexes()
     sql_template = (
         f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
-        f"tbl_name = {small_db.table_name!r} and name = {col!r}"  # nosec B608
+        f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
     )
 
     result = small_db._execute_sql(sql_template).fetchone()

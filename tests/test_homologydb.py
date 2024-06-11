@@ -159,11 +159,11 @@ def test_indexing(o2o_db, table_name):
     db, _ = o2o_db
     # we just get the first column for the table
     col = HomologyDb._index_columns[table_name][0]
-    expect = ("index", col, table_name)
+    expect = ("index", f"{col}_index", table_name)
     db.make_indexes()
     sql_template = (
         f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
-        f"tbl_name = {table_name!r} and name = {col!r}"  # nosec B608
+        f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
     )
 
     result = db._execute_sql(sql_template).fetchone()

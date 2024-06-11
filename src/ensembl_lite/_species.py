@@ -13,6 +13,7 @@ from ._util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
 
 _invalid_chars = re.compile("[^a-zA-Z _]")
 
+
 # From http://mart.ensembl.org/info/genome/stable_ids/prefixes.html
 # The Ensembl stable id structure is
 # [species prefix][feature type prefix][a unique eleven digit number]
@@ -26,6 +27,18 @@ _invalid_chars = re.compile("[^a-zA-Z _]")
 # T transcript
 _feature_type_1 = {"E", "G", "P", "R", "T"}
 _feature_type_2 = {"FM", "GT"}
+
+
+def get_stableid_prefix(stableid: str) -> str:
+    """returns the prefix component of a stableid"""
+    if len(stableid) < 15:
+        raise ValueError(f"{stableid!r} too short")
+
+    if stableid[-13:-11] in _feature_type_2:
+        return stableid[:-13]
+    if stableid[-12] not in _feature_type_1:
+        raise ValueError(f"{stableid!r} has unknown feature type {stableid[-13]!r}")
+    return stableid[:-12]
 
 
 StrOrNone = typing.Union[str, type(None)]
@@ -144,21 +157,7 @@ class SpeciesNameMap:
 
     def get_db_prefix_from_stableid(self, stableid: str) -> str:
         """returns the db name from a stableid"""
-        if len(stableid) < 15:
-            raise ValueError(f"{stableid!r} too short")
-
-        if stableid[-13:-11] in _feature_type_2:
-            prefix = stableid[:-13]
-        else:
-            if stableid[-12] not in _feature_type_1:
-                raise ValueError(
-                    f"{stableid!r} has unknown feature type {stableid[-13]!r}"
-                )
-            prefix = stableid[:-12]
-
-        if prefix not in self._stableid_species:
-            raise ValueError(f"unknown prefix {prefix!r}")
-
+        prefix = get_stableid_prefix(stableid)
         species = self._stableid_species[prefix]
         return species.replace(" ", "_").lower()
 
@@ -186,6 +185,13 @@ class SpeciesNameMap:
         if stableid_prefix:
             # make sure stableid just a string
             self._stableid_species[str(stableid_prefix)] = species_name
+
+    def add_stableid_prefix(
+        self, species_name: str, stableid_prefix: str | CaseInsensitiveString
+    ):
+        self._stableid_species[str(stableid_prefix)] = self.get_species_name(
+            species_name
+        )
 
     def to_table(self):
         """returns cogent3 Table"""

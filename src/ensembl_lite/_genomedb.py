@@ -1,5 +1,10 @@
+import collections
 import dataclasses
+import functools
+import itertools
 import pathlib
+import re
+import sqlite3
 import typing
 
 from abc import ABC, abstractmethod
@@ -8,29 +13,508 @@ from typing import Any, Optional
 import click
 import h5py
 import numpy
+import typing_extensions
 
-from cogent3 import get_moltype, load_annotations, make_seq, make_table, open_
+from cogent3 import get_moltype, load_table, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
-from cogent3.core.annotation_db import GffAnnotationDb
+from cogent3.core.annotation_db import (
+    FeatureDataType,
+    OptionalInt,
+    OptionalStr,
+    _select_records_sql,
+)
 from cogent3.core.sequence import Sequence
-from cogent3.parse.fasta import MinimalFastaParser
+from cogent3.parse.gff import GffRecord, gff_parser, is_gff3
 from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite._config import Config, InstalledConfig
-from ensembl_lite._db_base import Hdf5Mixin
-from ensembl_lite._species import Species
+from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
+from ensembl_lite._faster_fasta import quicka_parser
+from ensembl_lite._species import Species, get_stableid_prefix
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
-_ANNOTDB_NAME = "features.gff3db"
+_ANNOTDB_NAME = "features.ensembl_gff3db"
+_STABLEID_PREFIXES = "species_stableid_prefixes.tsv"
+
+_typed_id = re.compile(
+    r"\b[a-z]+:", flags=re.IGNORECASE
+)  # ensembl stableid's prefixed by the type
+_feature_id = re.compile(r"(?<=\bID=)[^;]+")
+_exon_id = re.compile(r"(?<=\bexon_id=)[^;]+")
+_parent_id = re.compile(r"(?<=\bParent=)[^;]+")
 
 
-def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
-    """convert gff3 file into aan AnnotationDb
+def _lower_case_match(match) -> str:
+    return match.group(0).lower()
+
+
+def tidy_gff3_stableids(attrs: str) -> str:
+    """makes the feature type prefix lowercase in gff3 attribute fields"""
+    return _typed_id.sub(_lower_case_match, attrs)
+
+
+class EnsemblGffRecord(GffRecord):
+    __slots__ = GffRecord.__slots__ + ("feature_id",)
+
+    def __init__(self, feature_id: Optional[int] = None, **kwargs):
+        is_canonical = kwargs.pop("is_canonical", None)
+        super().__init__(**kwargs)
+        self.feature_id = feature_id
+        if is_canonical:
+            self.attrs = "Ensembl_canonical;" + (self.attrs or "")
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return self.name == getattr(other, "name", other)
+
+    @property
+    def stableid(self):
+        return _typed_id.sub("", self.name or "")
+
+    @property
+    def is_canonical(self):
+        attrs = self.attrs or ""
+        return "Ensembl_canonical" in attrs
+
+    def update_from_attrs(self) -> None:
+        """updates attributes from the attrs string
+
+        Notes
+        -----
+        also updates biotype from the prefix in the name
+        """
+        attrs = self.attrs
+        id_regex = _feature_id if "ID=" in attrs else _exon_id
+        attr = tidy_gff3_stableids(attrs)
+        if feature_id := id_regex.search(attr):
+            self.name = feature_id.group()
+
+        if pid := _parent_id.search(attr):
+            parents = pid.group().split(",")
+            # now sure how to handle multiple-parent features
+            # so taking first ID as the parent for now
+            self.parent_id = parents[0]
+
+        if ":" in (self.name or ""):
+            biotype = self.name.split(":")[0]
+            self.biotype = "mrna" if biotype == "transcript" else biotype
+
+    @property
+    def size(self) -> int:
+        """the sum of span segments"""
+        return 0 if self.spans is None else sum(abs(s - e) for s, e in self.spans)
+
+
+def custom_gff_parser(
+    path: PathType, num_fake_ids: int
+) -> tuple[dict[str, EnsemblGffRecord], int]:
+    """replacement for cogent3 merged_gff_records"""
+    reduced = {}
+    gff3 = is_gff3(path)
+    for record in gff_parser(
+        iter_splitlines(path),
+        gff3=gff3,
+        make_record=EnsemblGffRecord,
+    ):
+        record.update_from_attrs()
+        if not record.name:
+            record.name = f"unknown-{num_fake_ids}"
+            num_fake_ids += 1
+
+        if record.name not in reduced:
+            record.spans = record.spans or []
+            reduced[record] = record
+
+        reduced[record].spans.append([record.start, record.stop])
+        reduced[record].start = min(reduced[record].start, record.start)
+        reduced[record].stop = max(reduced[record].stop, record.stop)
+
+    return reduced, num_fake_ids
+
+
+DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
+
+
+class EnsemblGffDb(SqliteDbMixin):
+    _biotype_schema = {
+        "type": "TEXT COLLATE NOCASE",
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    }
+    _feature_schema = {
+        "seqid": "TEXT COLLATE NOCASE",
+        "source": "TEXT COLLATE NOCASE",
+        "biotype_id": "TEXT",
+        "start": "INTEGER",
+        "stop": "INTEGER",
+        "score": "TEXT",  # check defn
+        "strand": "TEXT",
+        "phase": "TEXT",
+        "attributes": "TEXT",
+        "comments": "TEXT",
+        "spans": "array",  # aggregation of coords across records
+        "stableid": "TEXT",
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "is_canonical": "INTEGER",
+    }
+    # relationships are directional, but can span levels, eg.
+    # gene -> transcript -> CDS / Exon
+    # gene -> CDS
+    _related_feature_schema = {"gene_id": "INTEGER", "related_id": "INTEGER"}
+
+    _index_columns = {
+        "feature": (
+            "seqid",
+            "stableid",
+            "start",
+            "stop",
+            "is_canonical",
+            "biotype_id",
+        ),
+        "related_feature": ("gene_id", "related_id"),
+    }
+
+    def __init__(
+        self,
+        source: PathType = ":memory:",
+        db: typing.Optional[DbTypes] = None,
+    ):
+        self.source = source
+        if isinstance(db, self.__class__):
+            db = db.db
+
+        self._db = db
+        self._init_tables()
+        self._create_views()
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other)
+
+    def _create_views(self) -> None:
+        """define views to simplify queries"""
+        sql = """
+        CREATE VIEW IF NOT EXISTS gff AS
+        SELECT f.seqid as seqid,
+               b.type as biotype,
+               f.start as start,
+               f.stop as stop,
+               f.strand as strand,
+               f.spans as spans,
+               f.stableid as name,
+               f.is_canonical as is_canonical,
+               f.id as feature_id
+        FROM feature f
+        JOIN biotype b ON f.biotype_id = b.id
+        """
+        self._execute_sql(sql)
+        # view to query for child given parent id and vice versa
+        p2c = """
+        CREATE VIEW IF NOT EXISTS parent_to_child AS
+        SELECT fc.stableid as name,
+               fp.stableid as parent_stableid,
+               fc.seqid as seqid,
+               b.type as biotype,
+               fc.start as start,
+               fc.stop as stop,
+               fc.strand as strand,
+               fc.spans as spans,
+               fc.is_canonical as is_canonical
+        FROM related_feature r 
+        JOIN biotype b ON fc.biotype_id = b.id
+        JOIN feature fp ON fp.id = r.gene_id
+        JOIN feature fc ON fc.id = r.related_id
+        """
+        self._execute_sql(p2c)
+        c2p = """
+        CREATE VIEW IF NOT EXISTS child_to_parent AS
+        SELECT fp.stableid as name,
+               fc.stableid as child_stableid,
+               fp.seqid as seqid,
+               b.type as biotype,
+               fp.start as start,
+               fp.stop as stop,
+               fp.strand as strand,
+               fp.is_canonical as is_canonical,
+               fp.spans as spans
+        FROM related_feature r 
+        JOIN biotype b ON fp.biotype_id = b.id
+        JOIN feature fp ON fp.id = r.gene_id
+        JOIN feature fc ON fc.id = r.related_id
+        """
+        self._execute_sql(c2p)
+
+    def __len__(self) -> int:
+        return self.num_records()
+
+    @functools.cache
+    def _get_biotype_id(self, biotype: str) -> int:
+        sql = "INSERT OR IGNORE INTO biotype(type) VALUES (?) RETURNING id"
+        result = self.db.execute(sql, (biotype,)).fetchone()
+        return result["id"]
+
+    def _build_feature(self, kwargs) -> EnsemblGffRecord:
+        # not supporting this at present, which comes from cogent3
+        # alignment objects
+        kwargs.pop("on_alignment", None)
+        return EnsemblGffRecord(**kwargs)
+
+    def add_feature(
+        self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
+    ) -> None:
+        """updates the feature_id attribute"""
+        if feature is None:
+            feature = self._build_feature(kwargs)
+
+        id_cols = ("biotype_id", "id")
+        cols = [col for col in self._feature_schema if col not in id_cols]
+        # do conversion to numpy array after the above statement to avoid issue of
+        # having a numpy array in a conditional
+        feature.spans = numpy.array(feature.spans)
+        feature.start = feature.start or int(feature.spans.min())
+        feature.stop = feature.stop or int(feature.spans.max())
+        vals = [feature[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
+        cols += ["biotype_id"]
+        placeholders = ",".join("?" * len(cols))
+        sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders}) RETURNING id"
+        result = self.db.execute(sql, tuple(vals)).fetchone()
+        feature.feature_id = result["id"]
+
+    def add_records(
+        self,
+        *,
+        records: typing.Iterable[EnsemblGffRecord],
+        gene_relations: dict[EnsemblGffRecord, set[EnsemblGffRecord]],
+    ) -> None:
+        for record in records:
+            self.add_feature(feature=record)
+
+        # now add the relationships
+        sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?,?)"
+        for gene, children in gene_relations.items():
+            if gene.feature_id is None:
+                raise ValueError(f"gene.feature_id not defined for {gene!r}")
+
+            child_ids = [child.feature_id for child in children]
+            if None in child_ids:
+                raise ValueError(f"child.feature_id not defined for {children!r}")
+
+            comb = [tuple(c) for c in itertools.product([gene.feature_id], child_ids)]
+            self.db.executemany(sql, comb)
+
+    def num_records(self) -> int:
+        return self._execute_sql("SELECT COUNT(*) as count FROM feature").fetchone()[
+            "count"
+        ]
+
+    def _get_records_matching(
+        self, table_name: str, **kwargs
+    ) -> typing.Iterator[sqlite3.Row]:
+        """return all fields"""
+        columns = kwargs.pop("columns", None)
+        allow_partial = kwargs.pop("allow_partial", False)
+        # now
+        sql, vals = _select_records_sql(
+            table_name=table_name,
+            conditions=kwargs,
+            columns=columns,
+            allow_partial=allow_partial,
+        )
+        yield from self._execute_sql(sql, values=vals)
+
+    def get_features_matching(
+        self,
+        *,
+        seqid: OptionalStr = None,
+        biotype: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+        **kwargs,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v
+            for k, v in locals().items()
+            if k not in ("self", "kwargs") and v is not None
+        }
+        # alignment features are created by the user specific
+        columns = ("seqid", "biotype", "spans", "strand", "name")
+        query_args = {**kwargs}
+
+        for result in self._get_records_matching(
+            table_name="gff", columns=columns, **query_args
+        ):
+            result = dict(zip(columns, result))
+            result["spans"] = [tuple(c) for c in result["spans"]]
+            yield result
+
+    def get_feature_children(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="parent_to_child", columns=cols, parent_stableid=name, **kwargs
+        ):
+            result = dict(zip(cols, result))
+            result["spans"] = [tuple(c) for c in result["spans"]]
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_feature_parent(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="child_to_parent", columns=cols, child_stableid=name
+        ):
+            result = dict(zip(cols, result))
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_records_matching(
+        self,
+        *,
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v for k, v in locals().items() if k not in ("self", "allow_partial")
+        }
+        sql, vals = _select_records_sql("gff", kwargs, allow_partial=allow_partial)
+        col_names = None
+        for result in self._execute_sql(sql, values=vals):
+            if col_names is None:
+                col_names = result.keys()
+            yield {c: result[c] for c in col_names}
+
+    def biotype_counts(self) -> dict[str, int]:
+        sql = "SELECT biotype, COUNT(*) as count FROM gff GROUP BY biotype"
+        result = self._execute_sql(sql).fetchall()
+        return {r["biotype"]: r["count"] for r in result}
+
+    def subset(
+        self,
+        *,
+        source: PathType = ":memory:",
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing_extensions.Self:
+        """returns a new db instance with records matching the provided conditions"""
+        # make sure python, not numpy, integers
+        start = start if start is None else int(start)
+        stop = stop if stop is None else int(stop)
+
+        kwargs = {k: v for k, v in locals().items() if k not in {"self", "source"}}
+
+        newdb = self.__class__(source=source)
+        if not len(self):
+            return newdb
+
+        # we need to recreate the values that get passed to add_records
+        # so first identify the feature IDs that match the criteria
+        cols = None
+
+        feature_ids = {}
+        for r in self._get_records_matching(table_name="gff", **kwargs):
+            if cols is None:
+                cols = r.keys()
+            r = dict(zip(cols, r))
+            feature_id = r.pop("feature_id")
+            feature = EnsemblGffRecord(**r)
+            feature_ids[feature_id] = feature
+
+        # now build the related features by selecting the rows with matches
+        # in both columns to feature_ids
+        ids = ",".join(str(i) for i in feature_ids)
+        sql = f"""
+        SELECT gene_id, related_id FROM related_feature 
+        WHERE gene_id IN ({ids}) AND related_id IN ({ids})
+        """
+        related = collections.defaultdict(set)
+        for record in self._execute_sql(sql):
+            gene_id, related_id = record["gene_id"], record["related_id"]
+            gene = feature_ids[gene_id]
+            related[gene].add(feature_ids[related_id])
+
+        newdb.add_records(records=feature_ids.values(), gene_relations=related)
+        return newdb
+
+
+def make_gene_relationships(
+    records: typing.Sequence[EnsemblGffRecord],
+) -> dict[EnsemblGffRecord, set[EnsemblGffRecord]]:
+    """returns all feature children of genes"""
+    related = {}
+    for record in records:
+        biotype = related.get(record.biotype.lower(), {})
+        biotype[record.name] = record
+        related[record.biotype.lower()] = biotype
+
+    # reduce the related dict into gene_id by child/grandchild ID
+    genes = {}
+    for cds_record in related["cds"].values():
+        mrna_record = related["mrna"][cds_record.parent_id]
+        if mrna_record.is_canonical:
+            # we make the CDS identifiable as being canonical
+            # this token is used by is_canonical property
+            cds_record.attrs = f"Ensembl_canonical;{cds_record.attrs}"
+
+        gene = related["gene"][mrna_record.parent_id]
+        gene_relationships = genes.get(gene.stableid, set())
+        gene_relationships.update((cds_record, mrna_record))
+        genes[gene] = gene_relationships
+
+    return genes
+
+
+def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str]:
+    """returns the prefixes of the stableids"""
+    prefixes = set()
+    for record in records:
+        record.update_from_attrs()
+        try:
+            prefix = get_stableid_prefix(record.stableid)
+        except ValueError:
+            continue
+        prefixes.add(prefix)
+    return prefixes
+
+
+def make_annotation_db(
+    src_dest: tuple[pathlib.Path, pathlib.Path]
+) -> tuple[str, set[str]]:
+    """convert gff3 file into a EnsemblGffDb
 
     Parameters
     ----------
@@ -38,13 +522,19 @@ def make_annotation_db(src_dest: tuple[PathType, PathType]) -> bool:
         path to gff3 file, path to write AnnotationDb
     """
     src, dest = src_dest
+    db_name = dest.parent.name
     if dest.exists():
-        return True
+        return db_name, set()
 
-    db = load_annotations(path=src, write_path=dest)
+    db = EnsemblGffDb(source=dest)
+    records, _ = custom_gff_parser(src, 0)
+    prefixes = get_stableid_prefixes(tuple(records.keys()))
+    related = make_gene_relationships(records)
+    db.add_records(records=records.values(), gene_relations=related)
+    db.make_indexes()
     db.close()
     del db
-    return True
+    return db_name, prefixes
 
 
 def _rename(label: str) -> str:
@@ -69,21 +559,15 @@ class fasta_to_hdf5:
 
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
-            for label, seq in MinimalFastaParser(iter_splitlines(path)):
+            # for label, seq in quicka_parser(path, one_seq=False):
+            for label, seq in quicka_parser(path):
                 seqid = self.label_to_name(label)
-                seq_store.add_record(seqid=seqid, seq=seq)
+                seq_store.add_record(seq, seqid)
                 del seq
 
         seq_store.close()
 
         return True
-
-
-def _get_seqs(src: PathType) -> list[tuple[str, str]]:
-    with open_(src) as infile:
-        data = infile.read().splitlines()
-    name_seqs = list(MinimalFastaParser(data))
-    return [(_rename(name), seq) for name, seq in name_seqs]
 
 
 T = tuple[PathType, list[tuple[str, str]]]
@@ -103,7 +587,7 @@ class SeqsDataABC(ABC):
     def __hash__(self): ...
 
     @abstractmethod
-    def add_record(self, *, seqid: str, seq: str): ...
+    def add_record(self, seq: str, seqid: str): ...
 
     @abstractmethod
     def add_records(self, *, records: typing.Iterable[list[str, str]]): ...
@@ -199,7 +683,7 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
             h5_kwargs = {}
 
         try:
-            self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
+            self._file: h5py.File = h5py.File(source, mode=self.mode, **h5_kwargs)
         except OSError:
             print(source)
             raise
@@ -220,8 +704,13 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
     def __hash__(self):
         return id(self)
 
-    def add_record(self, *, seqid: str, seq: str):
+    @functools.singledispatchmethod
+    def add_record(self, seq: str, seqid: str):
         seq = self._str2arr(seq)
+        self.add_record(seq, seqid)
+
+    @add_record.register
+    def _(self, seq: numpy.ndarray, seqid: str):
         if seqid in self._file:
             stored = self._file[seqid]
             if (seq == stored).all():
@@ -229,13 +718,14 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
                 return
             # but it's different, which is a problem
             raise ValueError(f"{seqid!r} already present but with different seq")
+
         self._file.create_dataset(
             name=seqid, data=seq, chunks=True, **_HDF5_BLOSC2_KWARGS
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
         for seqid, seq in records:
-            self.add_record(seqid=seqid, seq=seq)
+            self.add_record(seq, seqid)
 
     def get_seq_str(
         self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
@@ -269,7 +759,7 @@ class Genome:
         *,
         species: str,
         seqs: SeqsDataABC,
-        annots: GffAnnotationDb,
+        annots: EnsemblGffDb,
     ) -> None:
         self.species = species
         self._seqs = seqs
@@ -282,6 +772,7 @@ class Genome:
         start: Optional[int] = None,
         stop: Optional[int] = None,
         namer: typing.Callable | None = None,
+        with_annotations: bool = True,
     ) -> str:
         """returns annotated sequence
 
@@ -299,9 +790,12 @@ class Genome:
             callback for naming the sequence. Callback must take four
             arguments: species, seqid,start, stop. Default is
             species:seqid:start-stop.
+        with_annotations
+            assign annotation_db to seq
+
         Notes
         -----
-        Annotations partially within region are included.
+        Full annotations are bound to the instance.
         """
         seq = self._seqs.get_seq_str(seqid=seqid, start=start, stop=stop)
         if namer:
@@ -312,46 +806,54 @@ class Genome:
         # parent seq identity, required for querying annotations
         seq = make_seq(seq, name=seqid, moltype="dna")
         seq.name = name
-        if self.annotation_db:
-            seq.annotation_offset = start or 0
-            seq.annotation_db = self.annotation_db.subset(
-                seqid=seqid, start=start, stop=stop, allow_partial=True
-            )
+        seq.annotation_offset = start or 0
+        seq.annotation_db = self.annotation_db if with_annotations else None
         return seq
 
     def get_features(
         self,
         *,
-        biotype: str = None,
-        seqid: str = None,
-        name: str = None,
-        start: int = None,
-        stop: int = None,
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
     ) -> typing.Iterable[Feature]:
-        """yields features in blocks of seqid"""
-        kwargs = {k: v for k, v in locals().items() if k not in ("self", "seqid") and v}
-        if seqid:
-            seqids = [seqid]
-        else:
-            seqids = {
-                ft["seqid"] for ft in self.annotation_db.get_features_matching(**kwargs)
-            }
-        for seqid in seqids:
-            try:
-                seq = self.get_seq(seqid=seqid)
-            except TypeError:
-                msg = f"ERROR (report me): {self.species!r}, {seqid!r}"
-                raise TypeError(msg)
+        for ft in self.annotation_db.get_features_matching(
+            biotype=biotype, seqid=seqid, name=name, start=start, stop=stop
+        ):
+            seqid = ft.pop("seqid")
+            ft["spans"] = numpy.array(ft["spans"])
+            start = int(ft["spans"].min())
+            stop = int(ft["spans"].max())
+            ft["spans"] = ft["spans"] - start
+            seq = self.get_seq(
+                seqid=seqid, start=start, stop=stop, with_annotations=True
+            )
             # because self.get_seq() automatically names seqs differently
             seq.name = seqid
-            yield from seq.get_features(**kwargs)
+            yield seq.make_feature(ft)
 
-    def get_ids_for_biotype(self, biotype, limit=None):
+    def get_gene_cds(self, name: str, is_canonical: bool = True):
+        for cds in self.annotation_db.get_feature_children(
+            name=name, biotype="cds", is_canonical=False
+        ):
+            seqid = cds.pop("seqid")
+            cds["spans"] = numpy.array(cds["spans"])
+            start = cds["spans"].min()
+            stop = cds["spans"].max()
+            seq = self.get_seq(seqid=seqid, start=start, stop=stop)
+            cds["spans"] = cds["spans"] - start
+            yield seq.make_feature(feature=cds)
+
+    def get_ids_for_biotype(self, biotype: str, limit: OptionalInt = None):
         annot_db = self.annotation_db
         sql = "SELECT name from gff WHERE biotype=?"
+        val = (biotype,)
         if limit:
             sql += " LIMIT ?"
-        for result in annot_db._execute_sql(sql, (biotype, limit)):
+            val = val + (limit,)
+        for result in annot_db._execute_sql(sql, val):
             yield result["name"].split(":")[-1]
 
     def close(self):
@@ -364,7 +866,7 @@ def load_genome(*, config: InstalledConfig, species: str):
     genome_path = config.installed_genome(species) / _SEQDB_NAME
     seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
     ann_path = config.installed_genome(species) / _ANNOTDB_NAME
-    ann = GffAnnotationDb(source=ann_path)
+    ann = EnsemblGffDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
 
 
@@ -373,18 +875,12 @@ def get_seqs_for_ids(
     config: InstalledConfig,
     species: str,
     names: list[str],
-    make_seq_name: typing.Callable = None,
+    make_seq_name: typing.Optional[typing.Callable] = None,
 ) -> typing.Iterable[Sequence]:
     genome = load_genome(config=config, species=species)
     # is it possible to do batch query for all names?
     for name in names:
-        feature = list(genome.get_features(name=f"%{name}"))[0]
-        transcripts = list(feature.get_children(biotype="mRNA"))
-        if not transcripts:
-            continue
-
-        longest = max(transcripts, key=lambda x: len(x))
-        cds = list(longest.get_children(biotype="CDS"))
+        cds = list(genome.get_gene_cds(name=name, is_canonical=False))
         if not cds:
             continue
 
@@ -407,22 +903,22 @@ def get_seqs_for_ids(
 
 def get_annotations_for_species(
     *, config: InstalledConfig, species: str
-) -> GffAnnotationDb:
+) -> EnsemblGffDb:
     """returns the annotation Db for species"""
     path = config.installed_genome(species=species)
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
         exit(1)
-    # TODO: this filename should be defined in one place
-    path = path / "features.gff3db"
+
+    path = path / _ANNOTDB_NAME
     if not path.exists():
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
-    return GffAnnotationDb(source=path)
+    return EnsemblGffDb(source=path)
 
 
 def get_gene_table_for_species(
-    *, annot_db: GffAnnotationDb, limit: Optional[int], species: Optional[str] = None
+    *, annot_db: EnsemblGffDb, limit: Optional[int], species: Optional[str] = None
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -460,7 +956,7 @@ def get_gene_table_for_species(
 
 
 def get_species_summary(
-    *, annot_db: GffAnnotationDb, species: Optional[str] = None
+    *, annot_db: EnsemblGffDb, species: Optional[str] = None
 ) -> Table:
     """
     returns the Table summarising data for species_name
@@ -472,8 +968,6 @@ def get_species_summary(
     species
         species name, overrides inference from annot_db.source
     """
-    from ._species import Species
-
     # for now, just biotype
     species = species or annot_db.source.parent.name
     counts = annot_db.biotype_counts()
@@ -486,4 +980,14 @@ def get_species_summary(
         header=("biotype", "count"),
         data=list(counts.items()),
         title=f"{common_name} features",
+        column_templates={"count": lambda x: f"{x:,}"},
     )
+
+
+def update_stableid_prefixes(config: InstalledConfig):
+    """updates Species with stableid prefixes discovered in install"""
+    table = load_table(config.genomes_path / _STABLEID_PREFIXES)
+    for db, prefixes in table.to_list():
+        for prefix in prefixes.split(","):
+            Species.add_stableid_prefix(db, prefix)
+    return

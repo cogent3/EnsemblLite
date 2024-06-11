@@ -1,7 +1,7 @@
 import dataclasses
 import sqlite3
 
-from ensembl_lite._util import SerialisableMixin
+from ensembl_lite._util import PathType, SerialisableMixin
 
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
@@ -35,7 +35,7 @@ def _make_table_sql(
 class SqliteDbMixin(SerialisableMixin):
     table_name = None
     _db = None
-    source = None
+    source: PathType = ":memory:"
 
     def __getstate__(self):
         return {**self._init_vals}
@@ -63,7 +63,7 @@ class SqliteDbMixin(SerialisableMixin):
 
     def _init_tables(self) -> None:
         # is source an existing db
-        self._db = sqlite3.connect(
+        self._db = self._db or sqlite3.connect(
             self.source,
             detect_types=sqlite3.PARSE_DECLTYPES,
             check_same_thread=False,
@@ -116,9 +116,11 @@ class SqliteDbMixin(SerialisableMixin):
 
     def make_indexes(self):
         """adds db indexes for core attributes"""
-        sql = f"CREATE INDEX IF NOT EXISTS %s on {self.table_name}(%s)"
-        for col in self._index_columns:
-            self._execute_sql(sql % (col, col))
+        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
+        for table_name, columns in self._index_columns.items():
+            for col in columns:
+                index = f"{col}_index"
+                self._execute_sql(sql % dict(table=table_name, index=index, col=col))
 
 
 # HDF5 base class

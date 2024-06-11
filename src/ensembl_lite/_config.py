@@ -39,12 +39,16 @@ class Config:
     host: str
     remote_path: str
     release: str
-    staging_path: PathType
-    install_path: PathType
+    staging_path: pathlib.Path
+    install_path: pathlib.Path
     species_dbs: dict[str, list[str]]
     align_names: Iterable[str]
     tree_names: Iterable[str]
     homologies: bool
+
+    def __post_init__(self):
+        self.staging_path = pathlib.Path(self.staging_path)
+        self.install_path = pathlib.Path(self.install_path)
 
     def update_species(self, species: dict[str, list[str]]):
         if not species:
@@ -60,27 +64,27 @@ class Config:
             yield Species.get_ensembl_db_prefix(species)
 
     @property
-    def staging_genomes(self):
+    def staging_genomes(self) -> pathlib.Path:
         return self.staging_path / _GENOMES_NAME
 
     @property
-    def install_genomes(self):
+    def install_genomes(self) -> pathlib.Path:
         return self.install_path / _GENOMES_NAME
 
     @property
-    def staging_homologies(self):
+    def staging_homologies(self) -> pathlib.Path:
         return self.staging_path / _COMPARA_NAME / _HOMOLOGIES_NAME
 
     @property
-    def install_homologies(self):
+    def install_homologies(self) -> pathlib.Path:
         return self.install_path / _COMPARA_NAME / _HOMOLOGIES_NAME
 
     @property
-    def staging_aligns(self):
+    def staging_aligns(self) -> pathlib.Path:
         return self.staging_path / _COMPARA_NAME / _ALIGNS_NAME
 
     @property
-    def install_aligns(self):
+    def install_aligns(self) -> pathlib.Path:
         return self.install_path / _COMPARA_NAME / _ALIGNS_NAME
 
     def to_dict(self, relative_paths: bool = True) -> dict[str, str]:
@@ -142,7 +146,7 @@ class Config:
 @dataclass
 class InstalledConfig:
     release: str
-    install_path: PathType
+    install_path: pathlib.Path
 
     def __hash__(self):
         return id(self)
@@ -151,22 +155,22 @@ class InstalledConfig:
         self.install_path = pathlib.Path(self.install_path)
 
     @property
-    def compara_path(self):
+    def compara_path(self) -> pathlib.Path:
         return self.install_path / _COMPARA_NAME
 
     @property
-    def homologies_path(self):
+    def homologies_path(self) -> pathlib.Path:
         return self.compara_path / _HOMOLOGIES_NAME
 
     @property
-    def aligns_path(self):
+    def aligns_path(self) -> pathlib.Path:
         return self.compara_path / _ALIGNS_NAME
 
     @property
-    def genomes_path(self):
+    def genomes_path(self) -> pathlib.Path:
         return self.install_path / _GENOMES_NAME
 
-    def installed_genome(self, species: str) -> PathType:
+    def installed_genome(self, species: str) -> pathlib.Path:
         db_name = Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
@@ -174,7 +178,7 @@ class InstalledConfig:
         """returns list of installed genomes"""
         return [p.name for p in self.genomes_path.glob("*") if p.name in Species]
 
-    def path_to_alignment(self, pattern: str) -> PathType | None:
+    def path_to_alignment(self, pattern: str) -> pathlib.Path | None:
         """returns the full path to alignment matching the name
 
         Parameters
