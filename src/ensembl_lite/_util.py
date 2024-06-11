@@ -286,7 +286,6 @@ def get_signature_data(path: PathType) -> Callable:
 
 def rich_display(c3t, title_justify="left"):
     """converts a cogent3 Table to a Rich Table and displays it"""
-    from cogent3.format.table import formatted_array
     from rich.console import Console
     from rich.table import Table
 
