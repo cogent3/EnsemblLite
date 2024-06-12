@@ -81,11 +81,6 @@ _download = click.option(
     type=pathlib.Path,
     help="path to local download directory, contains a cfg file",
 )
-_installation = click.option(
-    "--installation",
-    type=pathlib.Path,
-    help="path to local installation directory",
-)
 _installed = click.option(
     "-i",
     "--installed",
@@ -124,13 +119,6 @@ _verbose = click.option(
     "--verbose",
     is_flag=True,
 )
-_numprocs = click.option(
-    "-n",
-    "--numprocs",
-    type=int,
-    default=1,
-    help="number of processes to use for download",
-)
 _force = click.option(
     "-f",
     "--force_overwrite",
@@ -149,7 +137,6 @@ _dbrc_out = click.option(
     type=pathlib.Path,
     help="path to directory to export all rc contents",
 )
-_release = click.option("-r", "--release", type=int, help="Ensembl release number")
 _nprocs = click.option(
     "-np",
     "--num_procs",
