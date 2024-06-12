@@ -485,7 +485,7 @@ def homologs(
     """exports all homolog groups of type relationship in fasta format"""
     from rich.progress import Progress, track
 
-    from ensembl_lite._genomedb import load_genome, update_stableid_prefixes
+    from ensembl_lite._genomedb import load_genome
     from ensembl_lite._homologydb import (
         _HOMOLOGYDB_NAME,
         collect_seqs,
@@ -502,8 +502,7 @@ def homologs(
     outpath.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
-    # update the prefixes
-    update_stableid_prefixes(config)
+    Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
     if verbose:

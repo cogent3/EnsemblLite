@@ -3,14 +3,12 @@ from __future__ import annotations
 import shutil
 import typing
 
-from cogent3 import make_table
 from rich.progress import Progress
 
 from ensembl_lite._aligndb import AlignDb
 from ensembl_lite._config import Config
 from ensembl_lite._genomedb import (
     _ANNOTDB_NAME,
-    _STABLEID_PREFIXES,
     fasta_to_hdf5,
     make_annotation_db,
 )
@@ -22,6 +20,7 @@ from ensembl_lite._homologydb import (
     pickler,
 )
 from ensembl_lite._maf import load_align_records
+from ensembl_lite._species import SPECIES_NAME, Species
 from ensembl_lite._util import PathType, get_iterable_tasks
 
 
@@ -65,8 +64,6 @@ def local_install_genomes(
         dest_dir = config.install_genomes / db_name
         src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
 
-    species_prefixes = []
-
     msg = "Installing features 📚"
     if progress is not None:
         writing = progress.add_task(total=len(src_dest_paths), description=msg)
@@ -79,16 +76,14 @@ def local_install_genomes(
             print(f"{db_name=} {prefixes=}")
 
         if prefixes:
-            species_prefixes.append((db_name, ",".join(prefixes)))
+            for prefix in prefixes:
+                Species.add_stableid_prefix(db_name, prefix)
 
         if progress is not None:
             progress.update(writing, description=msg, advance=1)
 
-    species_prefix_table = make_table(
-        header=["species", "prefixes"], data=species_prefixes
-    )
-    species_prefix_table.write(config.install_genomes / _STABLEID_PREFIXES)
-
+    species_table = Species.to_table()
+    species_table.write(config.install_genomes / SPECIES_NAME)
     if verbose:
         print("Finished installing features ")
 
