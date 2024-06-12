@@ -62,9 +62,12 @@ class homolog_group:
 
     relationship: str
     gene_ids: typing.Optional[set[str, ...]] = None
+    source: str | None = None
 
     def __post_init__(self):
         self.gene_ids = self.gene_ids if self.gene_ids else set()
+        if self.source is None:
+            self.source = next(iter(self.gene_ids), None)
 
     def __hash__(self):
         # allow hashing, but bearing in mind we are updating
@@ -76,16 +79,17 @@ class homolog_group:
             self.relationship == other.relationship and self.gene_ids == other.gene_ids
         )
 
-    def __getstate__(self) -> tuple[str, set[str]]:
-        return self.relationship, self.gene_ids
+    def __getstate__(self) -> tuple[str, set[str] | None, str | None]:
+        return self.relationship, self.gene_ids, self.source
 
-    def __setstate__(self, state):
-        relationship, gene_ids = state
+    def __setstate__(self, state: tuple[str, set[str] | None, str | None]):
+        relationship, gene_ids, source = state
         self.relationship = relationship
         self.gene_ids = gene_ids
+        self.source = source
 
     def __len__(self):
-        return len(self.gene_ids)
+        return len(self.gene_ids or ())
 
     def __or__(self, other):
         if other.relationship != self.relationship:
@@ -335,7 +339,9 @@ class HomologyDb(SqliteDbMixin):
         """
         result = self._execute_sql(sql, (homology_id,)).fetchone()
         return homolog_group(
-            relationship=relationship_type, gene_ids=set(result["gene_ids"].split(","))
+            relationship=relationship_type,
+            gene_ids=set(result["gene_ids"].split(",")),
+            source=gene_id,
         )
 
     def get_related_groups(

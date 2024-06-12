@@ -81,11 +81,6 @@ _download = click.option(
     type=pathlib.Path,
     help="path to local download directory, contains a cfg file",
 )
-_installation = click.option(
-    "--installation",
-    type=pathlib.Path,
-    help="path to local installation directory",
-)
 _installed = click.option(
     "-i",
     "--installed",
@@ -124,13 +119,6 @@ _verbose = click.option(
     "--verbose",
     is_flag=True,
 )
-_numprocs = click.option(
-    "-n",
-    "--numprocs",
-    type=int,
-    default=1,
-    help="number of processes to use for download",
-)
 _force = click.option(
     "-f",
     "--force_overwrite",
@@ -149,7 +137,6 @@ _dbrc_out = click.option(
     type=pathlib.Path,
     help="path to directory to export all rc contents",
 )
-_release = click.option("-r", "--release", type=int, help="Ensembl release number")
 _nprocs = click.option(
     "-np",
     "--num_procs",
@@ -496,9 +483,9 @@ def homologs(
     installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
     """exports all homolog groups of type relationship in fasta format"""
-    from rich.progress import Progress, track
+    from rich.progress import Progress
 
-    from ensembl_lite._genomedb import load_genome, update_stableid_prefixes
+    from ensembl_lite._genomedb import load_genome
     from ensembl_lite._homologydb import (
         _HOMOLOGYDB_NAME,
         collect_seqs,
@@ -515,8 +502,7 @@ def homologs(
     outpath.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
-    # update the prefixes
-    update_stableid_prefixes(config)
+    Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
     if verbose:
@@ -526,12 +512,17 @@ def homologs(
         print(f"found {len(gene_ids)} gene IDs for {ref}")
     db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
     related = []
-    for gid in track(gene_ids, description="Homolog search"):
-        if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):
-            related.append(rel)
+    with Progress(transient=False) as progress:
+        searching = progress.add_task(
+            total=limit or len(gene_ids), description="Homolog search"
+        )
+        for gid in gene_ids:
+            if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):
+                related.append(rel)
+                progress.update(searching, advance=1)
 
-        if limit and len(related) >= limit:
-            break
+            if limit and len(related) >= limit:
+                break
 
     if verbose:
         print(f"Found {len(related)} homolog groups")
@@ -540,13 +531,11 @@ def homologs(
     get_seqs = collect_seqs(config=config)
     with Progress(transient=False) as progress:
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
-        for i, seqs in enumerate(
-            get_seqs.as_completed(
-                related,
-                parallel=True,
-                show_progress=False,
-                par_kw=dict(max_workers=num_procs),
-            )
+        for seqs in get_seqs.as_completed(
+            related,
+            parallel=True,
+            show_progress=False,
+            par_kw=dict(max_workers=num_procs),
         ):
             progress.update(reading, advance=1)
             if not seqs:
@@ -561,9 +550,8 @@ def homologs(
             # todo also need to be writing out a logfile, plus a meta data table of
             #  gene IDs and location info
             txt = [seq.to_fasta() for seq in seqs.obj.seqs]
-            outname = outpath / f"seqcoll-{i}.fasta"
-            with outname.open(mode="w") as outfile:
-                outfile.write("".join(txt))
+            outname = outpath / f"{seqs.source.source}.fasta"
+            outname.write_text("".join(txt))
 
 
 @main.command(no_args_is_help=True)

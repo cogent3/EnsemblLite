@@ -423,3 +423,30 @@ def get_iterable_tasks(
         return map(func, series)
     else:
         return as_completed(func, series, max_workers=max_workers, **kwargs)
+
+
+# From http://mart.ensembl.org/info/genome/stable_ids/prefixes.html
+# The Ensembl stable id structure is
+# [species prefix][feature type prefix][a unique eleven digit number]
+# feature type prefixes are
+# E exon
+# FM Ensembl protein family
+# G gene
+# GT gene tree
+# P protein
+# R regulatory feature
+# T transcript
+_feature_type_1 = {"E", "G", "P", "R", "T"}
+_feature_type_2 = {"FM", "GT"}
+
+
+def get_stableid_prefix(stableid: str) -> str:
+    """returns the prefix component of a stableid"""
+    if len(stableid) < 15:
+        raise ValueError(f"{stableid!r} too short")
+
+    if stableid[-13:-11] in _feature_type_2:
+        return stableid[:-13]
+    if stableid[-12] not in _feature_type_1:
+        raise ValueError(f"{stableid!r} has unknown feature type {stableid[-13]!r}")
+    return stableid[:-12]

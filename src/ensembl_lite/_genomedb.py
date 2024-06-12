@@ -15,7 +15,7 @@ import h5py
 import numpy
 import typing_extensions
 
-from cogent3 import get_moltype, load_table, make_seq, make_table
+from cogent3 import get_moltype, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import (
@@ -33,13 +33,16 @@ from numpy.typing import NDArray
 from ensembl_lite._config import Config, InstalledConfig
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._faster_fasta import quicka_parser
-from ensembl_lite._species import Species, get_stableid_prefix
-from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
+from ensembl_lite._species import Species
+from ensembl_lite._util import (
+    _HDF5_BLOSC2_KWARGS,
+    PathType,
+    get_stableid_prefix,
+)
 
 
 _SEQDB_NAME = "genome_sequence.hdf5_blosc2"
 _ANNOTDB_NAME = "features.ensembl_gff3db"
-_STABLEID_PREFIXES = "species_stableid_prefixes.tsv"
 
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE
@@ -836,7 +839,7 @@ class Genome:
 
     def get_gene_cds(self, name: str, is_canonical: bool = True):
         for cds in self.annotation_db.get_feature_children(
-            name=name, biotype="cds", is_canonical=False
+            name=name, biotype="cds", is_canonical=is_canonical
         ):
             seqid = cds.pop("seqid")
             cds["spans"] = numpy.array(cds["spans"])
@@ -974,12 +977,3 @@ def get_species_summary(
         title=f"{common_name} features",
         column_templates={"count": lambda x: f"{x:,}"},
     )
-
-
-def update_stableid_prefixes(config: InstalledConfig):
-    """updates Species with stableid prefixes discovered in install"""
-    table = load_table(config.genomes_path / _STABLEID_PREFIXES)
-    for db, prefixes in table.to_list():
-        for prefix in prefixes.split(","):
-            Species.add_stableid_prefix(db, prefix)
-    return

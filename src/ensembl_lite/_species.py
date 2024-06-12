@@ -1,46 +1,22 @@
 from __future__ import annotations
 
 import os
-import re
+import pathlib
 import typing
 
 from cogent3 import load_table
 from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
-from ._util import ENSEMBLDBRC, CaseInsensitiveString, get_resource_path
+from ._util import (
+    ENSEMBLDBRC,
+    CaseInsensitiveString,
+    get_resource_path,
+    get_stableid_prefix,
+)
 
 
-_invalid_chars = re.compile("[^a-zA-Z _]")
-
-
-# From http://mart.ensembl.org/info/genome/stable_ids/prefixes.html
-# The Ensembl stable id structure is
-# [species prefix][feature type prefix][a unique eleven digit number]
-# feature type prefixes are
-# E exon
-# FM Ensembl protein family
-# G gene
-# GT gene tree
-# P protein
-# R regulatory feature
-# T transcript
-_feature_type_1 = {"E", "G", "P", "R", "T"}
-_feature_type_2 = {"FM", "GT"}
-
-
-def get_stableid_prefix(stableid: str) -> str:
-    """returns the prefix component of a stableid"""
-    if len(stableid) < 15:
-        raise ValueError(f"{stableid!r} too short")
-
-    if stableid[-13:-11] in _feature_type_2:
-        return stableid[:-13]
-    if stableid[-12] not in _feature_type_1:
-        raise ValueError(f"{stableid!r} has unknown feature type {stableid[-13]!r}")
-    return stableid[:-12]
-
-
+SPECIES_NAME = "species.tsv"
 StrOrNone = typing.Union[str, type(None)]
 
 
@@ -184,7 +160,8 @@ class SpeciesNameMap:
         self._ensembl_species[ensembl_name] = species_name
         if stableid_prefix:
             # make sure stableid just a string
-            self._stableid_species[str(stableid_prefix)] = species_name
+            for prefix in stableid_prefix.split(","):
+                self._stableid_species[prefix] = species_name
 
     def add_stableid_prefix(
         self, species_name: str, stableid_prefix: str | CaseInsensitiveString
@@ -199,17 +176,29 @@ class SpeciesNameMap:
         for common in self._common_species:
             species = self._common_species[common]
             ensembl = self._species_ensembl[species]
-
-            rows += [[species, common, ensembl]]
+            # all prefixes for this species
+            stableids = ",".join(
+                [k for k, v in self._stableid_species.items() if v == ensembl]
+            )
+            rows += [[species, common, ensembl, stableids]]
         return Table(
             [
                 "Species name",
                 "Common name",
                 "Ensembl Db Prefix",
+                "Ensembl stableid Prefix",
             ],
             data=rows,
             space=2,
         ).sorted()
+
+    def update_from_file(self, species_path: pathlib.Path) -> None:
+        """updates instance from tab delimited table at species_path"""
+        table = load_table(species_path)
+        columns = "Ensembl Db Prefix", "Ensembl stableid Prefix"
+        for db_name, prefixes in table.to_list(columns=columns):
+            for prefix in prefixes.split(","):
+                self._stableid_species[prefix] = db_name
 
 
 Species = SpeciesNameMap()
