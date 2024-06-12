@@ -15,7 +15,7 @@ import h5py
 import numpy
 import typing_extensions
 
-from cogent3 import get_moltype, load_table, make_seq, make_table
+from cogent3 import get_moltype, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import (

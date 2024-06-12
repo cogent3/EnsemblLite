@@ -483,7 +483,7 @@ def homologs(
     installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
     """exports all homolog groups of type relationship in fasta format"""
-    from rich.progress import Progress, track
+    from rich.progress import Progress
 
     from ensembl_lite._genomedb import load_genome
     from ensembl_lite._homologydb import (
