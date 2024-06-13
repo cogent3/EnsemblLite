@@ -506,10 +506,10 @@ def homologs(
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
     if verbose:
-        print(f"loaded genome for {ref}")
+        print(f"Loaded genome for {ref!r}")
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
     if verbose:
-        print(f"found {len(gene_ids)} gene IDs for {ref}")
+        print(f"Found {len(gene_ids):,} gene IDs for {ref!r}")
     db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
     related = []
     with Progress(transient=False) as progress:

@@ -156,7 +156,7 @@ def local_install_alignments(
         db.close()
 
     if verbose:
-        print("Finished installing homologies")
+        print("Finished installing alignments")
 
     return
 

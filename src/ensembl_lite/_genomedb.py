@@ -562,7 +562,6 @@ class fasta_to_hdf5:
 
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
-            # for label, seq in quicka_parser(path, one_seq=False):
             for label, seq in quicka_parser(path):
                 seqid = self.label_to_name(label)
                 seq_store.add_record(seq, seqid)

@@ -237,7 +237,7 @@ class HomologyDb(SqliteDbMixin):
         "member": ("gene_id", "homology_id"),
     }
 
-    def __init__(self, source=":memory:"):
+    def __init__(self, source: PathType = ":memory:"):
         self.source = source
         self._relationship_types = {}
         self._init_tables()
