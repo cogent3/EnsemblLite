@@ -13,6 +13,7 @@ from ensembl_lite._genomedb import (
     make_annotation_db,
 )
 from ensembl_lite._homologydb import (
+    _HOMOLOGYDB_NAME,
     HomologyDb,
     compressor,
     inflate,
@@ -173,7 +174,7 @@ def local_install_homology(
 
     config.install_homologies.mkdir(parents=True, exist_ok=True)
 
-    outpath = config.install_homologies / "homologies.sqlitedb"
+    outpath = config.install_homologies / _HOMOLOGYDB_NAME
     db = HomologyDb(source=outpath)
 
     dirnames = []
