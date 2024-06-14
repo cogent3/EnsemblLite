@@ -1,3 +1,4 @@
+import contextlib
 import dataclasses
 import sqlite3
 
@@ -146,10 +147,12 @@ class Hdf5Mixin(SerialisableMixin):
         obj._file = None
 
     def __del__(self):
-        if self._is_open and self._file is not None:
+        with contextlib.suppress(ValueError, AttributeError):
             self._file.flush()
-        if self._file is not None:
+
+        with contextlib.suppress(AttributeError):
             self._file.close()
+
         self._is_open = False
 
     def close(self):
