@@ -311,7 +311,7 @@ class HomologyDb(SqliteDbMixin):
     def _make_relationship_type_id(self, rel_type: str) -> int:
         """returns the relationship.id value for relationship_type"""
         if rel_type not in self._relationship_types:
-            sql = f"INSERT INTO relationship(homology_type) VALUES (?) RETURNING rowid"
+            sql = "INSERT INTO relationship(homology_type) VALUES (?) RETURNING rowid"
             result = self.db.execute(sql, (rel_type,)).fetchone()[0]
             self._relationship_types[rel_type] = result
         return self._relationship_types[rel_type]
