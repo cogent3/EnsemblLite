@@ -518,7 +518,7 @@ class collect_seqs:
                 cds = list(genome.get_gene_cds(name=name, is_canonical=True))
                 if not cds:
                     if self._verbose:
-                        print(f"no cds for {name}")
+                        print(f"no cds for {name=} {type(name)=}")
                     continue
 
                 feature = cds[0]
