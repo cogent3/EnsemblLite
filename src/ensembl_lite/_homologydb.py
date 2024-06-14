@@ -10,8 +10,8 @@ from cogent3.app.composable import LOADER, NotCompleted, define_app
 from cogent3.app.io import compress, decompress, pickle_it, unpickle_it
 from cogent3.app.typing import (
     IdentifierType,
+    SeqsCollectionType,
     SerialisableType,
-    UnalignedSeqsType,
 )
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import PathType, iter_splitlines
@@ -503,7 +503,7 @@ class collect_seqs:
         self._namer = make_seq_name
         self._verbose = verbose
 
-    def main(self, homologs: homolog_group) -> UnalignedSeqsType:
+    def main(self, homologs: homolog_group) -> SeqsCollectionType:
         namer = self._namer
         seqs = []
         for species, sp_genes in homologs.species_ids().items():
