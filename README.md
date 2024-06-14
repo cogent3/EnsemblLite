@@ -72,7 +72,7 @@ Usage: elt exportrc [OPTIONS]
   contents to override the default ensembl_lite settings
 
 Options:
-  -o, --outpath PATH  path to directory to export all rc contents
+  -o, --outpath PATH  Path to directory to export all rc contents.
   --help              Show this message and exit.
 
 ```

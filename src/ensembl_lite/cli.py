@@ -81,21 +81,21 @@ _cfgpath = click.option(
     "--configpath",
     default=elt_download._cfg,
     type=pathlib.Path,
-    help="path to config file specifying databases, only "
-    "species or compara at present",
+    help="Path to config file specifying databases, only "
+    "species or compara at present.",
 )
 _download = click.option(
     "-d",
     "--download",
     type=pathlib.Path,
-    help="path to local download directory, contains a cfg file",
+    help="Path to local download directory, contains a cfg file.",
 )
 _installed = click.option(
     "-i",
     "--installed",
     required=True,
     callback=_get_installed_config_path,
-    help="string pointing to installation",
+    help="Path to root directory of an installation.",
 )
 _outpath = click.option(
     "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
@@ -106,14 +106,14 @@ _outdir = click.option(
 _align_name = click.option(
     "--align_name",
     default=None,
-    help="Ensembl name of the alignment or a glob pattern, e.g. '*primates*'",
+    help="Ensembl name of the alignment or a glob pattern, e.g. '*primates*'.",
 )
 _ref = click.option("--ref", default=None, help="Reference species.")
 _ref_genes_file = click.option(
     "--ref_genes_file",
     default=None,
     type=click.Path(resolve_path=True, exists=True),
-    help=".csv or .tsv file with a header containing a stableid column",
+    help=".csv or .tsv file with a header containing a stableid column.",
 )
 _limit = click.option(
     "--limit",
@@ -122,7 +122,6 @@ _limit = click.option(
     help="Limit to this number of genes.",
     show_default=True,
 )
-
 _verbose = click.option(
     "-v",
     "--verbose",
@@ -132,29 +131,28 @@ _force = click.option(
     "-f",
     "--force_overwrite",
     is_flag=True,
-    help="drop existing database if it exists prior to " "installing",
+    help="Overwrite existing data.",
 )
 _debug = click.option(
     "-d",
     "--debug",
     is_flag=True,
-    help="maximum verbosity, and reduces number of downloads",
+    help="Maximum verbosity, and reduces number of downloads, etc...",
 )
 _dbrc_out = click.option(
     "-o",
     "--outpath",
     type=pathlib.Path,
-    help="path to directory to export all rc contents",
+    help="Path to directory to export all rc contents.",
 )
 _nprocs = click.option(
     "-np",
     "--num_procs",
     type=int,
     default=1,
-    help="number of procs to use, defaults to 1",
+    help="Number of procs to use, defaults to 1.",
+    show_default=True,
 )
-
-
 _outdir = click.option(
     "--outdir",
     type=pathlib.Path,
@@ -162,18 +160,16 @@ _outdir = click.option(
     help="Output directory name.",
     show_default=True,
 )
-
 _species = click.option(
     "--species",
     required=True,
     callback=_species_names_from_csv,
     help="Single species name, or multiple (comma separated).",
 )
-
 _mask_features = click.option(
     "--mask_features",
     callback=_values_from_csv,
-    help="biotypes to mask (comma separated).",
+    help="Biotypes to mask (comma separated).",
 )
 
 
@@ -181,7 +177,7 @@ _mask_features = click.option(
 @click.group()
 @click.version_option(__version__)
 def main():
-    """tools for obtaining and interrogating subsets of https://ensembl.org genomic data"""
+    """Tools for obtaining and interrogating subsets of https://ensembl.org genomic data."""
     pass
 
 
