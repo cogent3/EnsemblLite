@@ -139,6 +139,10 @@ def custom_gff_parser(
         reduced[record].start = min(reduced[record].start, record.start)
         reduced[record].stop = max(reduced[record].stop, record.stop)
 
+    # make sure feature location data is sorted
+    for record in reduced.values():
+        record.spans = sorted([sorted(span) for span in record.spans])
+
     return reduced, num_fake_ids
 
 
@@ -562,7 +566,6 @@ class fasta_to_hdf5:
 
         src_dir = src_dir / "fasta"
         for path in src_dir.glob("*.fa.gz"):
-            # for label, seq in quicka_parser(path, one_seq=False):
             for label, seq in quicka_parser(path):
                 seqid = self.label_to_name(label)
                 seq_store.add_record(seq, seqid)
@@ -847,7 +850,10 @@ class Genome:
             stop = cds["spans"].max()
             seq = self.get_seq(seqid=seqid, start=start, stop=stop)
             cds["spans"] = cds["spans"] - start
-            yield seq.make_feature(feature=cds)
+            try:
+                yield seq.make_feature(feature=cds)
+            except ValueError:
+                raise ValueError(f"invalid location data for {cds!r}")
 
     def get_ids_for_biotype(self, biotype: str, limit: OptionalInt = None):
         annot_db = self.annotation_db

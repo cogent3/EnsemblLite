@@ -3,6 +3,9 @@ import shutil
 
 import click
 
+from cogent3 import open_data_store
+from scitrack import CachingLogger
+
 
 try:
     from wakepy.keep import running as keep_running
@@ -14,6 +17,12 @@ from trogon import tui
 from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
+from ensembl_lite._genomedb import load_genome
+from ensembl_lite._homologydb import (
+    _HOMOLOGYDB_NAME,
+    collect_seqs,
+    load_homology_db,
+)
 from ensembl_lite._species import Species
 from ensembl_lite._util import PathType
 
@@ -483,14 +492,10 @@ def homologs(
     installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
     """exports all homolog groups of type relationship in fasta format"""
-    from rich.progress import Progress
+    from rich import progress
 
-    from ensembl_lite._genomedb import load_genome
-    from ensembl_lite._homologydb import (
-        _HOMOLOGYDB_NAME,
-        collect_seqs,
-        load_homology_db,
-    )
+    LOGGER = CachingLogger()
+    LOGGER.log_args()
 
     if ref is None:
         click.secho("ERROR: a reference species name is required, use --ref", fg="red")
@@ -501,18 +506,26 @@ def homologs(
 
     outpath.mkdir(parents=True, exist_ok=True)
 
+    LOGGER.log_file_path = outpath / f"homologs-{ref}-{relationship}.log"
+
     config = elt_config.read_installed_cfg(installed)
     Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
     genome = load_genome(config=config, species=ref)
     if verbose:
-        print(f"loaded genome for {ref}")
+        print(f"Loaded genome for {ref!r}")
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
     if verbose:
-        print(f"found {len(gene_ids)} gene IDs for {ref}")
+        print(f"Found {len(gene_ids):,} gene IDs for {ref!r}")
     db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
     related = []
-    with Progress(transient=False) as progress:
+    with progress.Progress(
+        progress.TextColumn("[progress.description]{task.description}"),
+        progress.BarColumn(),
+        progress.TaskProgressColumn(),
+        progress.TimeRemainingColumn(),
+        progress.TimeElapsedColumn(),
+    ) as progress:
         searching = progress.add_task(
             total=limit or len(gene_ids), description="Homolog search"
         )
@@ -524,12 +537,12 @@ def homologs(
             if limit and len(related) >= limit:
                 break
 
-    if verbose:
-        print(f"Found {len(related)} homolog groups")
-    # todo create a directory data store writer and write all output to
-    #  that. This requires homolog_group has a .source attribute
-    get_seqs = collect_seqs(config=config)
-    with Progress(transient=False) as progress:
+        if verbose:
+            print(f"Found {len(related)} homolog groups")
+
+        get_seqs = collect_seqs(config=config)
+        out_dstore = open_data_store(base_path=outpath, suffix="fa", mode="w")
+
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
         for seqs in get_seqs.as_completed(
             related,
@@ -541,17 +554,22 @@ def homologs(
             if not seqs:
                 if verbose:
                     print(f"{seqs=}")
+                out_dstore.write_not_completed(
+                    data=seqs.obj.to_json(), unique_id=seqs.source.source
+                )
                 continue
             if not seqs.obj.seqs:
                 if verbose:
                     print(f"{seqs.obj.seqs=}")
                 continue
 
-            # todo also need to be writing out a logfile, plus a meta data table of
-            #  gene IDs and location info
-            txt = [seq.to_fasta() for seq in seqs.obj.seqs]
-            outname = outpath / f"{seqs.source.source}.fasta"
-            outname.write_text("".join(txt))
+            txt = seqs.obj.to_fasta()
+            out_dstore.write(data=txt, unique_id=seqs.source.source)
+
+    log_file_path = pathlib.Path(LOGGER.log_file_path)
+    LOGGER.shutdown()
+    out_dstore.write_log(unique_id=log_file_path.name, data=log_file_path.read_text())
+    log_file_path.unlink()
 
 
 @main.command(no_args_is_help=True)

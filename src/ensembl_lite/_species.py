@@ -161,7 +161,7 @@ class SpeciesNameMap:
         if stableid_prefix:
             # make sure stableid just a string
             for prefix in stableid_prefix.split(","):
-                self._stableid_species[prefix] = species_name
+                self._stableid_species[prefix] = ensembl_name
 
     def add_stableid_prefix(
         self, species_name: str, stableid_prefix: str | CaseInsensitiveString
@@ -180,12 +180,11 @@ class SpeciesNameMap:
             stableids = ",".join(
                 [k for k, v in self._stableid_species.items() if v == ensembl]
             )
-            rows += [[species, common, ensembl, stableids]]
+            rows += [[species, common, stableids]]
         return Table(
             [
                 "Species name",
                 "Common name",
-                "Ensembl Db Prefix",
                 "Ensembl stableid Prefix",
             ],
             data=rows,
@@ -195,8 +194,9 @@ class SpeciesNameMap:
     def update_from_file(self, species_path: pathlib.Path) -> None:
         """updates instance from tab delimited table at species_path"""
         table = load_table(species_path)
-        columns = "Ensembl Db Prefix", "Ensembl stableid Prefix"
-        for db_name, prefixes in table.to_list(columns=columns):
+        columns = "Species name", "Ensembl stableid Prefix"
+        for sp, prefixes in table.to_list(columns=columns):
+            db_name = self.get_ensembl_db_prefix(sp)
             for prefix in prefixes.split(","):
                 self._stableid_species[prefix] = db_name
 

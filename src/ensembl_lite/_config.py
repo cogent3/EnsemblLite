@@ -215,6 +215,7 @@ def write_installed_cfg(config: Config) -> PathType:
 
 def read_installed_cfg(path: PathType) -> InstalledConfig:
     """reads an ini file under config.installed_path"""
+    path = pathlib.Path(path).expanduser()
     parser = configparser.ConfigParser()
     path = (
         path if path.name == INSTALLED_CONFIG_NAME else (path / INSTALLED_CONFIG_NAME)
@@ -228,7 +229,7 @@ def read_installed_cfg(path: PathType) -> InstalledConfig:
     return InstalledConfig(release=release, install_path=path.parent)
 
 
-def _standardise_path(path: str, config_path: pathlib.Path) -> pathlib.Path:
+def _standardise_path(path: PathType, config_path: pathlib.Path) -> pathlib.Path:
     path = pathlib.Path(path).expanduser()
     return path if path.is_absolute() else (config_path / path).resolve()
 

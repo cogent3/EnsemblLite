@@ -77,7 +77,7 @@ class TestSpeciesNamemaps(TestCase):
         table = Species.to_table()
         self.assertIsInstance(table, Table)
         self.assertTrue(table.shape[0] > 20)
-        self.assertEqual(table.shape[1], 4)
+        self.assertEqual(table.shape[1], 3)
 
 
 @pytest.mark.parametrize(

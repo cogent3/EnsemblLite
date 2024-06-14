@@ -2,15 +2,16 @@ import pytest
 
 from cogent3 import load_table
 
+from ensembl_lite import _install as install
 from ensembl_lite._homologydb import (
     _HOMOLOGYDB_NAME,
     HomologyDb,
     grouped_related,
     homolog_group,
+    load_homologies,
     merge_grouped,
     species_genes,
 )
-from ensembl_lite._install import load_homologies
 
 
 def _make_expected_o2o(table):
@@ -41,7 +42,7 @@ def o2o_db(DATA_DIR, tmp_dir):
         "chlorocebus_sabaeus",
         "pan_paniscus",
     }
-    loader = load_homologies(species)
+    loader = install.load_homologies(species)
 
     table = load_table(raw).get_columns(loader.src_cols)
 
@@ -69,21 +70,21 @@ def test_hdb(o2o_db, gene_id):
     expect = _make_expected_o2o(table)
 
     got = homdb.get_related_to(gene_id=gene_id, relationship_type="ortholog_one2one")
-    assert got.gene_ids == expect[gene_id]
+    assert got.gene_ids.keys() == expect[gene_id]
 
 
 @pytest.fixture
 def orth_records():
     return [
-        ("ortholog_one2one", "1", "2"),  # grp 1
-        ("ortholog_one2one", "2", "3"),  # grp 1
-        ("ortholog_one2one", "4", "5"),
+        ("ortholog_one2one", {"1": "sp1", "2": "sp2"}),  # grp 1
+        ("ortholog_one2one", {"2": "sp2", "3": "sp3"}),  # grp 1
+        ("ortholog_one2one", {"4": "sp1", "5": "sp3"}),
     ]
 
 
 @pytest.fixture
 def hom_records(orth_records):
-    return orth_records + [("ortholog_one2many", "6", "7")]
+    return orth_records + [("ortholog_one2many", {"6": "sp2", "7": "sp3"})]
 
 
 def test_hdb_get_related_groups(o2o_db):
@@ -111,10 +112,17 @@ def test_group_related(hom_records):
         reverse=True,
     )
     expect = [
-        homolog_group(relationship="ortholog_one2one", gene_ids=set("123")),
         homolog_group(
             relationship="ortholog_one2one",
-            gene_ids=set("45"),
+            gene_ids={
+                "1": "sp1",
+                "2": "sp2",
+                "3": "sp3",
+            },
+        ),
+        homolog_group(
+            relationship="ortholog_one2one",
+            gene_ids={"4": "sp1", "5": "sp3"},
         ),
     ]
     assert got == expect
@@ -130,9 +138,19 @@ def test_homology_db(hom_hdb):
     expect = [
         homolog_group(
             relationship="ortholog_one2one",
-            gene_ids={"1", "2", "3"},
+            gene_ids={
+                "1": "sp1",
+                "2": "sp2",
+                "3": "sp3",
+            },
         ),
-        homolog_group(relationship="ortholog_one2one", gene_ids={"4", "5"}),
+        homolog_group(
+            relationship="ortholog_one2one",
+            gene_ids={
+                "4": "sp1",
+                "5": "sp3",
+            },
+        ),
     ]
     assert got == expect
 
@@ -183,16 +201,36 @@ def test_species_genes_pickle_roundtrip(sp, geneids):
 def test_homolog_group_pickle_roundtrip():
     import pickle  # nosec B403
 
-    orig = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
+    orig = homolog_group(
+        relationship="one2one",
+        gene_ids={
+            "1": "sp1",
+            "2": "sp2",
+            "3": "sp3",
+        },
+    )
     got = pickle.loads(pickle.dumps(orig))  # nosec B301
     assert got == orig
 
 
 def test_homolog_group_union():
-    a = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
-    b = homolog_group(relationship="one2one", gene_ids={"3", "4"})
+    a = homolog_group(
+        relationship="one2one",
+        gene_ids={
+            "1": "sp1",
+            "2": "sp2",
+            "3": "sp3",
+        },
+    )
+    b = homolog_group(
+        relationship="one2one",
+        gene_ids={
+            "3": "sp3",
+            "4": "sp1",
+        },
+    )
     c = a | b
-    assert c.gene_ids == {"1", "2", "3", "4"}
+    assert c.gene_ids == {"1": "sp1", "2": "sp2", "3": "sp3", "4": "sp1"}
 
 
 def test_homolog_group_union_invalid():
@@ -203,9 +241,30 @@ def test_homolog_group_union_invalid():
 
 
 def test_merge_grouped():
-    a1 = homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
-    a2 = homolog_group(relationship="one2many", gene_ids={"3", "5", "6"})
-    c = homolog_group(relationship="one2one", gene_ids={"3", "2", "4"})
+    a1 = homolog_group(
+        relationship="one2one",
+        gene_ids={
+            "1": "sp1",
+            "2": "sp2",
+            "3": "sp3",
+        },
+    )
+    a2 = homolog_group(
+        relationship="one2many",
+        gene_ids={
+            "3": "sp3",
+            "5": "sp1",
+            "6": "sp1",
+        },
+    )
+    c = homolog_group(
+        relationship="one2one",
+        gene_ids={
+            "3": "sp3",
+            "2": "sp2",
+            "4": "sp4",
+        },
+    )
     got = merge_grouped({"one2one": (a1,), "one2many": (a2,)}, {"one2one": (c,)})
     expect = {"one2one": (a1 | c,), "one2many": (a2,)}
     assert got == expect
@@ -214,8 +273,22 @@ def test_merge_grouped():
 def test_homdb_add_invalid_record():
     hom_db = HomologyDb()
     records = (
-        homolog_group(relationship="one2one", gene_ids={"1", "2", "3"}),
-        homolog_group(relationship="one2many", gene_ids={"3", "5", "6"}),
+        homolog_group(
+            relationship="one2one",
+            gene_ids={
+                "1": "sp1",
+                "2": "sp2",
+                "3": "sp3",
+            },
+        ),
+        homolog_group(
+            relationship="one2many",
+            gene_ids={
+                "3": "sp3",
+                "5": "sp4",
+                "6": "sp4",
+            },
+        ),
     )
 
     with pytest.raises(ValueError):
@@ -242,7 +315,29 @@ def test_homology_db_update(orth_records):
     hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
     grouped = grouped_related([rec_2])
     hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
+    got = list(hom_db.db.execute("SELECT rowid,relationship_id FROM homology"))
+    assert len(got) == 2
     got = hom_db.get_related_groups(relationship_type=rel_type)
     assert len(got) == 2
-    expect = {frozenset(["4", "5"]), frozenset(["1", "2", "3"])}
-    assert {frozenset(m.gene_ids) for m in got} == expect
+    expect = {"4": "sp1", "5": "sp3"}, {"1": "sp1", "2": "sp2", "3": "sp3"}
+    assert {frozenset(m.gene_ids.items()) for m in got} == {
+        frozenset(m.items()) for m in expect
+    }
+
+
+def test_load_homologies(DATA_DIR):
+    species = {
+        "gorilla_gorilla",
+        "macaca_mulatta",
+        "microcebus_murinus",
+        "homo_sapiens",
+        "pongo_abelii",
+        "pan_troglodytes",
+        "macaca_fascicularis",
+        "chlorocebus_sabaeus",
+        "pan_paniscus",
+    }
+
+    loader = load_homologies(species)
+    got = loader(DATA_DIR / "one2one_homologies.tsv")  # pylint: disable=not-callable
+    assert len(got["ortholog_one2one"]) == 5
