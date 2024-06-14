@@ -339,5 +339,5 @@ def test_load_homologies(DATA_DIR):
     }
 
     loader = load_homologies(species)
-    got = loader(DATA_DIR / "one2one_homologies.tsv")
+    got = loader(DATA_DIR / "one2one_homologies.tsv")  # pylint: disable=not-callable
     assert len(got["ortholog_one2one"]) == 5
