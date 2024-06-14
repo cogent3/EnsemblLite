@@ -19,7 +19,6 @@ from cogent3.util.io import PathType, iter_splitlines
 from ensembl_lite._config import InstalledConfig
 from ensembl_lite._db_base import SqliteDbMixin
 from ensembl_lite._genomedb import load_genome
-from ensembl_lite._species import Species
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"
@@ -61,11 +60,12 @@ class homolog_group:
     """has species_genes instances belonging to the same ortholog group"""
 
     relationship: str
-    gene_ids: typing.Optional[set[str, ...]] = None
+    # gene id -> species
+    gene_ids: typing.Optional[dict[str, str]] = None
     source: str | None = None
 
     def __post_init__(self):
-        self.gene_ids = self.gene_ids if self.gene_ids else set()
+        self.gene_ids = self.gene_ids if self.gene_ids else {}
         if self.source is None:
             self.source = next(iter(self.gene_ids), None)
 
@@ -79,10 +79,10 @@ class homolog_group:
             self.relationship == other.relationship and self.gene_ids == other.gene_ids
         )
 
-    def __getstate__(self) -> tuple[str, set[str] | None, str | None]:
+    def __getstate__(self) -> tuple[str, dict[str, str] | None, str | None]:
         return self.relationship, self.gene_ids, self.source
 
-    def __setstate__(self, state: tuple[str, set[str] | None, str | None]):
+    def __setstate__(self, state: tuple[str, dict[str, str] | None, str | None]):
         relationship, gene_ids, source = state
         self.relationship = relationship
         self.gene_ids = gene_ids
@@ -96,15 +96,14 @@ class homolog_group:
             raise ValueError(
                 f"relationship type {self.relationship!r} != {other.relationship!r}"
             )
-        return self.__class__(
-            relationship=self.relationship, gene_ids=self.gene_ids | other.gene_ids
-        )
+        gene_ids = {**(self.gene_ids or {}), **(other.gene_ids or {})}
+        return self.__class__(relationship=self.relationship, gene_ids=gene_ids)
 
     def species_ids(self) -> dict[str, tuple[str, ...]]:
         """returns {species: gene_ids, ...}"""
         result = {}
-        for gene_id in self.gene_ids:
-            sp = Species.get_db_prefix_from_stableid(gene_id)
+        gene_ids = self.gene_ids or {}
+        for gene_id, sp in gene_ids.items():
             ids = result.get(sp, [])
             ids.append(gene_id)
             result[sp] = ids
@@ -115,7 +114,7 @@ T = dict[str, tuple[homolog_group, ...]]
 
 
 def grouped_related(
-    data: typing.Iterable[tuple[str, str, str]],
+    data: typing.Iterable[tuple[str, dict[str, str]]],
 ) -> T:
     """determines related groups of genes
 
@@ -136,17 +135,17 @@ def grouped_related(
     # grouped is {<relationship type>: {gene id: homolog_group}. So gene's
     # that belong to the same group have the same value
     grouped = {}
-    for rel_type, gene_id_1, gene_id_2 in data:
+    for rel_type, gene_species in data:
         relationship = grouped.get(rel_type, {})
-        pair = {gene_id_1, gene_id_2}
-
+        pair = gene_species.keys()
+        gene_id_1, gene_id_2 = pair
         if gene_id_1 in relationship:
             val = relationship[gene_id_1]
         elif gene_id_2 in relationship:
             val = relationship[gene_id_2]
         else:
             val = homolog_group(relationship=rel_type)
-        val.gene_ids |= pair
+        val.gene_ids |= gene_species
 
         relationship[gene_id_1] = relationship[gene_id_2] = val
         grouped[rel_type] = relationship
@@ -406,7 +405,9 @@ class load_homologies:
         parser = self._reader(iter_splitlines(path, chunk_size=500_000))
         header = next(parser)
         assert list(header) == list(self.src_cols), (header, self.src_cols)
-        return grouped_related((row[0], row[2], row[4]) for row in parser)
+        return grouped_related(
+            (row[0], {row[2]: row[1], row[4]: row[3]}) for row in parser
+        )
 
 
 @define_app
