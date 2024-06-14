@@ -125,6 +125,7 @@ def just_compara_cfg(tmp_config):
     yield tmp_config
 
 
+@pytest.mark.internet
 def test_just_compara(just_compara_cfg):
     # get species names from the alignment ref tree
     cfg = read_config(just_compara_cfg)
@@ -191,6 +192,7 @@ def test_config_update_species(tmp_config):
     assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}
 
 
+@pytest.mark.internet
 def test_cfg_to_dict(just_compara_cfg):
     cfg = read_config(just_compara_cfg)
     data = cfg.to_dict()
