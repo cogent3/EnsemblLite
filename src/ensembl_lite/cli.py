@@ -400,7 +400,6 @@ def alignments(
     from cogent3 import load_table
 
     from ensembl_lite._aligndb import AlignDb, write_alignments
-    from ensembl_lite._genomedb import load_genome
     from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-stop:strand, for
