@@ -252,23 +252,6 @@ class HomologyDb(SqliteDbMixin):
 
     def _create_views(self):
         """define views to simplify queries"""
-        # we want to be able to query for all ortholog groups of a
-        # particular type. For example, get all groups of IDs of
-        # type one-to-one orthologs
-        sql = """
-        CREATE VIEW IF NOT EXISTS related_groups AS
-        SELECT r.homology_type as homology_type,
-                r.rowid as relationship_id,
-                h.rowid as homology_id,
-                st.stableid as gene_id,
-                st.rowid as stableid_id,
-                sp.species_db as species_db
-        FROM homology h JOIN relationship r ON h.relationship_id = r.rowid 
-        JOIN member as m ON m.homology_id = h.rowid
-        JOIN stableid as st ON st.rowid = m.stableid_id
-        JOIN species as sp ON sp.rowid = st.species_id
-        """
-        self._execute_sql(sql)
         sql = """CREATE VIEW IF NOT EXISTS homology_member AS
         SELECT h.rowid as homology_id,
                h.relationship_id as relationship_id,
@@ -287,6 +270,16 @@ class HomologyDb(SqliteDbMixin):
                st.rowid as stableid_id
         FROM species sp
         JOIN stableid st ON st.species_id = sp.rowid
+        """
+        self._execute_sql(sql)
+        sql = """
+        CREATE VIEW IF NOT EXISTS related_groups AS
+        SELECT gs.stableid as stableid,
+               gs.species_db as species_db,
+               hm.homology_id as homology_id,
+               hm.homology_type as homology_type
+        FROM gene_species gs
+        JOIN homology_member hm ON hm.stableid_id = gs.stableid_id
         """
         self._execute_sql(sql)
 
@@ -418,27 +411,21 @@ class HomologyDb(SqliteDbMixin):
 
         return result
 
-    def get_related_groups(
-        self, relationship_type: str
-    ) -> typing.Sequence[homolog_group]:
+    def get_related_groups(self, relationship_type: str) -> list[homolog_group]:
         """returns all groups of relationship type"""
         sql = """
-        SELECT 
-        r.homology_id as homology_id, 
-        r.gene_id as gene_id,
-        r.species_db as species_db
-        FROM related_groups r
-        WHERE r.homology_type = ?
+        SELECT stableid, species_db, homology_id
+        FROM related_groups
+        WHERE homology_type = ?
         """
-        results = defaultdict(list)
+        results = {}
         for result in self._execute_sql(sql, (relationship_type,)).fetchall():
-            results[result["homology_id"]].append(
-                (result["gene_id"], result["species_db"])
+            record = results.get(
+                result["homology_id"], homolog_group(relationship=relationship_type)
             )
-        return [
-            homolog_group(relationship=relationship_type, gene_ids=dict(gene_ids))
-            for gene_ids in results.values()
-        ]
+            record.gene_ids |= {result["stableid"]: result["species_db"]}
+            results[result["homology_id"]] = record
+        return list(results.values())
 
     def num_records(self):
         return list(
