@@ -187,14 +187,16 @@ class InstalledConfig:
             glob pattern for the Ensembl alignment name
         """
         align_dirs = [
-            d for d in self.aligns_path.glob("*") if fnmatch.fnmatch(d.name, pattern)
+            d
+            for d in self.aligns_path.glob("*")
+            if fnmatch.fnmatch(d.name, pattern) and d.name.endswith(".sqlitedb")
         ]
         if not align_dirs:
             return None
 
         if len(align_dirs) > 1:
             raise ValueError(
-                f"{pattern!r} matches too many directories in {self.aligns_path}"
+                f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}"
             )
 
         return align_dirs[0]

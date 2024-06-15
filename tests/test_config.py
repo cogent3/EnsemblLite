@@ -2,6 +2,7 @@ import pathlib
 
 import pytest
 
+from ensembl_lite._aligndb import _GAP_STORE_SUFFIX
 from ensembl_lite._config import (
     _ALIGNS_NAME,
     _COMPARA_NAME,
@@ -50,6 +51,10 @@ def installed_aligns(tmp_path):
     # make two alignment paths with similar names
     (align_dir / "10_primates.epo.sqlitedb").open(mode="w")
     (align_dir / "24_primates.epo_extended.sqlitedb").open(mode="w")
+    # and their associated HDF5 seqs
+    (align_dir / f"10_primates.epo.{_GAP_STORE_SUFFIX}").open(mode="w")
+    (align_dir / f"24_primates.epo_extended.{_GAP_STORE_SUFFIX}").open(mode="w")
+
     return InstalledConfig(release="11", install_path=tmp_path)
 
 
