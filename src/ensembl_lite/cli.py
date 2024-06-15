@@ -81,14 +81,14 @@ _cfgpath = click.option(
     "--configpath",
     default=elt_download._cfg,
     type=pathlib.Path,
-    help="Path to config file specifying databases, only "
-    "species or compara at present.",
+    help="Path to config file specifying databases, (only "
+    "species or compara at present).",
 )
 _download = click.option(
     "-d",
     "--download",
     type=pathlib.Path,
-    help="Path to local download directory, contains a cfg file.",
+    help="Path to local download directory containing a cfg file.",
 )
 _installed = click.option(
     "-i",
@@ -106,7 +106,7 @@ _outdir = click.option(
 _align_name = click.option(
     "--align_name",
     default=None,
-    help="Ensembl name of the alignment or a glob pattern, e.g. '*primates*'.",
+    help="Ensembl alignment name or a glob pattern, e.g. '*primates*'.",
 )
 _ref = click.option("--ref", default=None, help="Reference species.")
 _ref_genes_file = click.option(
@@ -150,7 +150,7 @@ _nprocs = click.option(
     "--num_procs",
     type=int,
     default=1,
-    help="Number of procs to use, defaults to 1.",
+    help="Number of procs to use.",
     show_default=True,
 )
 _outdir = click.option(
@@ -164,7 +164,7 @@ _species = click.option(
     "--species",
     required=True,
     callback=_species_names_from_csv,
-    help="Single species name, or multiple (comma separated).",
+    help="Single species name or multiple (comma separated).",
 )
 _mask_features = click.option(
     "--mask_features",
