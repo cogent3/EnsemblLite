@@ -192,9 +192,9 @@ class InstalledConfig:
         if not align_dirs:
             return None
 
-        if len(align_dirs) > 1:
+        if len(align_dirs) > 2:
             raise ValueError(
-                f"{pattern!r} matches too many directories in {self.aligns_path}"
+                f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}"
             )
 
         return align_dirs[0]

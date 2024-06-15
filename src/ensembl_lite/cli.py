@@ -400,7 +400,7 @@ def alignments(
     from cogent3 import load_table
 
     from ensembl_lite._aligndb import AlignDb, write_alignments
-    from ensembl_lite._genomedb import load_genome, update_stableid_prefixes
+    from ensembl_lite._genomedb import load_genome
     from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-stop:strand, for
@@ -419,8 +419,6 @@ def alignments(
     outdir.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
-    # update the prefixes
-    update_stableid_prefixes(config)
     align_path = config.path_to_alignment(align_name)
     if align_path is None:
         click.secho(
