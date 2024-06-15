@@ -1,8 +1,6 @@
 import dataclasses
 import typing
 
-from collections import defaultdict
-
 import blosc2
 
 from cogent3 import make_unaligned_seqs
@@ -44,15 +42,15 @@ class species_genes:
         return self.species == other.species and self.gene_ids == other.gene_ids
 
     def __post_init__(self):
-        self.gene_ids = [] if not self.gene_ids else list(self.gene_ids)
+        self.gene_ids = list(self.gene_ids) if self.gene_ids else []
 
-    def __getstate__(self) -> tuple[str, tuple[str, ...]]:
-        return self.species, tuple(self.gene_ids)
+    def __getstate__(self) -> tuple[str, list[str]]:
+        return self.species, self.gene_ids
 
     def __setstate__(self, args):
         species, gene_ids = args
         self.species = species
-        self.gene_ids = list(gene_ids)
+        self.gene_ids = gene_ids
 
 
 @dataclasses.dataclass
@@ -65,7 +63,7 @@ class homolog_group:
     source: str | None = None
 
     def __post_init__(self):
-        self.gene_ids = self.gene_ids if self.gene_ids else {}
+        self.gene_ids = self.gene_ids or {}
         if self.source is None:
             self.source = next(iter(self.gene_ids), None)
 
@@ -157,7 +155,7 @@ def grouped_related(
     return reduced
 
 
-def _gene_id_to_group(series: tuple[homolog_group, ...]) -> dict[str:homolog_group]:
+def _gene_id_to_group(series: tuple[homolog_group, ...]) -> dict[str, homolog_group]:
     """converts series of homolog_group instances to {geneid: groupl, ..}"""
     result = {}
     for group in series:
@@ -219,14 +217,18 @@ class HomologyDb(SqliteDbMixin):
     _relationship_schema = {  # e.g. ortholog_one2one
         "homology_type": "TEXT",
     }
+
     _homology_schema = {  # e.g. an individual homolog group of homology_type
         "relationship_id": "INTEGER",
     }
+
     _species_schema = {"species_db": "TEXT"}
+
     _stableid_schema = {
         "stableid": "TEXT PRIMARY KEY",
         "species_id": "INTEGER",
     }
+
     _member_schema = {  # gene membership of a specific homolog group
         "stableid_id": "INTEGER",  # from stableid table
         "homology_id": "INTEGER",  # from homology table
