@@ -74,15 +74,15 @@ class EnsemblGffRecord(GffRecord):
     def __hash__(self) -> int:
         return hash(self.name)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.name == getattr(other, "name", other)
 
     @property
-    def stableid(self):
+    def stableid(self) -> str:
         return _typed_id.sub("", self.name or "")
 
     @property
-    def is_canonical(self):
+    def is_canonical(self) -> bool:
         attrs = self.attrs or ""
         return "Ensembl_canonical" in attrs
 
