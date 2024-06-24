@@ -290,7 +290,6 @@ def test_has_of_seqsdata(h5_genome):
 
 
 def test_tidying_stableids_in_gff3():
-
     orig = (
         "ID=Transcript:ENST00000461467;Parent=Gene:ENSG00000237613;Name=FAM138A-202;bio"
     )
