@@ -4,131 +4,230 @@
 
 # EnsemblLite
 
+EnsemblLite provides the `elt` command line application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
+
 > **Warning**
-> EnsemblLite is not ready for use! We will remove this notice when we are ready to post to PyPi at which point it will be ready for trialling. In the meantime, you can check the project progress towards being usable via the [EnsemblLite roadmap](https://github.com/cogent3/EnsemblLite/issues/38).
+> EnsemblLite is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/EnsemblLite/issues).
 
-## A screencast of an early prototype
+## Installing the software
 
 <details>
-  <summary> 🎬 Very early proof-of-concept demo and plan for a new style terminal user interface </summary>
-    <video src="https://user-images.githubusercontent.com/3102996/273427137-d3835f8b-8c0a-4370-a6e1-f8805f5dd320.mp4" controls="controls" style="max-height:640px">
-    </video>
-    
-**NOTE:** the command line name has changed since this early version. See text below for the new name.
+  <summary>Developer installation instructions</summary>
+  Fork the repo and clone your fork to your local machine. In the terminal, create either a python virtual environment or a new conda environment and activate it. In that virtual environment
+
+  ```
+  $ pip install flit
+  ```
+
+  Then do the flit version of a "developer install". (It is basically creating a symlink to the repos source directory.)
+
+  ```
+  $ flit install -s --python `which python`
+  ```
+</details>
+
+<details>
+  <summary>General user installation instructions</summary>
+
+  We have not yet released on pypi. We will provide instructions here for a Docker based installation soon!
+</details>
+
+## Resources required to subset Ensembl data
+
+Ensembl hosts some very large data sets. You need to have a machine with sufficient disk space to store the data you want to download. At present we do not have support for predicting how much storage would be required for a given selection of species and data types. We advise you to experiment.
+
+Some commands can be run in parallel but have moderate memory requirements. If you have a machine with limited RAM, you may need to reduce the number of parallel processes. Again, we advise you to experiment.
+
+## Getting setup
+
+<details>
+  <summary>Specifying what data you want to download and where to put it</summary>
+
+  We use a plain text file to indicate the Ensembl domain, release and types of genomic data to download. Start by using the `exportrc` subcommand.
+
+  <!-- [[[cog
+  import cog
+  from ensembl_lite import cli
+  from click.testing import CliRunner
+  runner = CliRunner()
+  result = runner.invoke(cli.main, ["exportrc", "--help"])
+  help = result.output.replace("Usage: main", "Usage: elt")
+  cog.out(
+      "```\n{}\n```".format(help)
+  )
+  ]]] -->
+  ```
+  Usage: elt exportrc [OPTIONS]
+
+    exports sample config and species table to the nominated path
+
+  Options:
+    -o, --outpath PATH  Path to directory to export all rc contents.
+    --help              Show this message and exit.
+
+  ```
+  <!-- [[[end]]] -->
+
+  ```shell
+  $ elt exportrc -o ~/Desktop/Outbox/ensembl_download
+  ```
+  This command creates a `ensembl_download` download directory and writes two plain text files into it:
+
+  1. `species.tsv`: contains the Latin names, common names etc... of the species accessible at ensembl.org website.
+  2. `sample.cfg`: a sample configuration file that you can edit to specify the data you want to download.
+
+  The latter file includes comments on how to edit it in order to specify the genomic resources that you want.
+</details>
+
+<details>
+  <summary>Downloading the data</summary>
+  Downloads the data indicated in the config file to a local directory.
+
+  <!-- [[[cog
+  import cog
+  from ensembl_lite import cli
+  from click.testing import CliRunner
+  runner = CliRunner()
+  result = runner.invoke(cli.main, ["download", "--help"])
+  help = result.output.replace("Usage: main", "Usage: elt")
+  cog.out(
+      "```\n{}\n```".format(help)
+  )
+  ]]] -->
+  ```
+  Usage: elt download [OPTIONS]
+
+    download data from Ensembl's ftp site
+
+  Options:
+    -c, --configpath PATH  Path to config file specifying databases, (only species
+                           or compara at present).
+    -d, --debug            Maximum verbosity, and reduces number of downloads,
+                           etc...
+    -v, --verbose
+    --help                 Show this message and exit.
+
+  ```
+  <!-- [[[end]]] -->
+
+  For a config file named `config.cfg`, the download command would be:
+
+  ```shell
+  $ cd to/directory/with/config.cfg
+  $ elt download -c config.cfg
+  ```
+
+  > **Note**
+  > Downloads can be interrupted and resumed. The software deletes partially downloaded files.
+
+The download creates a new `.cfg` file inside the download directory. This file is used by the `install` command.
 
 </details>
 
-## Developer installs
-
-Fork the repo and clone your fork to your local machine. In the terminal, create either a python virtual environment or a new conda environment and activate it. In that virtual environment
-
-```
-$ pip install flit
-```
-
-Then do the flit version of a "developer install". (It is basically creating a symlink to the repos source directory.)
-
-```
-$ flit install -s --python `which python`
-```
-
-## Installation
-
-Suggest creating a conda environment or a python virtual environment, using python3.11. Then install directly into that environment from the GitHub repo as
-
-```
-$ python -m pip install "ensembl_lite @ git+https://github.com/cogent3/EnsemblLite.git@develop"
-```
-
-Then run for the first time using
-
-```
-$ elt tui
-```
-
-The first start takes a while as, behind the scenes, cogent3 is transpiling various functions into C and compiling them. Eventually, you get a very neat terminal interface you can click around in. To exit, make sure the "root" is selected on the left panel then `^+r`.
-
-## Usage
-
-The setup is (for now) controlled using a config file, defined in `ini` format. To get a starting template use the `exportrc` subcommand.
-
-<!-- [[[cog
-import cog
-from ensembl_lite import cli
-from click.testing import CliRunner
-runner = CliRunner()
-result = runner.invoke(cli.main, ["exportrc", "--help"])
-help = result.output.replace("Usage: main", "Usage: elt")
-cog.out(
-    "```\n{}\n```".format(help)
-)
-]]] -->
-```
-Usage: elt exportrc [OPTIONS]
-
-  exports sample config and species table to the nominated path
-
-  setting an environment variable ENSEMBLDBRC with this path will force its
-  contents to override the default ensembl_lite settings
-
-Options:
-  -o, --outpath PATH  Path to directory to export all rc contents.
-  --help              Show this message and exit.
-
-```
-<!-- [[[end]]] -->
-
 <details>
-    <summary> Click to see a sample config file I've been using for development </summary>
-    
-Using this config, it takes approximately 16' to download (over a ~200MB/s WiFi connection) and ~45' to install on my M2 Macbook Pro (note the install is incomplete). (Note this step uses up to  10 CPU cores.)
+  <summary>Installing the data</summary>
+  
+  <!-- [[[cog
+  import cog
+  from ensembl_lite import cli
+  from click.testing import CliRunner
+  runner = CliRunner()
+  result = runner.invoke(cli.main, ["install", "--help"])
+  help = result.output.replace("Usage: main", "Usage: elt")
+  cog.out(
+      "```\n{}\n```".format(help)
+  )
+  ]]] -->
+  ```
+  Usage: elt install [OPTIONS]
 
+    create the local representations of the data
+
+  Options:
+    -d, --download PATH       Path to local download directory containing a cfg
+                              file.
+    -np, --num_procs INTEGER  Number of procs to use.  [default: 1]
+    -f, --force_overwrite     Overwrite existing data.
+    -v, --verbose
+    --help                    Show this message and exit.
+
+  ```
+  <!-- [[[end]]] -->
+
+The following command uses 2 CPUs and has been safe on systems with only 16GB of RAM for 10 primate genomes, including homology data and whole genome:
+
+```shell
+$ cd to/directory/with/downloaded_data
+$ elt install -d downloaded_data -np 2
 ```
-[remote path]
-host=ftp.ensembl.org
-path=pub
-[local path]
-staging_path=~/Desktop/Outbox/ensembl_download
-install_path=~/Desktop/Outbox/ensembl_install
-[release]
-release=110
-[Mouse Lemur]
-db=core
-[Macaque]
-db=core
-[Gibbon]
-db=core
-[Orangutan]
-db=core
-[Bonobo]
-db=core
-[Human]
-db=core
-[Chimp]
-db=core
-[Gorilla]
-db=core
-[compara]
-align_names=10_primates.epo
-```
+
 </details>
 
-### Download
+<details>
+  <summary>Checking what has been installed</summary>
+  
+  <!-- [[[cog
+  import cog
+  from ensembl_lite import cli
+  from click.testing import CliRunner
+  runner = CliRunner()
+  result = runner.invoke(cli.main, ["installed", "--help"])
+  help = result.output.replace("Usage: main", "Usage: elt")
+  cog.out(
+      "```\n{}\n```".format(help)
+  )
+  ]]] -->
+  ```
+  Usage: elt installed [OPTIONS]
 
-Downloads the species indicated in the config file:
+    show what is installed
 
-- genomes sequences as fasta format 
-- annotations as gff3
-- gene homologies for individual genomes in tsv format
+  Options:
+    -i, --installed TEXT  Path to root directory of an installation.  [required]
+    --help                Show this message and exit.
 
-Alignments indicated in the config file will be downloaded in `.maf` format.
+  ```
+  <!-- [[[end]]] -->
 
-Downloads are written to a local directory, specified in the config file. Downloads are done in parallel (using threads).
+</details>
 
-### Install
+## Interrogating the data
 
-"Installation" presently involves transforming downloaded files into local sqlite3 databases and HDF5 storage of genome sequences which are saved to the location specified in the config file.
+The full list of subcommands is shown below. You can get help on individual subcommands by running `elt <subcommand>` in the terminal.
 
-From the maf alignment files, the "ancestral" sequences are discarded and for every aligned sequence only the gap data is stored (i.e. gap position and length) along with the genomic coordinates. These alignments will be reconstructable by combining this information with the whole genome sequence. (This approach reduces storage requirements ~5-fold).
+  <!-- [[[cog
+  import cog
+  from ensembl_lite import cli
+  from click.testing import CliRunner
+  runner = CliRunner()
+  result = runner.invoke(cli.main)
+  help = result.output.replace("Usage: main", "Usage: elt")
+  cog.out(
+      "```\n{}\n```".format(help)
+  )
+  ]]] -->
+  ```
+  Usage: elt [OPTIONS] COMMAND [ARGS]...
 
-Installation can be done in parallel on multiple CPUs (since the data need to be decompressed on the fly).
+    Tools for obtaining and interrogating subsets of https://ensembl.org genomic
+    data.
+
+  Options:
+    --version  Show the version and exit.
+    --help     Show this message and exit.
+
+  Commands:
+    alignments       export multiple alignments in fasta format for named genes
+    download         download data from Ensembl's ftp site
+    dump-genes       export meta-data table for genes from one species to...
+    exportrc         exports sample config and species table to the nominated...
+    homologs         exports CDS sequence data in fasta format for homology...
+    install          create the local representations of the data
+    installed        show what is installed
+    species-summary  genome summary data for a species
+    tui              Open Textual TUI.
+
+  ```
+  <!-- [[[end]]] -->
+
+We also provide an experiment terminal user interface (TUI) that allows you to explore the data in a more interactive way. This is invoked with the `tui` subcommand.
