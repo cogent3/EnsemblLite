@@ -359,6 +359,29 @@ def tess_gff_record_size_nonzero(val):
     assert record.size == 38
 
 
+@pytest.mark.parametrize("symbol,expect", (("Name=ATAD3B;", "ATAD3B"), ("", None)))
+def test_gff_record_symbol(symbol, expect):
+    data = {"attrs": f"ID=gene:ENSG00000160072;{symbol}biotype=protein_coding;"}
+    record = EnsemblGffRecord(**data)
+    assert record.symbol == expect
+
+
+@pytest.mark.parametrize(
+    "descr,expect",
+    (
+        (
+            "description=...domain containing 3B [Source:HGNC Symbol%3BAcc:HGNC:24007];",
+            "...domain containing 3B [Source:HGNC Symbol%3BAcc:HGNC:24007]",
+        ),
+        ("", None),
+    ),
+)
+def test_gff_record_description(descr, expect):
+    data = {"attrs": f"ID=gene:ENSG00000160072;{descr}biotype=protein_coding;"}
+    record = EnsemblGffRecord(**data)
+    assert record.description == expect
+
+
 def test_gff_record_hashing():
     name = "abcd"
     record = EnsemblGffRecord(name=name)

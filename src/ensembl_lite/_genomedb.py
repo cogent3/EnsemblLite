@@ -50,6 +50,8 @@ _typed_id = re.compile(
 _feature_id = re.compile(r"(?<=\bID=)[^;]+")
 _exon_id = re.compile(r"(?<=\bexon_id=)[^;]+")
 _parent_id = re.compile(r"(?<=\bParent=)[^;]+")
+_symbol = re.compile(r"(?<=\bName=)[^;]+")
+_description = re.compile(r"(?<=\bdescription=)[^;]+")
 
 
 def _lower_case_match(match) -> str:
@@ -66,23 +68,43 @@ class EnsemblGffRecord(GffRecord):
 
     def __init__(self, feature_id: Optional[int] = None, **kwargs):
         is_canonical = kwargs.pop("is_canonical", None)
+        symbol = kwargs.pop("symbol", None)
+        descr = kwargs.pop("description", None)
         super().__init__(**kwargs)
         self.feature_id = feature_id
         if is_canonical:
             self.attrs = "Ensembl_canonical;" + (self.attrs or "")
 
+        if symbol:
+            self.attrs = f"Name={symbol};" + (self.attrs or "")
+
+        if descr:
+            self.attrs = f"description={descr};" + (self.attrs or "")
+
     def __hash__(self) -> int:
         return hash(self.name)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.name == getattr(other, "name", other)
 
     @property
-    def stableid(self):
+    def stableid(self) -> str:
         return _typed_id.sub("", self.name or "")
 
     @property
-    def is_canonical(self):
+    def symbol(self) -> str | None:
+        """gene symbol if defined"""
+        symbol = _symbol.search(self.attrs) if self.attrs else None
+        return symbol.group() if symbol else None
+
+    @property
+    def description(self) -> str | None:
+        """description field if defined"""
+        descr = _description.search(self.attrs) if self.attrs else None
+        return descr.group() if descr else None
+
+    @property
+    def is_canonical(self) -> bool:
         attrs = self.attrs or ""
         return "Ensembl_canonical" in attrs
 

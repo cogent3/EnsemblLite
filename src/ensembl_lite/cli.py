@@ -184,10 +184,7 @@ def main():
 @main.command(no_args_is_help=True)
 @_dbrc_out
 def exportrc(outpath):
-    """exports sample config and species table to the nominated path
-
-    setting an environment variable ENSEMBLDBRC with this path
-    will force its contents to override the default ensembl_lite settings"""
+    """exports sample config and species table to the nominated path"""
     from ensembl_lite._util import ENSEMBLDBRC
 
     shutil.copytree(ENSEMBLDBRC, outpath)
@@ -396,7 +393,7 @@ def alignments(
     force_overwrite,
     verbose,
 ):
-    """dump alignments for named genes"""
+    """export multiple alignments in fasta format for named genes"""
     from cogent3 import load_table
 
     from ensembl_lite._aligndb import AlignDb, write_alignments
@@ -484,7 +481,7 @@ def alignments(
 def homologs(
     installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
 ):
-    """exports all homolog groups of type relationship in fasta format"""
+    """exports CDS sequence data in fasta format for homology type relationship"""
     from rich import progress
 
     LOGGER = CachingLogger()
@@ -571,7 +568,7 @@ def homologs(
 @_outdir
 @_limit
 def dump_genes(installed, species, outdir, limit):
-    """Dump meta data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
+    """export meta-data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
     from ensembl_lite._genomedb import (
         _ANNOTDB_NAME,
         get_gene_table_for_species,
