@@ -193,7 +193,12 @@ $ elt install -d downloaded_data -np 2
 
 ## Interrogating the data
 
-The full list of subcommands is shown below. You can get help on individual subcommands by running `elt <subcommand>` in the terminal.
+We provide a conventional command line interface for querying the data with subcommands.
+
+<details>
+  <summary>The full list of subcommands</summary>
+
+  You can get help on individual subcommands by running `elt <subcommand>` in the terminal.
 
   <!-- [[[cog
   import cog
@@ -229,5 +234,7 @@ The full list of subcommands is shown below. You can get help on individual subc
 
   ```
   <!-- [[[end]]] -->
+
+</details>
 
 We also provide an experiment terminal user interface (TUI) that allows you to explore the data in a more interactive way. This is invoked with the `tui` subcommand.

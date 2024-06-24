@@ -541,7 +541,7 @@ def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str
 
 
 def make_annotation_db(
-    src_dest: tuple[pathlib.Path, pathlib.Path]
+    src_dest: tuple[pathlib.Path, pathlib.Path],
 ) -> tuple[str, set[str]]:
     """convert gff3 file into a EnsemblGffDb
 
