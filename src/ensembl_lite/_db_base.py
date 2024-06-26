@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import os
 import sqlite3
 
 from ensembl_lite._util import PathType, SerialisableMixin
@@ -147,16 +148,22 @@ class Hdf5Mixin(SerialisableMixin):
         obj._file = None
 
     def __del__(self):
-        with contextlib.suppress(ValueError, AttributeError):
-            self._file.flush()
-
-        with contextlib.suppress(AttributeError):
-            self._file.close()
-
-        self._is_open = False
+        self.close()
 
     def close(self):
-        if self._is_open:
-            self._file.flush()
-        self._file.close()
+        """closes the hdf5 file"""
+        # hdf5 dumps content to stdout if resource already closed, so
+        # we trap that here, and capture expected exceptions raised in the process
+        with open(os.devnull, "w") as devnull:
+            with (
+                contextlib.redirect_stderr(devnull),
+                contextlib.redirect_stdout(devnull),
+            ):
+                with contextlib.suppress(ValueError, AttributeError):
+                    if self._is_open:
+                        self._file.flush()
+
+                with contextlib.suppress(AttributeError):
+                    self._file.close()
+
         self._is_open = False
