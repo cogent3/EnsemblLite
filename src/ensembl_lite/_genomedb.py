@@ -185,6 +185,8 @@ class EnsemblGffDb(SqliteDbMixin):
         "score": "TEXT",  # check defn
         "strand": "TEXT",
         "phase": "TEXT",
+        "symbol": "TEXT",
+        "description": "TEXT",
         "attributes": "TEXT",
         "comments": "TEXT",
         "spans": "array",  # aggregation of coords across records
@@ -205,6 +207,7 @@ class EnsemblGffDb(SqliteDbMixin):
             "stop",
             "is_canonical",
             "biotype_id",
+            "symbol",
         ),
         "related_feature": ("gene_id", "related_id"),
     }
@@ -240,7 +243,9 @@ class EnsemblGffDb(SqliteDbMixin):
                f.spans as spans,
                f.stableid as name,
                f.is_canonical as is_canonical,
-               f.id as feature_id
+               f.id as feature_id,
+               f.symbol as symbol,
+               f.description as description
         FROM feature f
         JOIN biotype b ON f.biotype_id = b.id
         """
