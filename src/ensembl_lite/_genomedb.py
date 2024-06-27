@@ -973,6 +973,8 @@ def get_gene_table_for_species(
         "score",
         "strand",
         "phase",
+        "symbol",
+        "description",
     )
     rows = []
     for i, record in enumerate(annot_db.get_records_matching(biotype="gene")):
