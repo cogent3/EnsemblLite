@@ -106,10 +106,8 @@ class Config:
                 "install_path": install_path,
             },
             "release": {"release": self.release},
+            "compara": {},
         }
-
-        if self.align_names or self.tree_names:
-            data["compara"] = {}
 
         if self.align_names:
             data["compara"]["align_names"] = "".join(self.align_names)
@@ -118,6 +116,9 @@ class Config:
 
         if self.homologies:
             data["compara"]["homologies"] = ""
+
+        if not data["compara"]:
+            data.pop("compara")
 
         for db_name in self.db_names:
             data[db_name] = {"db": "core"}
