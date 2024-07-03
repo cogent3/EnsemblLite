@@ -1,6 +1,5 @@
 # parser for MAF, defined at
 # https://genome.ucsc.edu/FAQ/FAQformat.html#format5
-from __future__ import annotations
 
 import typing
 
