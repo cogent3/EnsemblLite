@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pathlib
 import typing
 
@@ -253,7 +251,7 @@ def get_alignment(
     ref_end: int | None = None,
     namer: typing.Callable | None = None,
     mask_features: list[str] | None = None,
-) -> typing.Generator[Alignment]:
+) -> typing.Iterable[Alignment]:
     """yields cogent3 Alignments"""
 
     if ref_species not in genomes:
