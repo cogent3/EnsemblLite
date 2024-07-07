@@ -58,7 +58,7 @@ def installed_aligns(tmp_path):
     return InstalledConfig(release="11", install_path=tmp_path)
 
 
-@pytest.mark.parametrize("pattern", ("10*", "1*prim*", "10_p*", "*s.epo.*"))
+@pytest.mark.parametrize("pattern", ("10*", "1*prim*", "10_p*", "10_primates.epo"))
 def test_get_alignment_path(installed_aligns, pattern):
     got = installed_aligns.path_to_alignment(pattern)
     assert got.name == "10_primates.epo.sqlitedb"
