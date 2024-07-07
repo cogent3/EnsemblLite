@@ -331,11 +331,12 @@ def installed(installed):
     # TODO as above
     compara_aligns = config.aligns_path
     if compara_aligns.exists():
-        align_names = [
+        align_names = {
             fn.stem for fn in compara_aligns.glob("*") if not fn.name.startswith(".")
-        ]
+        }
         table = make_table(
-            data={"align name": align_names}, title="Installed whole genome alignments"
+            data={"align name": list(align_names)},
+            title="Installed whole genome alignments",
         )
         rich_display(table)
 
