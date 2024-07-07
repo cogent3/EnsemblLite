@@ -190,7 +190,7 @@ class InstalledConfig:
         align_dirs = [
             d
             for d in self.aligns_path.glob("*")
-            if fnmatch.fnmatch(d.name, pattern) and d.name.endswith(".sqlitedb")
+            if fnmatch.fnmatch(d.stem, pattern) and d.name.endswith(".sqlitedb")
         ]
         if not align_dirs:
             return None
