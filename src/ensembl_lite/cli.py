@@ -187,6 +187,8 @@ def exportrc(outpath):
     """exports sample config and species table to the nominated path"""
     from ensembl_lite._util import ENSEMBLDBRC
 
+    outpath = outpath.expanduser()
+
     shutil.copytree(ENSEMBLDBRC, outpath)
     # we assume all files starting with alphabetical characters are valid
     for fn in pathlib.Path(outpath).glob("*"):
