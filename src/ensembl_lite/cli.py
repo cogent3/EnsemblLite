@@ -17,7 +17,7 @@ from trogon import tui
 from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
-from ensembl_lite._genomedb import load_genome
+from ensembl_lite import _genomedb as genomedb
 from ensembl_lite._homologydb import (
     _HOMOLOGYDB_NAME,
     collect_seqs,
@@ -402,7 +402,7 @@ def alignments(
     from ensembl_lite._aligndb import AlignDb, write_alignments
     from ensembl_lite._species import Species
 
-    # todo support genomic coordinates, e.g. coord_name:start-stop:strand, for
+    # todo support genomic coordinates, e.g. coord_name:start-stop, for
     #  a reference species
 
     if not ref:
@@ -426,15 +426,6 @@ def alignments(
         )
         exit(1)
 
-    # load the gene stable ID's
-    table = load_table(ref_genes_file)
-    if "stableid" not in table.columns:
-        click.secho(
-            f"'stableid' column missing from {str(ref_genes_file)!r}",
-            fg="red",
-        )
-        exit(1)
-
     align_db = AlignDb(source=align_path)
     ref_species = Species.get_ensembl_db_prefix(ref)
     if ref_species not in align_db.get_species_names():
@@ -449,18 +440,29 @@ def alignments(
         print(f"working on species {align_db.get_species_names()}")
 
     genomes = {
-        sp: load_genome(config=config, species=sp)
+        sp: genomedb.load_genome(config=config, species=sp)
         for sp in align_db.get_species_names()
     }
 
+    # load the gene stable ID's
+    table = load_table(ref_genes_file)
+    if "stableid" not in table.columns:
+        click.secho(
+            f"'stableid' column missing from {str(ref_genes_file)!r}",
+            fg="red",
+        )
+        exit(1)
+
+    locations = genomedb.get_gene_segments(
+        genomes[ref_species].annotation_db, species=ref_species, limit=limit
+    )
     write_alignments(
         align_db=align_db,
         genomes=genomes,
         limit=limit,
         mask_features=mask_features,
         outdir=outdir,
-        ref_species=ref_species,
-        stableids=table.columns["stableid"],
+        locations=locations,
     )
 
     click.secho("Done!", fg="green")
@@ -504,7 +506,7 @@ def homologs(
     config = elt_config.read_installed_cfg(installed)
     Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
-    genome = load_genome(config=config, species=ref)
+    genome = genomedb.load_genome(config=config, species=ref)
     if verbose:
         print(f"Loaded genome for {ref!r}")
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))

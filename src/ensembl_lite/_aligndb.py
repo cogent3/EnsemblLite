@@ -7,11 +7,14 @@ from dataclasses import dataclass
 import h5py
 import numpy
 
+from cogent3.app import typing as c3_types
+from cogent3.app.composable import NotCompleted, define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 from rich.progress import track
 
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
+from ensembl_lite._genomedb import Genome, genome_segment
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType, sanitise_stableid
 
 
@@ -353,60 +356,85 @@ def get_alignment(
         yield aln
 
 
+def _add_alignments(*alns, sep="?") -> Alignment:
+    defaults = ["?" * len(aln) for aln in alns]
+    all_names = set()
+    for aln in alns:
+        all_names.update(set(aln.names))
+
+    result = {n: "" for n in all_names}
+    for aln, default in zip(alns, defaults):
+        data = aln.to_dict()
+        for name in all_names:
+            result[name] += f"{sep}{data.get(name, default)}"
+
+    return Alignment(data=result, moltype=aln.moltype)
+
+
 def write_alignments(
     *,
     align_db: AlignDb,
     genomes: dict,
     limit: int | None,
-    mask_features: list[str],
     outdir: PathType,
-    ref_species: str,
-    stableids: list[str],
+    locations: list[genome_segment],
+    mask_features: typing.Optional[list[str]] = None,
     show_progress: bool = True,
-):
-    # then the coordinates for the id's
-    ref_genome = genomes[ref_species]
-    locations = []
-    for stableid in stableids:
-        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
-        if not record:
-            continue
-        elif len(record) == 1:
-            record = record[0]
-        locations.append(
-            (
-                stableid,
-                ref_species,
-                record["seqid"],
-                record["start"],
-                record["stop"],
-            )
-        )
-
+) -> Alignment:
     if limit:
         locations = locations[:limit]
 
-    for stableid, species, seqid, start, end in track(
-        locations, disable=not show_progress
-    ):
+    for segment in track(locations, disable=not show_progress):
         alignments = list(
             get_alignment(
                 align_db,
                 genomes,
-                species,
-                seqid,
-                start,
-                end,
+                segment.species,
+                segment.seqid,
+                segment.start,
+                segment.stop,
                 mask_features=mask_features,
             )
         )
-        stableid = sanitise_stableid(stableid)
         if len(alignments) == 1:
-            outpath = outdir / f"{stableid}.fa.gz"
+            outpath = outdir / f"{segment.unique_id}.fa.gz"
             alignments[0].write(outpath)
         elif len(alignments) > 1:
             for i, aln in enumerate(alignments):
-                outpath = outdir / f"{stableid}-{i}.fa.gz"
+                outpath = outdir / f"{segment.unique_id}-{i}.fa.gz"
                 aln.write(outpath)
 
     return True
+
+
+@define_app
+class construct_alignment:
+    def __init__(
+        self,
+        align_db: AlignDb,
+        genomes: dict[str, Genome],
+        mask_features: typing.Optional[list[str]] = None,
+        sep: str = "?",
+    ) -> None:
+        self._align_db = align_db
+        self._genomes = genomes
+        self._mask_features = mask_features
+        self._sep = sep
+
+    def main(self, segment: genome_segment) -> Alignment:
+        alignments = list(
+            get_alignment(
+                self._align_db,
+                self._genomes,
+                segment.species,
+                segment.seqid,
+                segment.start,
+                segment.stop,
+                mask_features=self._mask_features,
+            )
+        )
+        return (
+            _add_alignments(alignments, sep=self._sep)
+            if len(alignments) > 1
+            else alignments[0]
+        )
