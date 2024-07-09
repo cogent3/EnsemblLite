@@ -3,7 +3,7 @@ import shutil
 
 import click
 
-from cogent3 import open_data_store
+from cogent3 import get_app, open_data_store
 from scitrack import CachingLogger
 
 
@@ -399,7 +399,7 @@ def alignments(
     """export multiple alignments in fasta format for named genes"""
     from cogent3 import load_table
 
-    from ensembl_lite._aligndb import AlignDb, write_alignments
+    from ensembl_lite._aligndb import AlignDb, construct_alignment
     from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-stop, for
@@ -414,8 +414,6 @@ def alignments(
 
     if force_overwrite:
         shutil.rmtree(outdir, ignore_errors=True)
-
-    outdir.mkdir(parents=True, exist_ok=True)
 
     config = elt_config.read_installed_cfg(installed)
     align_path = config.path_to_alignment(align_name)
@@ -445,25 +443,42 @@ def alignments(
     }
 
     # load the gene stable ID's
-    table = load_table(ref_genes_file)
-    if "stableid" not in table.columns:
-        click.secho(
-            f"'stableid' column missing from {str(ref_genes_file)!r}",
-            fg="red",
-        )
-        exit(1)
+    if ref_genes_file:
+        table = load_table(ref_genes_file)
+        if "stableid" not in table.columns:
+            click.secho(
+                f"'stableid' column missing from {str(ref_genes_file)!r}",
+                fg="red",
+            )
+            exit(1)
+        stableids = table.columns["stableid"]
+    else:
+        stableids = None
 
     locations = genomedb.get_gene_segments(
-        genomes[ref_species].annotation_db, species=ref_species, limit=limit
-    )
-    write_alignments(
-        align_db=align_db,
-        genomes=genomes,
+        annot_db=genomes[ref_species].annotation_db,
+        species=ref_species,
         limit=limit,
-        mask_features=mask_features,
-        outdir=outdir,
-        locations=locations,
+        stableids=stableids,
     )
+
+    maker = construct_alignment(
+        align_db=align_db, genomes=genomes, mask_features=mask_features
+    )
+    output = open_data_store(outdir, mode="w", suffix="fa")
+    writer = get_app("write_seqs", format="fasta", data_store=output)
+    for results in maker.as_completed(locations, show_progress=True):
+        if not results.obj:
+            continue
+        input_source = results.source.source
+        alignments = results.obj
+        if len(alignments) == 1:
+            writer(alignments[0], identifier=input_source)
+            continue
+
+        for i, aln in enumerate(results.obj):
+            identifier = f"{input_source}-{i}"
+            writer(aln, identifier=identifier)
 
     click.secho("Done!", fg="green")
 

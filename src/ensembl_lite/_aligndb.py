@@ -357,58 +357,32 @@ def get_alignment(
 
 
 def _add_alignments(*alns, sep="?") -> Alignment:
+    """concatenates alignments using sep as spacer"""
     defaults = ["?" * len(aln) for aln in alns]
     all_names = set()
     for aln in alns:
         all_names.update(set(aln.names))
 
-    result = {n: "" for n in all_names}
+    print(all_names)
+
+    result = {n: [] for n in all_names}
     for aln, default in zip(alns, defaults):
         data = aln.to_dict()
         for name in all_names:
-            result[name] += f"{sep}{data.get(name, default)}"
+            result[name].append(data.get(name, default))
 
+    result = {n: sep.join(data) for n, data in result.items()}
     return Alignment(data=result, moltype=aln.moltype)
-
-
-def write_alignments(
-    *,
-    align_db: AlignDb,
-    genomes: dict,
-    limit: int | None,
-    outdir: PathType,
-    locations: list[genome_segment],
-    mask_features: typing.Optional[list[str]] = None,
-    show_progress: bool = True,
-) -> Alignment:
-    if limit:
-        locations = locations[:limit]
-
-    for segment in track(locations, disable=not show_progress):
-        alignments = list(
-            get_alignment(
-                align_db,
-                genomes,
-                segment.species,
-                segment.seqid,
-                segment.start,
-                segment.stop,
-                mask_features=mask_features,
-            )
-        )
-        if len(alignments) == 1:
-            outpath = outdir / f"{segment.unique_id}.fa.gz"
-            alignments[0].write(outpath)
-        elif len(alignments) > 1:
-            for i, aln in enumerate(alignments):
-                outpath = outdir / f"{segment.unique_id}-{i}.fa.gz"
-                aln.write(outpath)
-
-    return True
 
 
 @define_app
 class construct_alignment:
+    """reassemble an alignment that maps to a given genomic segment
+
+    If the segment spans multiple alignments these are joinded using
+    the sep character.
+    """
+
     def __init__(
         self,
         align_db: AlignDb,
@@ -421,20 +395,18 @@ class construct_alignment:
         self._mask_features = mask_features
         self._sep = sep
 
-    def main(self, segment: genome_segment) -> Alignment:
-        alignments = list(
-            get_alignment(
-                self._align_db,
-                self._genomes,
-                segment.species,
-                segment.seqid,
-                segment.start,
-                segment.stop,
-                mask_features=self._mask_features,
-            )
-        )
-        return (
-            _add_alignments(alignments, sep=self._sep)
-            if len(alignments) > 1
-            else alignments[0]
-        )
+    def main(self, segment: genome_segment) -> list[Alignment]:
+        results = []
+        for aln in get_alignment(
+            self._align_db,
+            self._genomes,
+            segment.species,
+            segment.seqid,
+            segment.start,
+            segment.stop,
+            mask_features=self._mask_features,
+        ):
+            aln.info.source = segment.source
+            results.append(aln)
+
+        return results

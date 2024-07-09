@@ -8,8 +8,8 @@ from ensembl_lite._aligndb import (
     AlignDb,
     AlignRecord,
     GapStore,
+    construct_alignment,
     get_alignment,
-    write_alignments,
 )
 
 
@@ -401,17 +401,12 @@ def test_write_alignments(tmp_path):
         species="human",
         stableids=["not-on-s2"],
     )
-    write_alignments(
+    app = construct_alignment(
         align_db=align_db,
         genomes=genomes,
-        outdir=tmp_path,
-        limit=None,
-        locations=locations,
-        show_progress=False,
     )
-    aln_path = list(tmp_path.glob("*"))[0]
-    aln = load_aligned_seqs(aln_path, moltype="dna")
-    assert len(aln) == 3
+    aln = app(locations[0])
+    assert len(aln[0]) == 3
 
 
 @pytest.mark.parametrize(
