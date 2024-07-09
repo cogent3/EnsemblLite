@@ -363,8 +363,6 @@ def _add_alignments(*alns, sep="?") -> Alignment:
     for aln in alns:
         all_names.update(set(aln.names))
 
-    print(all_names)
-
     result = {n: [] for n in all_names}
     for aln, default in zip(alns, defaults):
         data = aln.to_dict()

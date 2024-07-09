@@ -786,21 +786,17 @@ class genome_segment:
     start: int
     stop: int
     identifier: dataclasses.InitVar[typing.Optional[str]] = None
-    _unique_id: str = dataclasses.field(init=False)
+    unique_id: str = dataclasses.field(init=False)
 
     def __post_init__(self, identifier: typing.Optional[str]):
         identifier = (
             identifier or f"{self.species}-{self.seqid}-{self.start}-{self.stop}"
         )
-        self._unique_id = sanitise_stableid(identifier)
-
-    @property
-    def unique_id(self) -> str:
-        return self._unique_id
+        self.unique_id = sanitise_stableid(identifier)
 
     @property
     def source(self) -> str:
-        return self._unique_id
+        return self.unique_id
 
 
 # todo: this wrapping class is required for memory efficiency because
