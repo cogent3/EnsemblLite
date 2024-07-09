@@ -1,8 +1,6 @@
 import numpy
 import pytest
 
-from cogent3 import load_aligned_seqs
-
 from ensembl_lite import _genomedb as genomedb
 from ensembl_lite._aligndb import (
     AlignDb,
@@ -405,7 +403,7 @@ def test_write_alignments(tmp_path):
         align_db=align_db,
         genomes=genomes,
     )
-    aln = app(locations[0])
+    aln = app(locations[0])  # pylint: disable=not-callable
     assert len(aln[0]) == 3
 
 
