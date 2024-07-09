@@ -785,17 +785,17 @@ class genome_segment:
     seqid: str
     start: int
     stop: int
-    identifier: dataclasses.InitVar[typing.Optional[str]] = None
-    unique_id: str = dataclasses.field(init=False)
+    unique_id: str | None = None
 
-    def __post_init__(self, identifier: typing.Optional[str]):
-        identifier = (
-            identifier or f"{self.species}-{self.seqid}-{self.start}-{self.stop}"
+    def __post_init__(self):
+        self.unique_id = (
+            sanitise_stableid(self.unique_id)
+            if self.unique_id
+            else f"{self.species}-{self.seqid}-{self.start}-{self.stop}"
         )
-        self.unique_id = sanitise_stableid(identifier)
 
     @property
-    def source(self) -> str:
+    def source(self) -> str | None:
         return self.unique_id
 
 
@@ -1021,7 +1021,7 @@ def get_gene_segments(
             start=record["start"],
             stop=record["stop"],
             seqid=record["seqid"],
-            identifier=record["name"],
+            unique_id=record["name"],
         )
         records[i] = segment
         if i == limit:

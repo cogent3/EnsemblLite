@@ -541,7 +541,7 @@ def test_genome_segment():
     segment = genomedb.genome_segment(species="abcd_efg", seqid="1", start=20, stop=40)
     assert segment.unique_id == "abcd_efg-1-20-40"
     segment = genomedb.genome_segment(
-        species="abcd_efg", seqid="1", start=20, stop=40, identifier="gene:NICE"
+        species="abcd_efg", seqid="1", start=20, stop=40, unique_id="gene:NICE"
     )
     assert segment.unique_id == "NICE"
 
