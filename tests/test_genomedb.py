@@ -6,21 +6,7 @@ import pytest
 from cogent3 import make_unaligned_seqs
 from numpy.testing import assert_allclose
 
-from ensembl_lite._genomedb import (
-    _ANNOTDB_NAME,
-    _SEQDB_NAME,
-    EnsemblGffDb,
-    EnsemblGffRecord,
-    Genome,
-    SeqsDataHdf5,
-    custom_gff_parser,
-    get_gene_table_for_species,
-    get_species_summary,
-    make_annotation_db,
-    make_gene_relationships,
-    str2arr,
-    tidy_gff3_stableids,
-)
+from ensembl_lite import _genomedb as genomedb
 
 
 @pytest.fixture(scope="function")
@@ -74,7 +60,7 @@ def small_annots():
 
 @pytest.fixture(scope="function")
 def small_annotdb(small_annots):
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     for record in small_annots:
         db.add_feature(**record)
     return db
@@ -90,7 +76,7 @@ def small_coll(small_data, small_annotdb):
 @pytest.fixture(scope="function")
 def h5_genome(tmp_path):
     # in memory db
-    return SeqsDataHdf5(
+    return genomedb.SeqsDataHdf5(
         source=tmp_path / "small-hd5f.genome-h5",
         mode="w",
         species="Human",
@@ -127,7 +113,7 @@ def test_annodb(small_annotdb):
 
 def test_selected_seq_is_annotated(small_h5_genome, small_annotdb, namer):
     gen_seqs_db, _ = small_h5_genome
-    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    genome = genomedb.Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1", namer=namer)
     assert len(seq.annotation_db) == 4
     genes = list(genome.get_features(seqid="s1", biotype="gene"))
@@ -143,7 +129,7 @@ def test_hashable_genome_seqs(h5_genome):
 
 def test_genome_close(small_h5_genome, small_annotdb, namer):
     gen_seqs_db, _ = small_h5_genome
-    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    genome = genomedb.Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid="s1", namer=namer)
     assert seq
     genome.close()
@@ -156,7 +142,7 @@ def test_get_seq_num_annotations_correct(
     small_h5_genome, small_annotdb, small_coll, seqid, namer
 ):
     gen_seqs_db, small_data = small_h5_genome
-    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    genome = genomedb.Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid=seqid, namer=namer)
     expect = list(small_coll.get_features(seqid=seqid))
     assert len(list(seq.get_features())) == len(expect)
@@ -174,7 +160,7 @@ def test_get_seq_feature_seq_correct(
     small_h5_genome, small_annotdb, small_coll, seqid, feature_name, start, stop, namer
 ):
     gen_seqs_db, small_data = small_h5_genome
-    genome = Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
+    genome = genomedb.Genome(species="dodo", seqs=gen_seqs_db, annots=small_annotdb)
     seq = genome.get_seq(seqid=seqid, start=start, stop=stop, namer=namer)
     coll_seq = small_coll.get_seq(seqid)
     assert seq == coll_seq[start:stop]
@@ -189,7 +175,9 @@ def test_get_gene_table_for_species(small_annotdb):
     from cogent3.util.table import Table
 
     # we do not check values here, only the Type and that we have > 0 records
-    got = get_gene_table_for_species(annot_db=small_annotdb, limit=None, species="none")
+    got = genomedb.get_gene_table_for_species(
+        annot_db=small_annotdb, limit=None, species="none"
+    )
     assert isinstance(got, Table)
     assert len(got) > 0
 
@@ -197,7 +185,7 @@ def test_get_gene_table_for_species(small_annotdb):
 def test_get_species_summary(small_annotdb):
     from cogent3.util.table import Table
 
-    got = get_species_summary(annot_db=small_annotdb, species="none")
+    got = genomedb.get_species_summary(annot_db=small_annotdb, species="none")
     # we do not check values here, only the Type and that we have > 0 records
     assert isinstance(got, Table)
     assert len(got) > 0
@@ -248,7 +236,7 @@ def test_h5_get_seq(small_h5_genome, name, start, stop):
     genome, seqs = small_h5_genome
     expect = seqs[name][start:stop]
     assert genome.get_seq_str(seqid=name, start=start, stop=stop) == expect
-    convert = str2arr(moltype="dna")
+    convert = genomedb.str2arr(moltype="dna")
     assert (
         genome.get_seq_arr(seqid=name, start=start, stop=stop) == convert(expect)
     ).all()
@@ -257,14 +245,14 @@ def test_h5_get_seq(small_h5_genome, name, start, stop):
 def test_pickling_round_trip(small_data, tmp_path):
     import pickle  # nosec B403
 
-    path = tmp_path / f"small.{_SEQDB_NAME}"
+    path = tmp_path / f"small.{genomedb._SEQDB_NAME}"
     kwargs = dict(source=path, species="human")
-    genome = SeqsDataHdf5(mode="w", **kwargs)
+    genome = genomedb.SeqsDataHdf5(mode="w", **kwargs)
     genome.add_records(records=small_data.items())
     with pytest.raises(NotImplementedError):
         pickle.dumps(genome)  # nosec B301
 
-    ro = SeqsDataHdf5(mode="r", **kwargs)
+    ro = genomedb.SeqsDataHdf5(mode="r", **kwargs)
     assert ro.get_seq_str(seqid="s1") == small_data["s1"]
     unpkl = pickle.loads(pickle.dumps(ro))  # nosec B301
     got = unpkl.get_seq_str(seqid="s1")
@@ -272,17 +260,17 @@ def test_pickling_round_trip(small_data, tmp_path):
 
 
 def test_species_setting(small_data, tmp_path):
-    path = tmp_path / f"small.{_SEQDB_NAME}"
+    path = tmp_path / f"small.{genomedb._SEQDB_NAME}"
     kwargs = dict(source=path, species="human")
-    genome = SeqsDataHdf5(mode="w", **kwargs)
+    genome = genomedb.SeqsDataHdf5(mode="w", **kwargs)
     genome.add_records(records=small_data.items())
     genome.close()
 
-    genome = SeqsDataHdf5(mode="r", source=path)
+    genome = genomedb.SeqsDataHdf5(mode="r", source=path)
     # note that species are converted into the Ensembl db prefix
     assert genome.species == "homo_sapiens"
     with pytest.raises(ValueError):
-        _ = SeqsDataHdf5(mode="r", source=path, species="cat")
+        _ = genomedb.SeqsDataHdf5(mode="r", source=path, species="cat")
 
 
 def test_has_of_seqsdata(h5_genome):
@@ -296,14 +284,14 @@ def test_tidying_stableids_in_gff3():
     expect = (
         "ID=transcript:ENST00000461467;Parent=gene:ENSG00000237613;Name=FAM138A-202;bio"
     )
-    assert tidy_gff3_stableids(orig) == expect
+    assert genomedb.tidy_gff3_stableids(orig) == expect
 
 
 def test_custom_gff3_parser(DATA_DIR):
     path = DATA_DIR / "c_elegans_WS199_shortened.gff3"
-    records, _ = custom_gff_parser(path, 0)
+    records, _ = genomedb.custom_gff_parser(path, 0)
 
-    rel = make_gene_relationships(records.values())
+    rel = genomedb.make_gene_relationships(records.values())
     children = rel["gene:WBGene00000138"]
     # as the records are hashable by their .name attribute, we can just
     # check returned value against their names
@@ -318,7 +306,9 @@ def test_custom_gff3_parser(DATA_DIR):
 
 
 def test_gff_record_size(DATA_DIR):
-    merged, _ = custom_gff_parser(DATA_DIR / "c_elegans_WS199_shortened.gff3", 0)
+    merged, _ = genomedb.custom_gff_parser(
+        DATA_DIR / "c_elegans_WS199_shortened.gff3", 0
+    )
     # record CDS:B0019.1 has spans [(9, 20), (29, 45), (59, 70)] which sum to 38
     starts, stops = numpy.array([(9, 20), (29, 45), (59, 70)]).T
     expect = (stops - starts).sum()
@@ -327,7 +317,7 @@ def test_gff_record_size(DATA_DIR):
 
 @pytest.mark.parametrize("val", ((), [], numpy.array([]), None))
 def tess_gff_record_size_zero(val):
-    record = EnsemblGffRecord(spans=val)
+    record = genomedb.EnsemblGffRecord(spans=val)
     assert record.size == 0
 
 
@@ -335,13 +325,13 @@ def tess_gff_record_size_zero(val):
     "attrs", ("Ensembl_canonical", "text;other;Ensembl_canonical;than")
 )
 def test_is_canonical(attrs):
-    f = EnsemblGffRecord(attrs=attrs)
+    f = genomedb.EnsemblGffRecord(attrs=attrs)
     assert f.is_canonical
 
 
 @pytest.mark.parametrize("attrs", (None, "text;other;than"))
 def test_not_is_canonical(attrs):
-    f = EnsemblGffRecord(attrs=attrs)
+    f = genomedb.EnsemblGffRecord(attrs=attrs)
     assert not f.is_canonical
 
 
@@ -354,14 +344,14 @@ def test_not_is_canonical(attrs):
     ),
 )
 def tess_gff_record_size_nonzero(val):
-    record = EnsemblGffRecord(spans=val)
+    record = genomedb.EnsemblGffRecord(spans=val)
     assert record.size == 38
 
 
 @pytest.mark.parametrize("symbol,expect", (("Name=ATAD3B;", "ATAD3B"), ("", None)))
 def test_gff_record_symbol(symbol, expect):
     data = {"attrs": f"ID=gene:ENSG00000160072;{symbol}biotype=protein_coding;"}
-    record = EnsemblGffRecord(**data)
+    record = genomedb.EnsemblGffRecord(**data)
     assert record.symbol == expect
 
 
@@ -377,13 +367,13 @@ def test_gff_record_symbol(symbol, expect):
 )
 def test_gff_record_description(descr, expect):
     data = {"attrs": f"ID=gene:ENSG00000160072;{descr}biotype=protein_coding;"}
-    record = EnsemblGffRecord(**data)
+    record = genomedb.EnsemblGffRecord(**data)
     assert record.description == expect
 
 
 def test_gff_record_hashing():
     name = "abcd"
-    record = EnsemblGffRecord(name=name)
+    record = genomedb.EnsemblGffRecord(name=name)
     assert hash(record) == hash(name)
     v = {record: 21}
     assert v[name] == 21
@@ -393,20 +383,24 @@ def test_gff_record_hashing():
 
 @pytest.fixture
 def ensembl_gff_records(DATA_DIR):
-    records, _ = custom_gff_parser(DATA_DIR / "c_elegans_WS199_shortened.gff3", 0)
+    records, _ = genomedb.custom_gff_parser(
+        DATA_DIR / "c_elegans_WS199_shortened.gff3", 0
+    )
     return records
 
 
 @pytest.fixture
 def non_canonical_related(ensembl_gff_records):
-    return make_gene_relationships(ensembl_gff_records.values())
+    return genomedb.make_gene_relationships(ensembl_gff_records.values())
 
 
 @pytest.fixture
 def canonical_related(ensembl_gff_records):
     transcript = ensembl_gff_records["transcript:B0019.1"]
     transcript.attrs = f"Ensembl_canonical;{transcript.attrs}"
-    return ensembl_gff_records, make_gene_relationships(ensembl_gff_records.values())
+    return ensembl_gff_records, genomedb.make_gene_relationships(
+        ensembl_gff_records.values()
+    )
 
 
 def test_make_gene_relationships(ensembl_gff_records):
@@ -415,7 +409,7 @@ def test_make_gene_relationships(ensembl_gff_records):
     transcript.attrs = f"Ensembl_canonical;{transcript.attrs}"
     # at this point the related CDS is not canonical
     assert not ensembl_gff_records["cds:B0019.1"].is_canonical
-    related = make_gene_relationships(ensembl_gff_records.values())
+    related = genomedb.make_gene_relationships(ensembl_gff_records.values())
     got = {c.is_canonical for c in related["gene:WBGene00000138"]}
     assert got == {True}
     # the related CDS is now canonical
@@ -424,7 +418,7 @@ def test_make_gene_relationships(ensembl_gff_records):
 
 def test_featuredb(canonical_related):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
     cds = list(
         db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
@@ -434,7 +428,7 @@ def test_featuredb(canonical_related):
 
 def test_featuredb_num_records(canonical_related):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     assert db.num_records() == 0
     db.add_records(records=records.values(), gene_relations=related)
     assert db.num_records() == 11
@@ -442,27 +436,27 @@ def test_featuredb_num_records(canonical_related):
 
 def test_make_annotation_db(DATA_DIR, tmp_path):
     src = DATA_DIR / "c_elegans_WS199_shortened.gff3"
-    dest = tmp_path / _ANNOTDB_NAME
-    make_annotation_db((src, dest))
-    got = EnsemblGffDb(source=dest)
+    dest = tmp_path / genomedb._ANNOTDB_NAME
+    genomedb.make_annotation_db((src, dest))
+    got = genomedb.EnsemblGffDb(source=dest)
     assert got.num_records() == 11
 
 
 def test_get_features_matching(canonical_related):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
     got = list(db.get_features_matching(biotype="cds"))
     assert got[0]["name"] == "B0019.1"
     assert got[0]["biotype"] == "cds"
 
 
-@pytest.mark.parametrize("table_name", tuple(EnsemblGffDb._index_columns))
+@pytest.mark.parametrize("table_name", tuple(genomedb.EnsemblGffDb._index_columns))
 def test_indexing(canonical_related, table_name):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
-    col = EnsemblGffDb._index_columns[table_name][0]
+    col = genomedb.EnsemblGffDb._index_columns[table_name][0]
     expect = ("index", f"{col}_index", table_name)
     db.make_indexes()
     sql_template = (
@@ -477,7 +471,7 @@ def test_indexing(canonical_related, table_name):
 
 def test_get_feature_parent(canonical_related):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
     got = list(db.get_feature_parent(name="B0019.1"))[0]
     assert got["name"] == "WBGene00000138"
@@ -485,7 +479,7 @@ def test_get_feature_parent(canonical_related):
 
 def test_get_feature_children(canonical_related):
     records, related = canonical_related
-    db = EnsemblGffDb(source=":memory:")
+    db = genomedb.EnsemblGffDb(source=":memory:")
     db.add_records(records=records.values(), gene_relations=related)
     got = list(
         db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
@@ -494,8 +488,8 @@ def test_get_feature_children(canonical_related):
 
 
 def test_add_feature():
-    db = EnsemblGffDb(source=":memory:")
-    feature = EnsemblGffRecord(
+    db = genomedb.EnsemblGffDb(source=":memory:")
+    feature = genomedb.EnsemblGffRecord(
         start=2, stop=3, seqid="s0", name="demo", spans=[(2, 3)], biotype="gene"
     )
     db.add_feature(feature=feature)
@@ -525,8 +519,8 @@ def test_faster_fasta(fasta_data):
 
 
 def test_gff_parse_merge(DATA_DIR):
-    records, _ = custom_gff_parser(DATA_DIR / "gene-multi-transcript.gff3", 0)
-    related = make_gene_relationships(list(records.values()))
+    records, _ = genomedb.custom_gff_parser(DATA_DIR / "gene-multi-transcript.gff3", 0)
+    related = genomedb.make_gene_relationships(list(records.values()))
     homologs = related["gene:ENSG00000160072"]
     assert len(homologs) == 4
     # we know that cds:ENSP00000500094 and transcript:ENST00000673477 are canonical
@@ -541,3 +535,30 @@ def test_gff_parse_merge(DATA_DIR):
         "transcript:ENST00000673477",
         "cds:ENSP00000500094",
     } == homologs
+
+
+def test_genome_segment():
+    segment = genomedb.genome_segment(species="abcd_efg", seqid="1", start=20, stop=40)
+    assert segment.unique_id == "abcd_efg-1-20-40"
+    segment = genomedb.genome_segment(
+        species="abcd_efg", seqid="1", start=20, stop=40, identifier="gene:NICE"
+    )
+    assert segment.unique_id == "NICE"
+
+
+def test_get_gene_segments(small_annotdb):
+    segments = genomedb.get_gene_segments(annot_db=small_annotdb, species="dodo")
+    assert len(segments) == len(
+        list(small_annotdb.get_features_matching(biotype="gene"))
+    )
+    assert {s.unique_id for s in segments} == {"gene-01", "gene-02"}
+
+
+def test_get_gene_segments_stableids(small_annotdb):
+    segments = genomedb.get_gene_segments(
+        annot_db=small_annotdb, species="dodo", stableids=["gene-02"]
+    )
+    assert len(segments) == 1
+    segment = segments[0]
+    assert segment.unique_id == "gene-02"
+    assert segment.source == "gene-02"

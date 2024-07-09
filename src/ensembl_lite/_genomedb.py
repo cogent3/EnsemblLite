@@ -38,6 +38,7 @@ from ensembl_lite._util import (
     _HDF5_BLOSC2_KWARGS,
     PathType,
     get_stableid_prefix,
+    sanitise_stableid,
 )
 
 
@@ -778,6 +779,30 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
         return tuple(self._file)
 
 
+@dataclasses.dataclass(slots=True)
+class genome_segment:
+    species: str
+    seqid: str
+    start: int
+    stop: int
+    identifier: dataclasses.InitVar[typing.Optional[str]] = None
+    _unique_id: str = dataclasses.field(init=False)
+
+    def __post_init__(self, identifier: typing.Optional[str]):
+        identifier = (
+            identifier or f"{self.species}-{self.seqid}-{self.start}-{self.stop}"
+        )
+        self._unique_id = sanitise_stableid(identifier)
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def source(self) -> str:
+        return self._unique_id
+
+
 # todo: this wrapping class is required for memory efficiency because
 #  the cogent3 SequenceCollection class is not designed for large sequence
 #  collections, either large sequences or large numbers of sequences. The
@@ -943,6 +968,69 @@ def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDb:
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
     return EnsemblGffDb(source=path)
+
+
+def _get_all_gene_segments(
+    *,
+    annot_db: EnsemblGffDb,
+    limit: Optional[int],
+) -> list[dict]:
+    result = []
+    for i, record in enumerate(annot_db.get_records_matching(biotype="gene")):
+        result.append(record)
+        if limit and i == limit:
+            break
+    return result
+
+
+def _get_selected_gene_segments(
+    *, annot_db: EnsemblGffDb, limit: Optional[int], stableids: list[str]
+) -> list[dict]:
+    result = []
+    for i, stableid in enumerate(stableids):
+        record = list(annot_db.get_records_matching(biotype="gene", name=stableid))
+        result.extend(record)
+        if limit and i == limit:
+            break
+    return result
+
+
+def get_gene_segments(
+    *,
+    annot_db: EnsemblGffDb,
+    limit: Optional[int] = None,
+    species: Optional[str] = None,
+    stableids: Optional[list[str]] = None,
+) -> list[genome_segment]:
+    """return genome segment information for genes
+
+    Parameters
+    ----------
+    annot_db
+        feature db
+    limit
+        limit number of records to
+    species
+        species name, overrides inference from annot_db.source
+    """
+    species = species or annot_db.source.parent.name
+    records = (
+        _get_selected_gene_segments(annot_db=annot_db, limit=limit, stableids=stableids)
+        if stableids
+        else _get_all_gene_segments(annot_db=annot_db, limit=limit)
+    )
+    for i, record in enumerate(records):
+        segment = genome_segment(
+            species=species,
+            start=record["start"],
+            stop=record["stop"],
+            seqid=record["seqid"],
+            identifier=record["name"],
+        )
+        records[i] = segment
+        if i == limit:
+            break
+    return records
 
 
 def get_gene_table_for_species(
