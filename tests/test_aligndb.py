@@ -1,16 +1,14 @@
 import numpy
 import pytest
 
-from cogent3 import load_aligned_seqs
-
+from ensembl_lite import _genomedb as genomedb
 from ensembl_lite._aligndb import (
     AlignDb,
     AlignRecord,
     GapStore,
+    construct_alignment,
     get_alignment,
-    write_alignments,
 )
-from ensembl_lite._genomedb import EnsemblGffDb, Genome, SeqsDataHdf5
 
 
 def small_seqs():
@@ -27,7 +25,7 @@ def small_seqs():
         array_align=False,
         info=dict(species=dict(s1="human", s2="mouse", s3="dog")),
     )
-    annot_db = EnsemblGffDb(source=":memory:")
+    annot_db = genomedb.EnsemblGffDb(source=":memory:")
     annot_db.add_feature(seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)])
     annot_db.add_feature(
         seqid="s2",
@@ -118,11 +116,13 @@ def genomedbs_aligndb(small_records):
     data = seqs.to_dict()
     genomes = {}
     for name, seq in data.items():
-        genome = SeqsDataHdf5(
+        genome = genomedb.SeqsDataHdf5(
             source=f"{name}", species=species[name], mode="w", in_memory=True
         )
         genome.add_records(records=[(name, seq)])
-        genomes[species[name]] = Genome(seqs=genome, annots=None, species=species[name])
+        genomes[species[name]] = genomedb.Genome(
+            seqs=genome, annots=None, species=species[name]
+        )
 
     return genomes, align_db
 
@@ -165,14 +165,14 @@ def make_sample(two_aligns=False):
         if seq.name == "s2":
             seq = seq.rc()
             s2_genome = str(seq)
-        genome = SeqsDataHdf5(
+        genome = genomedb.SeqsDataHdf5(
             source=f"{name}",
             mode="w",
             in_memory=True,
             species=species[seq.name],
         )
         genome.add_records(records=[(name, str(seq))])
-        genomes[species[name]] = Genome(
+        genomes[species[name]] = genomedb.Genome(
             seqs=genome, annots=annot_dbs[name], species=species[name]
         )
 
@@ -394,19 +394,17 @@ def test_get_species():
 
 def test_write_alignments(tmp_path):
     genomes, align_db = make_sample(two_aligns=True)
-    write_alignments(
+    locations = genomedb.get_gene_segments(
+        annot_db=genomes["human"].annotation_db,
+        species="human",
+        stableids=["not-on-s2"],
+    )
+    app = construct_alignment(
         align_db=align_db,
         genomes=genomes,
-        outdir=tmp_path,
-        limit=None,
-        mask_features=None,
-        stableids=["not-on-s2"],
-        ref_species="human",
-        show_progress=False,
     )
-    aln_path = list(tmp_path.glob("*"))[0]
-    aln = load_aligned_seqs(aln_path, moltype="dna")
-    assert len(aln) == 3
+    aln = app(locations[0])  # pylint: disable=not-callable
+    assert len(aln[0]) == 3
 
 
 @pytest.mark.parametrize(

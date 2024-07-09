@@ -7,12 +7,13 @@ from dataclasses import dataclass
 import h5py
 import numpy
 
+from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
-from rich.progress import track
 
 from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
-from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType, sanitise_stableid
+from ensembl_lite._genomedb import Genome, genome_segment
+from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
@@ -353,60 +354,55 @@ def get_alignment(
         yield aln
 
 
-def write_alignments(
-    *,
-    align_db: AlignDb,
-    genomes: dict,
-    limit: int | None,
-    mask_features: list[str],
-    outdir: PathType,
-    ref_species: str,
-    stableids: list[str],
-    show_progress: bool = True,
-):
-    # then the coordinates for the id's
-    ref_genome = genomes[ref_species]
-    locations = []
-    for stableid in stableids:
-        record = list(ref_genome.annotation_db.get_records_matching(name=stableid))
-        if not record:
-            continue
-        elif len(record) == 1:
-            record = record[0]
-        locations.append(
-            (
-                stableid,
-                ref_species,
-                record["seqid"],
-                record["start"],
-                record["stop"],
-            )
-        )
+def _add_alignments(*alns, sep="?") -> Alignment:
+    """concatenates alignments using sep as spacer"""
+    defaults = ["?" * len(aln) for aln in alns]
+    all_names = set()
+    for aln in alns:
+        all_names.update(set(aln.names))
 
-    if limit:
-        locations = locations[:limit]
+    result = {n: [] for n in all_names}
+    for aln, default in zip(alns, defaults):
+        data = aln.to_dict()
+        for name in all_names:
+            result[name].append(data.get(name, default))
 
-    for stableid, species, seqid, start, end in track(
-        locations, disable=not show_progress
-    ):
-        alignments = list(
-            get_alignment(
-                align_db,
-                genomes,
-                species,
-                seqid,
-                start,
-                end,
-                mask_features=mask_features,
-            )
-        )
-        stableid = sanitise_stableid(stableid)
-        if len(alignments) == 1:
-            outpath = outdir / f"{stableid}.fa.gz"
-            alignments[0].write(outpath)
-        elif len(alignments) > 1:
-            for i, aln in enumerate(alignments):
-                outpath = outdir / f"{stableid}-{i}.fa.gz"
-                aln.write(outpath)
+    result = {n: sep.join(data) for n, data in result.items()}
+    return Alignment(data=result, moltype=aln.moltype)
 
-    return True
+
+@define_app
+class construct_alignment:
+    """reassemble an alignment that maps to a given genomic segment
+
+    If the segment spans multiple alignments these are joinded using
+    the sep character.
+    """
+
+    def __init__(
+        self,
+        align_db: AlignDb,
+        genomes: dict[str, Genome],
+        mask_features: typing.Optional[list[str]] = None,
+        sep: str = "?",
+    ) -> None:
+        self._align_db = align_db
+        self._genomes = genomes
+        self._mask_features = mask_features
+        self._sep = sep
+
+    def main(self, segment: genome_segment) -> list[Alignment]:
+        results = []
+        for aln in get_alignment(
+            self._align_db,
+            self._genomes,
+            segment.species,
+            segment.seqid,
+            segment.start,
+            segment.stop,
+            mask_features=self._mask_features,
+        ):
+            aln.info.source = segment.source
+            results.append(aln)
+
+        return results
