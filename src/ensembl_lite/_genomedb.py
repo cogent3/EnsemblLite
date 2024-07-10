@@ -1067,8 +1067,8 @@ def get_gene_table_for_species(
         rows.append([species] + [record.get(c, None) for c in columns[1:]])
         if i == limit:
             break
-
-    return make_table(header=columns, data=rows)
+    header = ["stableid" if c == "name" else c for c in columns]
+    return make_table(header=header, data=rows)
 
 
 def get_species_summary(
