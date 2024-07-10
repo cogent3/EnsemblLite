@@ -1,6 +1,7 @@
 # parser for MAF, defined at
 # https://genome.ucsc.edu/FAQ/FAQformat.html#format5
 
+import re
 import typing
 
 import numpy
@@ -14,11 +15,14 @@ from ensembl_lite._name import MafName
 from ensembl_lite._util import PathType
 
 
+_id_pattern = re.compile(r"(?<=id[:])\s*\d+")
+
+
 def _get_alignment_block_indices(data: list[str]) -> list[tuple[int, int]]:
     blocks = []
     start = None
     for i, line in enumerate(data):
-        if line.startswith("a"):
+        if _id_pattern.search(line):
             if start is not None:
                 blocks.append((start, i))
             start = i
@@ -28,6 +32,13 @@ def _get_alignment_block_indices(data: list[str]) -> list[tuple[int, int]]:
 
     blocks.append((start, i))
     return blocks
+
+
+def process_id_line(line: str) -> int:
+    match = _id_pattern.search(line)
+    if not match:
+        raise ValueError(f"{line=} is not a tree id line")
+    return int(match.group())
 
 
 def process_maf_line(line: str) -> tuple[MafName, str]:
@@ -60,13 +71,14 @@ def _get_seqs(lines: list[str]) -> dict[MafName, str]:
     return alignment
 
 
-def parse(path: PathType) -> typing.Iterable[dict[MafName, str]]:
+def parse(path: PathType) -> typing.Iterable[tuple[int, dict[MafName, str]]]:
     with open_(path) as infile:
         data = infile.readlines()
 
     blocks = _get_alignment_block_indices(data)
     for block_start, block_end in blocks:
-        yield _get_seqs(data[block_start:block_end])
+        block_id = process_id_line(data[block_start])
+        yield block_id, _get_seqs(data[block_start + 1 : block_end])
 
 
 def seq2gaps(record: dict) -> AlignRecord:
@@ -88,13 +100,13 @@ class load_align_records:
 
     def main(self, path: IdentifierType) -> list[AlignRecord]:
         records = []
-        for block_id, align in enumerate(parse(path)):
+        for block_id, align in parse(path):
             converted = []
             for maf_name, seq in align.items():
                 if self.species and maf_name.species not in self.species:
                     continue
                 record = maf_name.to_dict()
-                record["block_id"] = f"{path.name}-{block_id}"
+                record["block_id"] = block_id
                 record["source"] = path.name
                 record["seq"] = seq
                 converted.append(seq2gaps(record))

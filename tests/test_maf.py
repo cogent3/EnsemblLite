@@ -1,12 +1,19 @@
 import pytest
 
-from ensembl_lite import _maf
+from ensembl_lite import _maf as maf
 
 
 def test_read(DATA_DIR):
     path = DATA_DIR / "sample.maf"
-    blocks = list(_maf.parse(path))
+    blocks = list(maf.parse(path))
     assert len(blocks) == 4
+    block_ids = {b for b, *_ in blocks}
+    assert block_ids == {20060000040557, 20060000042317, 20060000132559, 20060000102888}
+
+
+def test_process_id_line():
+    got = maf.process_id_line("# id: 20060000042317 \n")
+    assert got == 20060000042317
 
 
 @pytest.mark.parametrize(
@@ -17,7 +24,7 @@ def test_read(DATA_DIR):
     ),
 )
 def test_process_maf_line_plus(line):
-    n, s = _maf.process_maf_line(line)
+    n, s = maf.process_maf_line(line)
     assert s == "ACTCTCCAGATGA"
     # maf is zero based
     assert n.start == 2

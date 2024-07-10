@@ -785,6 +785,7 @@ class genome_segment:
     seqid: str
     start: int
     stop: int
+    strand: str
     unique_id: str | None = None
 
     def __post_init__(self):
@@ -1020,6 +1021,7 @@ def get_gene_segments(
             species=species,
             start=record["start"],
             stop=record["stop"],
+            strand=record["strand"],
             seqid=record["seqid"],
             unique_id=record["name"],
         )

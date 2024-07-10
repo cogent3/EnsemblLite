@@ -73,7 +73,7 @@ def make_records(start, end, block_id):
 
 @pytest.fixture
 def small_records():
-    records = make_records(1, 5, "0")
+    records = make_records(1, 5, 0)
     return records
 
 
@@ -81,11 +81,23 @@ def test_aligndb_records_match_input(small_records):
     import copy
 
     orig_records = copy.deepcopy(small_records)
+
     db = AlignDb(source=":memory:")
     db.add_records(records=small_records)
     got = list(db.get_records_matching(species="human", seqid="s1"))[0]
-    for g, o in zip(got, orig_records):
-        assert g == o
+    assert got == set(orig_records)
+
+
+def test_aligndb_records_skip_duplicated_block_ids(small_records):
+    import copy
+
+    orig_records = copy.deepcopy(small_records)
+    db = AlignDb(source=":memory:")
+    db.add_records(records=small_records)
+    orig = list(db.get_records_matching(species="human", seqid="s1"))
+    db.add_records(records=small_records)
+    got = list(db.get_records_matching(species="human", seqid="s1"))
+    assert len(got) == len(orig)
 
 
 def _find_nth_gap_index(data: str, n: int) -> int:
@@ -300,6 +312,7 @@ def test_select_alignment_minus_strand(start_end, namer):
             namer=namer,
         )
     )
+    # drop the strand info
     assert len(got) == 1
     assert got[0].to_dict() == expect.to_dict()
 

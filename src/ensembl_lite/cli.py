@@ -467,7 +467,7 @@ def alignments(
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
-    for results in maker.as_completed(locations, show_progress=True):
+    for results in maker.as_completed(locations, show_progress=False):
         if not results.obj:
             continue
         input_source = results.source.source
