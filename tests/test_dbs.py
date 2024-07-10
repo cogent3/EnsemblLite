@@ -36,7 +36,7 @@ def test_db_align_add_records(db_align):
     gap_spans = numpy.array([[2, 5], [7, 1]], dtype=int)
     orig = dict(
         source="blah",
-        block_id="42",
+        block_id=42,
         species="human",
         seqid="1",
         start=22,

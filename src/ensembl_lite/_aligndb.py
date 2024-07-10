@@ -32,7 +32,7 @@ class AlignRecord:
     """
 
     source: str
-    block_id: str
+    block_id: int
     species: str
     seqid: str
     start: int
@@ -47,11 +47,23 @@ class AlignRecord:
         setattr(self, item, value)
 
     def __eq__(self, other):
-        attrs = "source", "block_id", "species", "seqid", "start", "stop", "strand"
+        attrs = "block_id", "species", "seqid", "start", "stop", "strand"
         for attr in attrs:
             if getattr(self, attr) != getattr(other, attr):
                 return False
         return (self.gap_spans == other.gap_spans).all()
+
+    def __hash__(self):
+        return hash(
+            (
+                self.block_id,
+                self.species,
+                self.seqid,
+                self.start,
+                self.stop,
+                self.strand,
+            )
+        )
 
     @property
     def gap_data(self):
@@ -127,7 +139,7 @@ class AlignDb(SqliteDbMixin):
     _align_schema = {
         "id": "INTEGER PRIMARY KEY",  # used to uniquely identify gap_spans in bound GapStore
         "source": "TEXT",  # the file path
-        "block_id": "TEXT",  # <source file path>-<alignment number>
+        "block_id": "INTEGER",  # the tree id from MAF
         "species": "TEXT",
         "seqid": "TEXT",
         "start": "INTEGER",
@@ -169,10 +181,20 @@ class AlignDb(SqliteDbMixin):
             ).fetchall()
             if row[1] != "id"
         ]
+
+        # we need to identify block_id's that have already been used
+        block_ids = tuple({r.block_id for r in records})
+        val_placeholder = ", ".join("?" * len(block_ids))
+        sql = f"SELECT DISTINCT(block_id) from {self.table_name} WHERE block_id IN ({val_placeholder})"
+        used = {r[0] for r in self.db.execute(sql, block_ids).fetchall()}
+
         val_placeholder = ", ".join("?" * len(col_order))
         sql = f"INSERT INTO {self.table_name} ({', '.join(col_order)}) VALUES ({val_placeholder}) RETURNING id"
 
         for i in range(len(records)):
+            if records[i].block_id in used:
+                continue
+
             index = self.db.execute(sql, [records[i][c] for c in col_order]).fetchone()
             index = index["id"]
             self.gap_store.add_record(index=index, gaps=records[i].gap_spans)
@@ -220,21 +242,22 @@ class AlignDb(SqliteDbMixin):
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
 
-        block_ids = [
+        # todo: there's an issue here with records being duplicated, solved
+        #   for now by making AlignRecord hashable and using a set for block_ids
+        block_ids = {
             r["block_id"]
             for r in self._get_block_id(
                 species=species, seqid=seqid, start=start, stop=stop
             )
-        ]
-
+        }
         values = ", ".join("?" * len(block_ids))
         sql = f"SELECT * from {self.table_name} WHERE block_id IN ({values})"
-        results = defaultdict(list)
-        for record in self.db.execute(sql, block_ids).fetchall():
+        results = defaultdict(set)
+        for record in self.db.execute(sql, tuple(block_ids)).fetchall():
             record = {k: record[k] for k in record.keys()}
             index = record.pop("id")
             record["gap_spans"] = self.gap_store.get_record(index=index)
-            results[record["block_id"]].append(AlignRecord(**record))
+            results[record["block_id"]].add(AlignRecord(**record))
 
         return results.values()
 
@@ -261,7 +284,6 @@ def get_alignment(
     align_records = align_db.get_records_matching(
         species=ref_species, seqid=seqid, start=ref_start, stop=ref_end
     )
-
     # sample the sequences
     for block in align_records:
         # we get the gaps corresponding to the reference sequence
@@ -307,7 +329,7 @@ def get_alignment(
         else:
             raise ValueError(f"no matching alignment record for {ref_species!r}")
 
-        seqs = []
+        seqs = {}
         for align_record in block:
             record_species = align_record.species
             genome = genomes[record_species]
@@ -344,13 +366,21 @@ def get_alignment(
             if align_record.strand == "-":
                 s = s.rc()
 
-            aligned = Aligned(gaps, s)
-            seqs.append(aligned)
+            if not namer:
+                strand_symbol = -1 if align_record.strand == "-" else 1
+                s.name = f"{s.name}:{strand_symbol}"
 
-        aln = Alignment(seqs)
+            aligned = Aligned(gaps, s)
+            if aligned.name not in seqs:
+                seqs[aligned.name] = aligned
+            elif str(aligned) == str(seqs[aligned.name]):
+                print(f"duplicated {s.name}")
+
+        aln = Alignment(list(seqs.values()))
         aln.annotation_db = genome.annotation_db
         if mask_features:
             aln = aln.with_masked_annotations(biotypes=mask_features)
+
         yield aln
 
 
