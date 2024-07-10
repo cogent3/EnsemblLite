@@ -398,6 +398,7 @@ def alignments(
 ):
     """export multiple alignments in fasta format for named genes"""
     from cogent3 import load_table
+    from rich import progress
 
     from ensembl_lite._aligndb import AlignDb, construct_alignment
     from ensembl_lite._species import Species
@@ -467,18 +468,30 @@ def alignments(
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
-    for results in maker.as_completed(locations, show_progress=False):
-        if not results.obj:
-            continue
-        input_source = results.source.source
-        alignments = results.obj
-        if len(alignments) == 1:
-            writer(alignments[0], identifier=input_source)
-            continue
+    with keep_running():
+        with progress.Progress(
+            progress.TextColumn("[progress.description]{task.description}"),
+            progress.BarColumn(),
+            progress.TaskProgressColumn(),
+            progress.TimeRemainingColumn(),
+            progress.TimeElapsedColumn(),
+        ) as progress:
+            task = progress.add_task(
+                total=limit or len(locations), description="Getting alignment data"
+            )
+            for results in maker.as_completed(locations, show_progress=False):
+                progress.update(task, advance=1)
+                if not results.obj:
+                    continue
+                input_source = results.source.source
+                alignments = results.obj
+                if len(alignments) == 1:
+                    writer(alignments[0], identifier=input_source)
+                    continue
 
-        for i, aln in enumerate(results.obj):
-            identifier = f"{input_source}-{i}"
-            writer(aln, identifier=identifier)
+                for i, aln in enumerate(results.obj):
+                    identifier = f"{input_source}-{i}"
+                    writer(aln, identifier=identifier)
 
     click.secho("Done!", fg="green")
 
