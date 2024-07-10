@@ -89,9 +89,6 @@ def test_aligndb_records_match_input(small_records):
 
 
 def test_aligndb_records_skip_duplicated_block_ids(small_records):
-    import copy
-
-    orig_records = copy.deepcopy(small_records)
     db = AlignDb(source=":memory:")
     db.add_records(records=small_records)
     orig = list(db.get_records_matching(species="human", seqid="s1"))
