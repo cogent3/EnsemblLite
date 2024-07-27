@@ -5,14 +5,14 @@ import typing
 
 from rich.progress import Progress
 
-from ensembl_lite._aligndb import AlignDb
+from ensembl_lite._align import AlignDb
 from ensembl_lite._config import Config
-from ensembl_lite._genomedb import (
+from ensembl_lite._genome import (
     _ANNOTDB_NAME,
     fasta_to_hdf5,
     make_annotation_db,
 )
-from ensembl_lite._homologydb import (
+from ensembl_lite._homology import (
     _HOMOLOGYDB_NAME,
     HomologyDb,
     compressor,

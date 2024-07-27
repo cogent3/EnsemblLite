@@ -15,8 +15,8 @@ from cogent3.parse.table import FilteringParser
 from cogent3.util.io import PathType, iter_splitlines
 
 from ensembl_lite._config import InstalledConfig
-from ensembl_lite._db_base import SqliteDbMixin
-from ensembl_lite._genomedb import load_genome
+from ensembl_lite._genome import load_genome
+from ensembl_lite._storage_mixin import SqliteDbMixin
 
 
 _HOMOLOGYDB_NAME = "homologies.sqlitedb"

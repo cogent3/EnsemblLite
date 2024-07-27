@@ -6,7 +6,7 @@ import pytest
 from cogent3 import make_unaligned_seqs
 from numpy.testing import assert_allclose
 
-from ensembl_lite import _genomedb as genomedb
+from ensembl_lite import _genome as genomedb
 
 
 @pytest.fixture(scope="function")

@@ -2,7 +2,7 @@ import pathlib
 
 import pytest
 
-from ensembl_lite._aligndb import _GAP_STORE_SUFFIX
+from ensembl_lite._align import _GAP_STORE_SUFFIX
 from ensembl_lite._config import (
     _ALIGNS_NAME,
     _COMPARA_NAME,

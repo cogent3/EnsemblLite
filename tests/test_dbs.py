@@ -5,8 +5,8 @@ import pytest
 
 from cogent3 import load_table
 
-from ensembl_lite._aligndb import AlignDb, AlignRecord
-from ensembl_lite._homologydb import HomologyDb, merge_grouped
+from ensembl_lite._align import AlignDb, AlignRecord
+from ensembl_lite._homology import HomologyDb, merge_grouped
 from ensembl_lite._install import load_homologies
 from ensembl_lite._maf import load_align_records
 

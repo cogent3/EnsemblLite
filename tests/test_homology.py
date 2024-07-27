@@ -3,7 +3,7 @@ import pytest
 from cogent3 import load_table
 
 from ensembl_lite import _install as install
-from ensembl_lite._homologydb import (
+from ensembl_lite._homology import (
     _HOMOLOGYDB_NAME,
     HomologyDb,
     grouped_related,

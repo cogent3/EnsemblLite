@@ -11,8 +11,8 @@ from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 
-from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
-from ensembl_lite._genomedb import Genome, genome_segment
+from ensembl_lite._genome import Genome, genome_segment
+from ensembl_lite._storage_mixin import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
 
 
