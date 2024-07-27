@@ -8,7 +8,7 @@ from ensembl_lite._config import (
     read_installed_cfg,
     write_installed_cfg,
 )
-from ensembl_lite._genomedb import (
+from ensembl_lite._genome import (
     _ANNOTDB_NAME,
     _SEQDB_NAME,
     SeqsDataHdf5,

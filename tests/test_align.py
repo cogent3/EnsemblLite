@@ -1,8 +1,8 @@
 import numpy
 import pytest
 
-from ensembl_lite import _genomedb as genomedb
-from ensembl_lite._aligndb import (
+from ensembl_lite import _genome as genomedb
+from ensembl_lite._align import (
     AlignDb,
     AlignRecord,
     GapStore,

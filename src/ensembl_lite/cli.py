@@ -17,8 +17,8 @@ from trogon import tui
 from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
-from ensembl_lite import _genomedb as genomedb
-from ensembl_lite._homologydb import (
+from ensembl_lite import _genome as genomedb
+from ensembl_lite._homology import (
     _HOMOLOGYDB_NAME,
     collect_seqs,
     load_homology_db,
@@ -348,7 +348,7 @@ def installed(installed):
 @_species
 def species_summary(installed, species):
     """genome summary data for a species"""
-    from ._genomedb import (
+    from ._genome import (
         _ANNOTDB_NAME,
         get_species_summary,
         load_annotations_for_species,
@@ -400,7 +400,7 @@ def alignments(
     from cogent3 import load_table
     from rich import progress
 
-    from ensembl_lite._aligndb import AlignDb, construct_alignment
+    from ensembl_lite._align import AlignDb, construct_alignment
     from ensembl_lite._species import Species
 
     # todo support genomic coordinates, e.g. coord_name:start-stop, for
@@ -602,7 +602,7 @@ def homologs(
 @_limit
 def dump_genes(installed, species, outdir, limit):
     """export meta-data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
-    from ensembl_lite._genomedb import (
+    from ensembl_lite._genome import (
         _ANNOTDB_NAME,
         get_gene_table_for_species,
         load_annotations_for_species,

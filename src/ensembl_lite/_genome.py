@@ -31,9 +31,9 @@ from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite._config import Config, InstalledConfig
-from ensembl_lite._db_base import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._faster_fasta import quicka_parser
 from ensembl_lite._species import Species
+from ensembl_lite._storage_mixin import Hdf5Mixin, SqliteDbMixin
 from ensembl_lite._util import (
     _HDF5_BLOSC2_KWARGS,
     PathType,

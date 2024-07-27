@@ -10,7 +10,7 @@ from cogent3 import make_seq, open_
 from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 
-from ensembl_lite._aligndb import AlignRecord
+from ensembl_lite._align import AlignRecord
 from ensembl_lite._name import MafName
 from ensembl_lite._util import PathType
 
