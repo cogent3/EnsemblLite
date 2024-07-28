@@ -16,6 +16,7 @@ from ensembl_lite import _util as elt_util
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
 GAP_STORE_SUFFIX = "indels-hdf5_blosc2"
+ALIGN_STORE_SUFFIX = "align_coords-sqlitedb"
 
 
 @dataclass(slots=True)

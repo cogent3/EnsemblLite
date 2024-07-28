@@ -117,7 +117,8 @@ def local_install_alignments(
         dest_dir = config.install_aligns
         dest_dir.mkdir(parents=True, exist_ok=True)
         # write out to a db with align_name
-        db = elt_align.AlignDb(source=(dest_dir / f"{align_name}.sqlitedb"))
+        output_path = dest_dir / f"{align_name}.{elt_align.ALIGN_STORE_SUFFIX}"
+        db = elt_align.AlignDb(source=output_path)
         records = []
         paths = list(src_dir.glob(f"{align_name}*maf*"))
 
@@ -147,6 +148,7 @@ def local_install_alignments(
                 progress.update(writing, description=msg, advance=1)
 
         db.add_records(records=records)
+        db.make_indexes()
         db.close()
 
     if verbose:
@@ -206,6 +208,7 @@ def local_install_homology(
             progress.update(writing, description=msg, advance=1)
 
     no_records = len(db) == 0
+    db.make_indexes()
     db.close()
     if no_records:
         outpath.unlink()
