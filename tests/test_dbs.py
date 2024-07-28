@@ -5,7 +5,6 @@ import pytest
 from cogent3 import load_table
 from ensembl_lite import _align as elt_align
 from ensembl_lite import _homology as elt_homology
-from ensembl_lite import _install as elt_install
 from ensembl_lite import _maf as elt_maf
 
 
