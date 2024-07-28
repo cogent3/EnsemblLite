@@ -41,9 +41,8 @@ from ensembl_lite._util import (
     sanitise_stableid,
 )
 
-
-_SEQDB_NAME = "genome_sequence.hdf5_blosc2"
-_ANNOTDB_NAME = "features.ensembl_gff3db"
+SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
+ANNOT_STORE_NAME = "genome.annots-sqlitedb"
 
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE

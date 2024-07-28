@@ -18,8 +18,7 @@ from ensembl_lite._config import InstalledConfig
 from ensembl_lite._genome import load_genome
 from ensembl_lite._storage_mixin import SqliteDbMixin
 
-
-_HOMOLOGYDB_NAME = "homologies.sqlitedb"
+HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
 
 compressor = compress(compressor=blosc2.compress2)
 decompressor = decompress(decompressor=blosc2.decompress2)
