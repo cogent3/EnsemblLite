@@ -1,5 +1,4 @@
 import pytest
-
 from ensembl_lite._site_map import get_site_map
 
 

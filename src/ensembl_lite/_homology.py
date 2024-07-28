@@ -2,7 +2,6 @@ import dataclasses
 import typing
 
 import blosc2
-
 from cogent3 import make_unaligned_seqs
 from cogent3.app.composable import LOADER, NotCompleted, define_app
 from cogent3.app.io import compress, decompress, pickle_it, unpickle_it
@@ -14,9 +13,9 @@ from cogent3.app.typing import (
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import PathType, iter_splitlines
 
-from ensembl_lite._config import InstalledConfig
-from ensembl_lite._genome import load_genome
-from ensembl_lite._storage_mixin import SqliteDbMixin
+from ensembl_lite import _config as elt_config
+from ensembl_lite import _genome as elt_genome
+from ensembl_lite import _storage_mixin as elt_mixin
 
 HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
 
@@ -210,7 +209,7 @@ def merge_grouped(group1: T, group2: T) -> T:
 
 
 # the homology db stores pairwise relationship information
-class HomologyDb(SqliteDbMixin):
+class HomologyDb(elt_mixin.SqliteDbMixin):
     table_names = "homology", "relationship", "member", "species", "stableid"
 
     _relationship_schema = {  # e.g. ortholog_one2one
@@ -482,7 +481,7 @@ class collect_seqs:
 
     def __init__(
         self,
-        config: InstalledConfig,
+        config: elt_config.InstalledConfig,
         make_seq_name: typing.Optional[typing.Callable] = None,
         verbose: bool = False,
     ):
@@ -496,7 +495,7 @@ class collect_seqs:
         seqs = []
         for species, sp_genes in homologs.species_ids().items():
             if species not in self._genomes:
-                self._genomes[species] = load_genome(
+                self._genomes[species] = elt_genome.load_genome(
                     config=self._config, species=species
                 )
             genome = self._genomes[species]

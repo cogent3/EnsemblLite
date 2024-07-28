@@ -3,8 +3,7 @@ import dataclasses
 import os
 import sqlite3
 
-from ensembl_lite._util import PathType, SerialisableMixin
-
+from ensembl_lite import _util as elt_util
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
@@ -34,10 +33,10 @@ def _make_table_sql(
     return sql
 
 
-class SqliteDbMixin(SerialisableMixin):
+class SqliteDbMixin(elt_util.SerialisableMixin):
     table_name = None
     _db = None
-    source: PathType = ":memory:"
+    source: elt_util.PathType = ":memory:"
 
     def __getstate__(self):
         return {**self._init_vals}
@@ -127,7 +126,7 @@ class SqliteDbMixin(SerialisableMixin):
 
 # HDF5 base class
 @dataclasses.dataclass
-class Hdf5Mixin(SerialisableMixin):
+class Hdf5Mixin(elt_util.SerialisableMixin):
     """HDF5 sequence data storage"""
 
     _file = None

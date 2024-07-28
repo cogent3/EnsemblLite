@@ -3,11 +3,8 @@ import shutil
 import sys
 
 import pytest
-
 from click.testing import CliRunner
-
-from ensembl_lite.cli import download, exportrc, install
-
+from ensembl_lite import cli as elt_cli
 
 if sys.platform.startswith("linux"):
     pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
@@ -20,7 +17,7 @@ def test_download(tmp_config):
     tmp_dir = tmp_config.parent
     # now download
     runner = CliRunner()
-    r = runner.invoke(download, [f"-c{tmp_config}"], catch_exceptions=False)
+    r = runner.invoke(elt_cli.download, [f"-c{tmp_config}"], catch_exceptions=False)
     assert r.exit_code == 0, r.output
     # make sure the download checkpoint file exists
     genome_dir = tmp_dir / "staging" / "genomes"
@@ -39,7 +36,7 @@ def test_exportrc(tmp_dir):
     """exportrc works correctly"""
     runner = CliRunner()
     outdir = tmp_dir / "exported"
-    r = runner.invoke(exportrc, [f"-o{outdir}"])
+    r = runner.invoke(elt_cli.exportrc, [f"-o{outdir}"])
     assert r.exit_code == 0, r.output
     fnames = os.listdir(outdir)
     assert "species.tsv" in fnames
@@ -49,4 +46,4 @@ def test_exportrc(tmp_dir):
 
 def test_install(tmp_config):
     runner = CliRunner()
-    _ = runner.invoke(install, [f"-c{tmp_config}"])
+    _ = runner.invoke(elt_cli.install, [f"-c{tmp_config}"])

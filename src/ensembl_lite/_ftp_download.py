@@ -1,19 +1,11 @@
 import pathlib
-
 from ftplib import FTP
-from typing import Callable, Iterable
+from typing import Callable
 
 from rich.progress import track
 from unsync import unsync
 
-from ensembl_lite._util import (
-    PathType,
-    atomic_write,
-    dont_checksum,
-    get_sig_calc_func,
-    get_signature_data,
-    is_signature,
-)
+from ensembl_lite import _util as elt_util
 
 
 def configured_ftp(host: str = "ftp.ensembl.org") -> FTP:
@@ -33,12 +25,14 @@ def listdir(host: str, path: str, pattern: Callable = None):
     ftp.close()
 
 
-def _copy_to_local(host: str, src: PathType, dest: PathType) -> PathType:
+def _copy_to_local(
+    host: str, src: elt_util.PathType, dest: elt_util.PathType
+) -> elt_util.PathType:
     if dest.exists():
         return dest
     ftp = configured_ftp(host=host)
     # pass in checksum and keep going until it's correct?
-    with atomic_write(dest, mode="wb") as outfile:
+    with elt_util.atomic_write(dest, mode="wb") as outfile:
         ftp.retrbinary(f"RETR {src}", outfile.write)
 
     ftp.close()
@@ -70,8 +64,8 @@ def _get_saved_paths(description, host, local_dest, remote_paths):  # pragma: no
 def download_data(
     *,
     host: str,
-    local_dest: PathType,
-    remote_paths: Iterable[PathType],
+    local_dest: elt_util.PathType,
+    remote_paths: list[elt_util.PathType],
     description,
     do_checksum: bool,
 ) -> bool:
