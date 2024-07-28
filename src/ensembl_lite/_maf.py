@@ -5,15 +5,13 @@ import re
 import typing
 
 import numpy
-
 from cogent3 import make_seq, open_
 from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 
-from ensembl_lite._align import AlignRecord
-from ensembl_lite._name import MafName
-from ensembl_lite._util import PathType
-
+from ensembl_lite import _align as elt_align
+from ensembl_lite import _name as elt_name
+from ensembl_lite import _util as elt_util
 
 _id_pattern = re.compile(r"(?<=id[:])\s*\d+")
 
@@ -41,7 +39,7 @@ def process_id_line(line: str) -> int:
     return int(match.group())
 
 
-def process_maf_line(line: str) -> tuple[MafName, str]:
+def process_maf_line(line: str) -> tuple[elt_name.MafName, str]:
     # after the s token we have src.seqid, start, size, strand, src_size, seq
     _, src_coord, start, size, strand, coord_length, seq = line.strip().split()
     species, coord = src_coord.split(".", maxsplit=1)
@@ -50,7 +48,7 @@ def process_maf_line(line: str) -> tuple[MafName, str]:
         start = coord_length - (start + size)
 
     stop = start + size
-    n = MafName(
+    n = elt_name.MafName(
         species=species,
         seqid=coord,
         start=start,
@@ -61,7 +59,7 @@ def process_maf_line(line: str) -> tuple[MafName, str]:
     return n, seq
 
 
-def _get_seqs(lines: list[str]) -> dict[MafName, str]:
+def _get_seqs(lines: list[str]) -> dict[elt_name.MafName, str]:
     alignment = {}
     for line in lines:
         if not line.startswith("s") or "ancestral" in line[:100]:
@@ -71,7 +69,9 @@ def _get_seqs(lines: list[str]) -> dict[MafName, str]:
     return alignment
 
 
-def parse(path: PathType) -> typing.Iterable[tuple[int, dict[MafName, str]]]:
+def parse(
+    path: elt_util.PathType,
+) -> typing.Iterable[tuple[int, dict[elt_name.MafName, str]]]:
     with open_(path) as infile:
         data = infile.readlines()
 
@@ -81,7 +81,7 @@ def parse(path: PathType) -> typing.Iterable[tuple[int, dict[MafName, str]]]:
         yield block_id, _get_seqs(data[block_start + 1 : block_end])
 
 
-def seq2gaps(record: dict) -> AlignRecord:
+def seq2gaps(record: dict) -> elt_align.AlignRecord:
     seq = make_seq(record.pop("seq"))
     indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
@@ -90,7 +90,7 @@ def seq2gaps(record: dict) -> AlignRecord:
         ).T
     else:
         record["gap_spans"] = numpy.array([], dtype=numpy.int32)
-    return AlignRecord(**record)
+    return elt_align.AlignRecord(**record)
 
 
 @define_app(app_type=LOADER)
@@ -98,7 +98,7 @@ class load_align_records:
     def __init__(self, species: set[str] | None = None):
         self.species = species or {}
 
-    def main(self, path: IdentifierType) -> list[AlignRecord]:
+    def main(self, path: IdentifierType) -> list[elt_align.AlignRecord]:
         records = []
         for block_id, align in parse(path):
             converted = []

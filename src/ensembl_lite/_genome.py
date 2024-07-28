@@ -6,7 +6,6 @@ import pathlib
 import re
 import sqlite3
 import typing
-
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -14,7 +13,6 @@ import click
 import h5py
 import numpy
 import typing_extensions
-
 from cogent3 import get_moltype, make_seq, make_table
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
@@ -30,20 +28,14 @@ from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
 
-from ensembl_lite._config import Config, InstalledConfig
+from ensembl_lite import _config as elt_config
+from ensembl_lite import _species as elt_species
+from ensembl_lite import _storage_mixin as elt_mixin
+from ensembl_lite import _util as elt_util
 from ensembl_lite._faster_fasta import quicka_parser
-from ensembl_lite._species import Species
-from ensembl_lite._storage_mixin import Hdf5Mixin, SqliteDbMixin
-from ensembl_lite._util import (
-    _HDF5_BLOSC2_KWARGS,
-    PathType,
-    get_stableid_prefix,
-    sanitise_stableid,
-)
 
-
-_SEQDB_NAME = "genome_sequence.hdf5_blosc2"
-_ANNOTDB_NAME = "features.ensembl_gff3db"
+SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
+ANNOT_STORE_NAME = "genome.annots-sqlitedb"
 
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE
@@ -139,7 +131,7 @@ class EnsemblGffRecord(GffRecord):
 
 
 def custom_gff_parser(
-    path: PathType, num_fake_ids: int
+    path: elt_util.PathType, num_fake_ids: int
 ) -> tuple[dict[str, EnsemblGffRecord], int]:
     """replacement for cogent3 merged_gff_records"""
     reduced = {}
@@ -172,7 +164,7 @@ def custom_gff_parser(
 DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
 
 
-class EnsemblGffDb(SqliteDbMixin):
+class EnsemblGffDb(elt_mixin.SqliteDbMixin):
     _biotype_schema = {
         "type": "TEXT COLLATE NOCASE",
         "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
@@ -215,7 +207,7 @@ class EnsemblGffDb(SqliteDbMixin):
 
     def __init__(
         self,
-        source: PathType = ":memory:",
+        source: elt_util.PathType = ":memory:",
         db: typing.Optional[DbTypes] = None,
     ):
         self.source = source
@@ -455,7 +447,7 @@ class EnsemblGffDb(SqliteDbMixin):
     def subset(
         self,
         *,
-        source: PathType = ":memory:",
+        source: elt_util.PathType = ":memory:",
         biotype: OptionalStr = None,
         seqid: OptionalStr = None,
         name: OptionalStr = None,
@@ -539,7 +531,7 @@ def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str
     for record in records:
         record.update_from_attrs()
         try:
-            prefix = get_stableid_prefix(record.stableid)
+            prefix = elt_util.get_stableid_prefix(record.stableid)
         except ValueError:
             continue
         prefixes.add(prefix)
@@ -578,7 +570,7 @@ def _rename(label: str) -> str:
 
 @define_app
 class fasta_to_hdf5:
-    def __init__(self, config: Config, label_to_name=_rename):
+    def __init__(self, config: elt_config.Config, label_to_name=_rename):
         self.config = config
         self.label_to_name = label_to_name
 
@@ -587,8 +579,8 @@ class fasta_to_hdf5:
         dest_dir = self.config.install_genomes / db_name
 
         seq_store = SeqsDataHdf5(
-            source=dest_dir / _SEQDB_NAME,
-            species=Species.get_species_name(db_name),
+            source=dest_dir / SEQ_STORE_NAME,
+            species=elt_species.Species.get_species_name(db_name),
             mode="w",
         )
 
@@ -604,14 +596,14 @@ class fasta_to_hdf5:
         return True
 
 
-T = tuple[PathType, list[tuple[str, str]]]
+T = tuple[elt_util.PathType, list[tuple[str, str]]]
 
 
 class SeqsDataABC(ABC):
     """interface for genome sequence storage"""
 
     # the storage reference, e.g. path to file
-    source: PathType
+    source: elt_util.PathType
     species: str
     mode: str  # as per standard file opening modes, r, w, a
     _is_open = False
@@ -688,12 +680,12 @@ class arr2str:
 
 
 @dataclasses.dataclass
-class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
+class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
     """HDF5 sequence data storage"""
 
     def __init__(
         self,
-        source: PathType,
+        source: elt_util.PathType,
         species: Optional[str] = None,
         mode: str = "r",
         in_memory: bool = False,
@@ -706,7 +698,9 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
         if mode == "r" and not source.exists():
             raise OSError(f"{self.source!s} not found")
 
-        species = Species.get_ensembl_db_prefix(species) if species else None
+        species = (
+            elt_species.Species.get_ensembl_db_prefix(species) if species else None
+        )
         self.mode = "w-" if mode == "w" else mode
         if in_memory:
             h5_kwargs = dict(
@@ -754,7 +748,7 @@ class SeqsDataHdf5(Hdf5Mixin, SeqsDataABC):
             raise ValueError(f"{seqid!r} already present but with different seq")
 
         self._file.create_dataset(
-            name=seqid, data=seq, chunks=True, **_HDF5_BLOSC2_KWARGS
+            name=seqid, data=seq, chunks=True, **elt_util._HDF5_BLOSC2_KWARGS
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
@@ -790,7 +784,7 @@ class genome_segment:
 
     def __post_init__(self):
         self.unique_id = (
-            sanitise_stableid(self.unique_id)
+            elt_util.sanitise_stableid(self.unique_id)
             if self.unique_id
             else f"{self.species}-{self.seqid}-{self.start}-{self.stop}"
         )
@@ -919,18 +913,18 @@ class Genome:
         self.annotation_db.db.close()
 
 
-def load_genome(*, config: InstalledConfig, species: str):
+def load_genome(*, config: elt_config.InstalledConfig, species: str):
     """returns the Genome with bound seqs and features"""
-    genome_path = config.installed_genome(species) / _SEQDB_NAME
+    genome_path = config.installed_genome(species) / SEQ_STORE_NAME
     seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
-    ann_path = config.installed_genome(species) / _ANNOTDB_NAME
+    ann_path = config.installed_genome(species) / ANNOT_STORE_NAME
     ann = EnsemblGffDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
 
 
 def get_seqs_for_ids(
     *,
-    config: InstalledConfig,
+    config: elt_config.InstalledConfig,
     species: str,
     names: list[str],
     make_seq_name: typing.Optional[typing.Callable] = None,
@@ -1088,7 +1082,7 @@ def get_species_summary(
     species = species or annot_db.source.parent.name
     counts = annot_db.biotype_counts()
     try:
-        common_name = Species.get_common_name(species)
+        common_name = elt_species.Species.get_common_name(species)
     except ValueError:
         common_name = species
 

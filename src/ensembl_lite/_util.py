@@ -9,7 +9,6 @@ import subprocess
 import sys
 import typing
 import uuid
-
 from hashlib import md5
 from tempfile import mkdtemp
 from typing import IO, Callable, Union
@@ -18,10 +17,8 @@ import blosc2
 import hdf5plugin
 import numba
 import numpy
-
 from cogent3.app.composable import define_app
 from cogent3.util.parallel import as_completed
-
 
 PathType = Union[str, pathlib.Path, os.PathLike]
 

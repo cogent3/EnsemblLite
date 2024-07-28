@@ -2,10 +2,8 @@ import pathlib
 import shutil
 
 import click
-
 from cogent3 import get_app, open_data_store
 from scitrack import CachingLogger
-
 
 try:
     from wakepy.keep import running as keep_running
@@ -17,15 +15,9 @@ from trogon import tui
 from ensembl_lite import __version__
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _download as elt_download
-from ensembl_lite import _genome as genomedb
-from ensembl_lite._homology import (
-    _HOMOLOGYDB_NAME,
-    collect_seqs,
-    load_homology_db,
-)
-from ensembl_lite._species import Species
-from ensembl_lite._util import PathType
-
+from ensembl_lite import _genome as elt_genome
+from ensembl_lite import _species as elt_species
+from ensembl_lite import _util as elt_util
 
 try:
     # trap flaky behaviour on linux
@@ -36,7 +28,7 @@ except NotImplementedError:
     from ensembl_lite._util import fake_wake as keep_running
 
 
-def _get_installed_config_path(ctx, param, path) -> PathType:
+def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
     """path to installed.cfg"""
     path = pathlib.Path(path)
     if path.name == elt_config.INSTALLED_CONFIG_NAME:
@@ -65,7 +57,7 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     db_names = []
     for name in species:
         try:
-            db_name = Species.get_ensembl_db_prefix(name)
+            db_name = elt_species.Species.get_ensembl_db_prefix(name)
         except ValueError:
             click.secho(f"ERROR: unknown species {name!r}", fg="red")
             exit(1)
@@ -185,11 +177,10 @@ def main():
 @_dbrc_out
 def exportrc(outpath):
     """exports sample config and species table to the nominated path"""
-    from ensembl_lite._util import ENSEMBLDBRC
 
     outpath = outpath.expanduser()
 
-    shutil.copytree(ENSEMBLDBRC, outpath)
+    shutil.copytree(elt_util.ENSEMBLDBRC, outpath)
     # we assume all files starting with alphabetical characters are valid
     for fn in pathlib.Path(outpath).glob("*"):
         if not fn.stem.isalpha():
@@ -207,6 +198,8 @@ def exportrc(outpath):
 @_verbose
 def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
+    from rich import progress
+
     if configpath.name == elt_download._cfg:
         # todo is this statement correct if we're seting a root dir now?
         click.secho(
@@ -235,9 +228,16 @@ def download(configpath, debug, verbose):
 
     config.write()
     with keep_running():
-        elt_download.download_species(config, debug, verbose)
-        elt_download.download_homology(config, debug, verbose)
-        elt_download.download_aligns(config, debug, verbose)
+        with progress.Progress(
+            progress.TextColumn("[progress.description]{task.description}"),
+            progress.BarColumn(),
+            progress.TaskProgressColumn(),
+            progress.TimeRemainingColumn(),
+            progress.TimeElapsedColumn(),
+        ) as progress:
+            elt_download.download_species(config, debug, verbose, progress=progress)
+            elt_download.download_homology(config, debug, verbose, progress=progress)
+            elt_download.download_aligns(config, debug, verbose, progress=progress)
 
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
@@ -311,9 +311,6 @@ def installed(installed):
     """show what is installed"""
     from cogent3 import make_table
 
-    from ensembl_lite._species import Species
-    from ensembl_lite._util import rich_display
-
     config = elt_config.read_installed_cfg(installed)
 
     genome_dir = config.genomes_path
@@ -321,14 +318,14 @@ def installed(installed):
         species = [fn.name for fn in genome_dir.glob("*")]
         data = {"species": [], "common name": []}
         for name in species:
-            cn = Species.get_common_name(name, level="ignore")
+            cn = elt_species.Species.get_common_name(name, level="ignore")
             if not cn:
                 continue
             data["species"].append(name)
             data["common name"].append(cn)
 
         table = make_table(data=data, title="Installed genomes")
-        rich_display(table)
+        elt_util.rich_display(table)
 
     # TODO as above
     compara_aligns = config.aligns_path
@@ -340,7 +337,7 @@ def installed(installed):
             data={"align name": list(align_names)},
             title="Installed whole genome alignments",
         )
-        rich_display(table)
+        elt_util.rich_display(table)
 
 
 @main.command(no_args_is_help=True)
@@ -348,12 +345,6 @@ def installed(installed):
 @_species
 def species_summary(installed, species):
     """genome summary data for a species"""
-    from ._genome import (
-        _ANNOTDB_NAME,
-        get_species_summary,
-        load_annotations_for_species,
-    )
-    from ._util import rich_display
 
     config = elt_config.read_installed_cfg(installed)
     if species is None:
@@ -365,14 +356,14 @@ def species_summary(installed, species):
         exit(1)
 
     species = species[0]
-    path = config.installed_genome(species=species) / _ANNOTDB_NAME
+    path = config.installed_genome(species=species) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
         exit(1)
 
-    annot_db = load_annotations_for_species(path=path)
-    summary = get_species_summary(annot_db=annot_db, species=species)
-    rich_display(summary)
+    annot_db = elt_genome.load_annotations_for_species(path=path)
+    summary = elt_genome.get_species_summary(annot_db=annot_db, species=species)
+    elt_util.rich_display(summary)
 
 
 @main.command(no_args_is_help=True)
@@ -400,8 +391,7 @@ def alignments(
     from cogent3 import load_table
     from rich import progress
 
-    from ensembl_lite._align import AlignDb, construct_alignment
-    from ensembl_lite._species import Species
+    from ensembl_lite import _align as elt_align
 
     # todo support genomic coordinates, e.g. coord_name:start-stop, for
     #  a reference species
@@ -425,8 +415,8 @@ def alignments(
         )
         exit(1)
 
-    align_db = AlignDb(source=align_path)
-    ref_species = Species.get_ensembl_db_prefix(ref)
+    align_db = elt_align.AlignDb(source=align_path)
+    ref_species = elt_species.Species.get_ensembl_db_prefix(ref)
     if ref_species not in align_db.get_species_names():
         click.secho(
             f"species {ref!r} not in the alignment",
@@ -439,7 +429,7 @@ def alignments(
         print(f"working on species {align_db.get_species_names()}")
 
     genomes = {
-        sp: genomedb.load_genome(config=config, species=sp)
+        sp: elt_genome.load_genome(config=config, species=sp)
         for sp in align_db.get_species_names()
     }
 
@@ -456,14 +446,14 @@ def alignments(
     else:
         stableids = None
 
-    locations = genomedb.get_gene_segments(
+    locations = elt_genome.get_gene_segments(
         annot_db=genomes[ref_species].annotation_db,
         species=ref_species,
         limit=limit,
         stableids=stableids,
     )
 
-    maker = construct_alignment(
+    maker = elt_align.construct_alignment(
         align_db=align_db, genomes=genomes, mask_features=mask_features
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
@@ -517,6 +507,8 @@ def homologs(
     """exports CDS sequence data in fasta format for homology type relationship"""
     from rich import progress
 
+    from ensembl_lite import _homology as elt_homology
+
     LOGGER = CachingLogger()
     LOGGER.log_args()
 
@@ -532,15 +524,17 @@ def homologs(
     LOGGER.log_file_path = outpath / f"homologs-{ref}-{relationship}.log"
 
     config = elt_config.read_installed_cfg(installed)
-    Species.update_from_file(config.genomes_path / "species.tsv")
+    elt_species.Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
-    genome = genomedb.load_genome(config=config, species=ref)
+    genome = elt_genome.load_genome(config=config, species=ref)
     if verbose:
         print(f"Loaded genome for {ref!r}")
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
     if verbose:
         print(f"Found {len(gene_ids):,} gene IDs for {ref!r}")
-    db = load_homology_db(path=config.homologies_path / _HOMOLOGYDB_NAME)
+    db = elt_homology.load_homology_db(
+        path=config.homologies_path / elt_homology.HOMOLOGY_STORE_NAME
+    )
     related = []
     with progress.Progress(
         progress.TextColumn("[progress.description]{task.description}"),
@@ -563,7 +557,7 @@ def homologs(
         if verbose:
             print(f"Found {len(related)} homolog groups")
 
-        get_seqs = collect_seqs(config=config)
+        get_seqs = elt_homology.collect_seqs(config=config)
         out_dstore = open_data_store(base_path=outpath, suffix="fa", mode="w")
 
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
@@ -602,11 +596,6 @@ def homologs(
 @_limit
 def dump_genes(installed, species, outdir, limit):
     """export meta-data table for genes from one species to <species>-<release>.gene_metadata.tsv"""
-    from ensembl_lite._genome import (
-        _ANNOTDB_NAME,
-        get_gene_table_for_species,
-        load_annotations_for_species,
-    )
 
     config = elt_config.read_installed_cfg(installed)
     if species is None:
@@ -617,14 +606,14 @@ def dump_genes(installed, species, outdir, limit):
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
         exit(1)
 
-    path = config.installed_genome(species=species[0]) / _ANNOTDB_NAME
+    path = config.installed_genome(species=species[0]) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
         exit(1)
 
-    annot_db = load_annotations_for_species(path=path)
+    annot_db = elt_genome.load_annotations_for_species(path=path)
     path = annot_db.source
-    table = get_gene_table_for_species(annot_db=annot_db, limit=limit)
+    table = elt_genome.get_gene_table_for_species(annot_db=annot_db, limit=limit)
     outdir.mkdir(parents=True, exist_ok=True)
     outpath = outdir / f"{path.parent.stem}-{config.release}-gene_metadata.tsv"
     table.write(outpath)

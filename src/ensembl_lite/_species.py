@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import pathlib
 import typing
@@ -8,30 +6,24 @@ from cogent3 import load_table
 from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
-from ._util import (
-    ENSEMBLDBRC,
-    CaseInsensitiveString,
-    get_resource_path,
-    get_stableid_prefix,
-)
-
+from ensembl_lite import _util as elt_util
 
 SPECIES_NAME = "species.tsv"
 StrOrNone = typing.Union[str, type(None)]
 
 
-def load_species(species_path):
+def load_species(species_path: elt_util.PathType) -> list[list[str]]:
     """returns [[latin_name, common_name, stableid prefix],..] from species_path
 
     if species_path does not exist, defaults to default one"""
     if not os.path.exists(species_path):
-        species_path = get_resource_path("species.tsv")
+        species_path = elt_util.get_resource_path("species.tsv")
 
     table = load_table(species_path)
     return table.to_list()
 
 
-_species_common_map = load_species(os.path.join(ENSEMBLDBRC, "species.tsv"))
+_species_common_map = load_species(os.path.join(elt_util.ENSEMBLDBRC, SPECIES_NAME))
 
 
 class SpeciesNameMap:
@@ -45,7 +37,7 @@ class SpeciesNameMap:
         self._ensembl_species = {}
         self._stableid_species = {}  # stable id prefix to species map
         for names in species_common:
-            names = list(map(CaseInsensitiveString, names))
+            names = list(map(elt_util.CaseInsensitiveString, names))
             self.amend_species(*names)
 
     def __str__(self) -> str:
@@ -55,7 +47,7 @@ class SpeciesNameMap:
         return repr(self.to_table())
 
     def __contains__(self, item) -> bool:
-        item = CaseInsensitiveString(item)
+        item = elt_util.CaseInsensitiveString(item)
         return any(
             item in attr
             for attr in (
@@ -72,7 +64,7 @@ class SpeciesNameMap:
     def get_common_name(self, name: str, level="raise") -> StrOrNone:
         """returns the common name for the given name (which can be either a
         species name or the ensembl version)"""
-        name = CaseInsensitiveString(name)
+        name = elt_util.CaseInsensitiveString(name)
         if name in self._ensembl_species:
             name = self._ensembl_species[name]
 
@@ -94,7 +86,7 @@ class SpeciesNameMap:
 
     def get_species_name(self, name: str, level="ignore") -> StrOrNone:
         """returns the species name for the given common name"""
-        name = CaseInsensitiveString(name)
+        name = elt_util.CaseInsensitiveString(name)
         if name in self._species_common:
             return name
 
@@ -119,7 +111,7 @@ class SpeciesNameMap:
     def get_ensembl_db_prefix(self, name: str) -> str:
         """returns a string of the species name in the format used by
         ensembl"""
-        name = CaseInsensitiveString(name)
+        name = elt_util.CaseInsensitiveString(name)
         if name in self._common_species:
             name = self._common_species[name]
         try:
@@ -133,13 +125,13 @@ class SpeciesNameMap:
 
     def get_db_prefix_from_stableid(self, stableid: str) -> str:
         """returns the db name from a stableid"""
-        prefix = get_stableid_prefix(stableid)
+        prefix = elt_util.get_stableid_prefix(stableid)
         species = self._stableid_species[prefix]
         return species.replace(" ", "_").lower()
 
     def _purge_species(self, species_name):
         """removes a species record"""
-        species_name = CaseInsensitiveString(species_name)
+        species_name = elt_util.CaseInsensitiveString(species_name)
         if species_name not in self._species_common:
             return
         common_name = self._species_common.pop(species_name)
@@ -149,8 +141,8 @@ class SpeciesNameMap:
 
     def amend_species(self, species_name, common_name, stableid_prefix=None):
         """add a new species, and common name"""
-        species_name = CaseInsensitiveString(species_name)
-        common_name = CaseInsensitiveString(common_name)
+        species_name = elt_util.CaseInsensitiveString(species_name)
+        common_name = elt_util.CaseInsensitiveString(common_name)
         assert "_" not in species_name, "'_' in species_name, not a Latin name?"
         self._purge_species(species_name)  # remove if existing
         self._species_common[species_name] = common_name
@@ -164,7 +156,7 @@ class SpeciesNameMap:
                 self._stableid_species[prefix] = ensembl_name
 
     def add_stableid_prefix(
-        self, species_name: str, stableid_prefix: str | CaseInsensitiveString
+        self, species_name: str, stableid_prefix: str | elt_util.CaseInsensitiveString
     ):
         self._stableid_species[str(stableid_prefix)] = self.get_species_name(
             species_name

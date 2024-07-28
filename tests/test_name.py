@@ -1,5 +1,4 @@
 import pytest
-
 from ensembl_lite._name import EnsemblDbName
 
 

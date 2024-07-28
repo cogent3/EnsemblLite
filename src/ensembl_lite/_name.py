@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import re
 import typing
-
 from dataclasses import dataclass
 
 from ._species import Species
-
 
 _release = re.compile(r"\d+")
 

@@ -1,9 +1,7 @@
 import pathlib
-
 from configparser import ConfigParser
 
 import pytest
-
 from ensembl_lite._util import get_resource_path
 
 

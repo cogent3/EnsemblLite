@@ -1,11 +1,9 @@
 import typing
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cache
 
 from cogent3.util.misc import extend_docstring_from
-
 
 _ensembl_site_map = {}
 

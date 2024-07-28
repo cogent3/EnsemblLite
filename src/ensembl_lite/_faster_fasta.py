@@ -2,9 +2,7 @@ import pathlib
 import typing
 
 import numpy
-
 from cogent3 import get_moltype, open_
-
 
 # old style moltype
 alphabet = get_moltype("dna").alphabets.degen_gapped

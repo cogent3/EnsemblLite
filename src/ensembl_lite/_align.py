@@ -1,24 +1,21 @@
 import pathlib
 import typing
-
 from collections import defaultdict
 from dataclasses import dataclass
 
 import h5py
 import numpy
-
 from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 
-from ensembl_lite._genome import Genome, genome_segment
-from ensembl_lite._storage_mixin import Hdf5Mixin, SqliteDbMixin
-from ensembl_lite._util import _HDF5_BLOSC2_KWARGS, PathType
-
+from ensembl_lite import _genome as elt_genome
+from ensembl_lite import _storage_mixin as elt_mixin
+from ensembl_lite import _util as elt_util
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
-_GAP_STORE_SUFFIX = "hdf5_blosc2"
+GAP_STORE_SUFFIX = "indels-hdf5_blosc2"
 
 
 @dataclass(slots=True)
@@ -78,11 +75,11 @@ class AlignRecord:
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 
-class GapStore(Hdf5Mixin):
+class GapStore(elt_mixin.Hdf5Mixin):
     # store gap data from aligned sequences
     def __init__(
         self,
-        source: PathType,
+        source: elt_util.PathType,
         align_name: typing.Optional[str] = None,
         mode: str = "r",
         in_memory: bool = False,
@@ -124,7 +121,7 @@ class GapStore(Hdf5Mixin):
             # but it's different, which is a problem
             raise ValueError(f"{index!r} already present but with different gaps")
         self._file.create_dataset(
-            name=index, data=gaps, chunks=True, **_HDF5_BLOSC2_KWARGS
+            name=index, data=gaps, chunks=True, **elt_util._HDF5_BLOSC2_KWARGS
         )
         self._file.flush()
 
@@ -134,7 +131,7 @@ class GapStore(Hdf5Mixin):
 
 # todo add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
-class AlignDb(SqliteDbMixin):
+class AlignDb(elt_mixin.SqliteDbMixin):
     table_name = "align"
     _align_schema = {
         "id": "INTEGER PRIMARY KEY",  # used to uniquely identify gap_spans in bound GapStore
@@ -163,7 +160,7 @@ class AlignDb(SqliteDbMixin):
             gap_path = "memory"
             kwargs = dict(in_memory=True)
         else:
-            gap_path = source.parent / f"{source.stem}.{_GAP_STORE_SUFFIX}"
+            gap_path = source.parent / f"{source.stem}.{GAP_STORE_SUFFIX}"
             kwargs = dict(in_memory=False)
 
         self.gap_store = GapStore(
@@ -412,7 +409,7 @@ class construct_alignment:
     def __init__(
         self,
         align_db: AlignDb,
-        genomes: dict[str, Genome],
+        genomes: dict[str, elt_genome.Genome],
         mask_features: typing.Optional[list[str]] = None,
         sep: str = "?",
     ) -> None:
@@ -421,7 +418,7 @@ class construct_alignment:
         self._mask_features = mask_features
         self._sep = sep
 
-    def main(self, segment: genome_segment) -> list[Alignment]:
+    def main(self, segment: elt_genome.genome_segment) -> list[Alignment]:
         results = []
         for aln in get_alignment(
             self._align_db,
