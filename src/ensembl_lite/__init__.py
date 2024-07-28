@@ -1,18 +1,8 @@
 from warnings import filterwarnings
 
-from ._species import Species
-
-
 filterwarnings("ignore", message=".*MPI")
 filterwarnings("ignore", message="Can't drop database.*")
 
-
-__all__ = [
-    "name",
-    "_species",
-    "util",
-    "Species",
-]
 
 __author__ = "Gavin Huttley"
 __copyright__ = "Copyright 2023-, The ensembl lite project"
