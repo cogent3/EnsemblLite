@@ -5,8 +5,8 @@ import re
 import shutil
 
 import click
-
 from cogent3 import load_tree
+from rich.progress import Progress
 
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _ftp_download as elt_ftp
@@ -41,7 +41,12 @@ def _remove_tmpdirs(path: elt_util.PathType):
         shutil.rmtree(tmpdir)
 
 
-def download_species(config: Config, debug: bool, verbose: bool):
+def download_species(
+    config: elt_config.Config,
+    debug: bool,
+    verbose: bool,
+    progress: Progress | None = None,
+):
     """download seq and gff data"""
     remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
     site_map = elt_site_map.get_site_map(config.host)
@@ -49,6 +54,12 @@ def download_species(config: Config, debug: bool, verbose: bool):
         click.secho(f"DOWNLOADING\n  ensembl release={config.release}", fg="green")
         click.secho("\n".join(f"  {d}" for d in config.species_dbs), fg="green")
         click.secho(f"\nWRITING to output path={config.staging_genomes}\n", fg="green")
+
+    msg = "Downloading genomes"
+    if progress is not None:
+        species_download = progress.add_task(
+            total=len(config.species_dbs), description=msg
+        )
 
     patterns = dict(fasta=valid_seq_file, gff3=valid_gff3_file(config.release))
     for key in config.species_dbs:
@@ -79,13 +90,18 @@ def download_species(config: Config, debug: bool, verbose: bool):
             dest_path = config.staging_genomes / db_prefix / subdir
             dest_path.mkdir(parents=True, exist_ok=True)
             _remove_tmpdirs(dest_path)
-            download_data(
+            icon = "🧬🧬" if subdir == "fasta" else "📚"
+            elt_ftp.download_data(
                 host=config.host,
                 local_dest=dest_path,
                 remote_paths=remote_paths,
-                description=f"{db_prefix[:10]}.../{subdir}",
+                description=f"{db_prefix[:10]}... {icon}",
                 do_checksum=True,
+                progress=progress,
             )
+
+        if progress is not None:
+            progress.update(species_download, description=msg, advance=1)
 
     return
 
@@ -100,7 +116,12 @@ class valid_compara_align:
         return self._valid.search(name) is not None
 
 
-def download_aligns(config: Config, debug: bool, verbose: bool):
+def download_aligns(
+    config: elt_config.Config,
+    debug: bool,
+    verbose: bool,
+    progress: Progress | None = None,
+):
     """download whole genome alignments"""
     if not config.align_names:
         return
@@ -110,6 +131,13 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
         f"{config.remote_path}/release-{config.release}/{site_map.alignments_path}/"
         + "{}"
     )
+
+    msg = "Downloading alignments"
+    if progress is not None:
+        align_download = progress.add_task(
+            total=len(config.species_dbs), description=msg
+        )
+
     valid_compara = valid_compara_align()
     for align_name in config.align_names:
         remote_path = remote_template.format(align_name)
@@ -132,7 +160,11 @@ def download_aligns(config: Config, debug: bool, verbose: bool):
             remote_paths=remote_paths,
             description=f"{align_name[:10]}...",
             do_checksum=True,
+            progress=progress,
         )
+
+        if progress is not None:
+            progress.update(align_download, description=msg, advance=1)
 
     return
 
@@ -147,7 +179,12 @@ class valid_compara_homology:
         return self._valid.search(name) is not None
 
 
-def download_homology(config: Config, debug: bool, verbose: bool):
+def download_homology(
+    config: elt_config.Config,
+    debug: bool,
+    verbose: bool,
+    progress: Progress | None = None,
+):
     """downloads tsv homology files for each genome"""
     if not config.homologies:
         return
@@ -159,6 +196,12 @@ def download_homology(config: Config, debug: bool, verbose: bool):
     )
 
     local = config.staging_homologies
+
+    msg = "Downloading homology"
+    if progress is not None:
+        species_download = progress.add_task(
+            total=len(config.species_dbs), description=msg
+        )
 
     for db_name in config.db_names:
         remote_path = remote_template.format(db_name)
@@ -182,7 +225,12 @@ def download_homology(config: Config, debug: bool, verbose: bool):
             remote_paths=remote_paths,
             description=f"{db_name[:10]}...",
             do_checksum=False,  # no checksums for species homology files
+            progress=progress,
         )
+
+        if progress is not None:
+            progress.update(species_download, description=msg, advance=1)
+
     return
 
 

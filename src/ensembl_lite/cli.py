@@ -198,6 +198,8 @@ def exportrc(outpath):
 @_verbose
 def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
+    from rich import progress
+
     if configpath.name == elt_download._cfg:
         # todo is this statement correct if we're seting a root dir now?
         click.secho(
@@ -226,9 +228,16 @@ def download(configpath, debug, verbose):
 
     config.write()
     with keep_running():
-        elt_download.download_species(config, debug, verbose)
-        elt_download.download_homology(config, debug, verbose)
-        elt_download.download_aligns(config, debug, verbose)
+        with progress.Progress(
+            progress.TextColumn("[progress.description]{task.description}"),
+            progress.BarColumn(),
+            progress.TaskProgressColumn(),
+            progress.TimeRemainingColumn(),
+            progress.TimeElapsedColumn(),
+        ) as progress:
+            elt_download.download_species(config, debug, verbose, progress=progress)
+            elt_download.download_homology(config, debug, verbose, progress=progress)
+            elt_download.download_aligns(config, debug, verbose, progress=progress)
 
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
