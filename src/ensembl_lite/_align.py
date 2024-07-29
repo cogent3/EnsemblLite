@@ -60,7 +60,7 @@ class AlignRecord:
                 self.start,
                 self.stop,
                 self.strand,
-            )
+            ),
         )
 
     @property
@@ -122,7 +122,10 @@ class GapStore(elt_mixin.Hdf5Mixin):
             # but it's different, which is a problem
             raise ValueError(f"{index!r} already present but with different gaps")
         self._file.create_dataset(
-            name=index, data=gaps, chunks=True, **elt_util._HDF5_BLOSC2_KWARGS
+            name=index,
+            data=gaps,
+            chunks=True,
+            **elt_util._HDF5_BLOSC2_KWARGS,
         )
         self._file.flush()
 
@@ -163,7 +166,10 @@ class AlignDuckDb(elt_mixin.DuckDbMixin):
             kwargs = dict(in_memory=False)
 
         self.gap_store = GapStore(
-            source=gap_path, align_name=source.stem, mode=mode, **kwargs
+            source=gap_path,
+            align_name=source.stem,
+            mode=mode,
+            **kwargs,
         )
         self._db = None  # replaced with db connection in init_tables
         self._init_tables()
@@ -179,7 +185,7 @@ class AlignDuckDb(elt_mixin.DuckDbMixin):
         col_order = [
             row[1]
             for row in self.db.execute(
-                f"PRAGMA table_info({self.table_name})"
+                f"PRAGMA table_info({self.table_name})",
             ).fetchall()
             if row[1] != "id"
         ]
@@ -200,7 +206,7 @@ class AlignDuckDb(elt_mixin.DuckDbMixin):
 
             self.db.execute(sql, [records[i][c] for c in col_order])
             index = self.db.execute(
-                elt_mixin.LAST_ID_TEMPLATE.format(self.table_name)
+                elt_mixin.LAST_ID_TEMPLATE.format(self.table_name),
             ).fetchone()[0]
             self.gap_store.add_record(index=index, gaps=records[i].gap_spans)
 
@@ -247,12 +253,15 @@ class AlignDuckDb(elt_mixin.DuckDbMixin):
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
 
-        # todo: there's an issue here with records being duplicated, solved
+        # TODO: there's an issue here with records being duplicated, solved
         #   for now by making AlignRecord hashable and using a set for block_ids
         block_ids = {
             r[0]
             for r in self._get_block_id(
-                species=species, seqid=seqid, start=start, stop=stop
+                species=species,
+                seqid=seqid,
+                start=start,
+                stop=stop,
             )
         }
         if not block_ids:
@@ -279,7 +288,7 @@ class AlignDuckDb(elt_mixin.DuckDbMixin):
         self.db.close()
 
 
-# todo add a table and methods to support storing the species tree used
+# TODO add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
 class AlignDb(elt_mixin.SqliteDbMixin):
     table_name = "align"
@@ -314,7 +323,10 @@ class AlignDb(elt_mixin.SqliteDbMixin):
             kwargs = dict(in_memory=False)
 
         self.gap_store = GapStore(
-            source=gap_path, align_name=source.stem, mode=mode, **kwargs
+            source=gap_path,
+            align_name=source.stem,
+            mode=mode,
+            **kwargs,
         )
         self._db = None
         self._init_tables()
@@ -324,7 +336,7 @@ class AlignDb(elt_mixin.SqliteDbMixin):
         col_order = [
             row[1]
             for row in self.db.execute(
-                f"PRAGMA table_info({self.table_name})"
+                f"PRAGMA table_info({self.table_name})",
             ).fetchall()
             if row[1] != "id"
         ]
@@ -389,12 +401,15 @@ class AlignDb(elt_mixin.SqliteDbMixin):
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
 
-        # todo: there's an issue here with records being duplicated, solved
+        # TODO: there's an issue here with records being duplicated, solved
         #   for now by making AlignRecord hashable and using a set for block_ids
         block_ids = {
             r["block_id"]
             for r in self._get_block_id(
-                species=species, seqid=seqid, start=start, stop=stop
+                species=species,
+                seqid=seqid,
+                start=start,
+                stop=stop,
             )
         }
         values = ", ".join("?" * len(block_ids))
@@ -430,7 +445,10 @@ def get_alignment(
         raise ValueError(f"unknown species {ref_species!r}")
 
     align_records = align_db.get_records_matching(
-        species=ref_species, seqid=seqid, start=ref_start, stop=ref_end
+        species=ref_species,
+        seqid=seqid,
+        start=ref_start,
+        stop=ref_end,
     )
     # sample the sequences
     for block in align_records:

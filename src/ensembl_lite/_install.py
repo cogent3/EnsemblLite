@@ -15,7 +15,8 @@ from ensembl_lite import _util as elt_util
 
 
 def _make_src_dest_annotation_paths(
-    src_dir: elt_util.PathType, dest_dir: elt_util.PathType
+    src_dir: elt_util.PathType,
+    dest_dir: elt_util.PathType,
 ) -> list[tuple[elt_util.PathType, elt_util.PathType]]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / elt_genome.ANNOT_STORE_NAME
@@ -85,7 +86,9 @@ def local_install_genomes(
     # we parallelise across databases
     writer = elt_genome.fasta_to_hdf5(config=config)
     tasks = elt_util.get_iterable_tasks(
-        func=writer, series=db_names, max_workers=max_workers
+        func=writer,
+        series=db_names,
+        max_workers=max_workers,
     )
     for result in tasks:
         if not result:
@@ -97,7 +100,6 @@ def local_install_genomes(
 
     if verbose:
         print("Finished installing sequences ")
-    return
 
 
 def local_install_alignments(
@@ -130,7 +132,9 @@ def local_install_alignments(
             print(f"{max_workers=}")
 
         series = elt_util.get_iterable_tasks(
-            func=aln_loader, series=paths, max_workers=max_workers
+            func=aln_loader,
+            series=paths,
+            max_workers=max_workers,
         )
 
         msg = "Installing alignments"
@@ -153,8 +157,6 @@ def local_install_alignments(
 
     if verbose:
         print("Finished installing alignments")
-
-    return
 
 
 def local_install_homology(
@@ -194,7 +196,9 @@ def local_install_homology(
         writing = progress.add_task(total=len(dirnames), description=msg, advance=0)
 
     tasks = elt_util.get_iterable_tasks(
-        func=loader, series=dirnames, max_workers=max_workers
+        func=loader,
+        series=dirnames,
+        max_workers=max_workers,
     )
     for result in tasks:
         if max_workers > 1:

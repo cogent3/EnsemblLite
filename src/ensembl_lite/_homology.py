@@ -93,7 +93,7 @@ class homolog_group:
     def __or__(self, other):
         if other.relationship != self.relationship:
             raise ValueError(
-                f"relationship type {self.relationship!r} != {other.relationship!r}"
+                f"relationship type {self.relationship!r} != {other.relationship!r}",
             )
         gene_ids = {**(self.gene_ids or {}), **(other.gene_ids or {})}
         return self.__class__(relationship=self.relationship, gene_ids=gene_ids)
@@ -316,11 +316,14 @@ class HomologyDuckDb(elt_mixin.DuckDbMixin):
         sql = f"INSERT INTO relationship(id, homology_type) VALUES ({incr},?)"
         self.db.execute(sql, (rel_type,))
         return self.db.execute(
-            elt_mixin.LAST_ID_TEMPLATE.format("relationship")
+            elt_mixin.LAST_ID_TEMPLATE.format("relationship"),
         ).fetchone()[0]
 
     def _get_homology_group_id(
-        self, *, relationship_id: int, gene_ids: tuple[str, ...]
+        self,
+        *,
+        relationship_id: int,
+        gene_ids: tuple[str, ...],
     ) -> int:
         """creates a new homolog table entry for this relationship id / group"""
         # need a join of homology by relationship
@@ -339,7 +342,7 @@ class HomologyDuckDb(elt_mixin.DuckDbMixin):
         sql = f"INSERT INTO homology(id, relationship_id) VALUES ({incr},?)"
         self.db.execute(sql, (relationship_id,))
         return self.db.execute(
-            elt_mixin.LAST_ID_TEMPLATE.format("homology")
+            elt_mixin.LAST_ID_TEMPLATE.format("homology"),
         ).fetchone()[0]
 
     def add_records(
@@ -377,7 +380,8 @@ class HomologyDuckDb(elt_mixin.DuckDbMixin):
             )
             # now get the homology id for this group
             homology_id = self._get_homology_group_id(
-                relationship_id=rel_type_id, gene_ids=gene_ids
+                relationship_id=rel_type_id,
+                gene_ids=gene_ids,
             )
             values = [(int(gene_id), int(homology_id)) for gene_id in gene_ids]
             self.db.executemany(sql, values)
@@ -401,7 +405,8 @@ class HomologyDuckDb(elt_mixin.DuckDbMixin):
         WHERE hm.homology_type = ? AND hm.stableid_id = ?
         """
         homology_id = self.db.execute(
-            sql, (relationship_type, stableid_id[0])
+            sql,
+            (relationship_type, stableid_id[0]),
         ).fetchone()
 
         if not homology_id:
@@ -430,7 +435,8 @@ class HomologyDuckDb(elt_mixin.DuckDbMixin):
         results = {}
         for result in self.db.execute(sql, (relationship_type,)).fetchall():
             record = results.get(
-                result[0], homolog_group(relationship=relationship_type)
+                result[0],
+                homolog_group(relationship=relationship_type),
             )
             record.gene_ids |= {result[1]: result[2]}
             results[result[0]] = record
@@ -544,7 +550,10 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
         return self._relationship_types[rel_type]
 
     def _get_homology_group_id(
-        self, *, relationship_id: int, gene_ids: tuple[str, ...]
+        self,
+        *,
+        relationship_id: int,
+        gene_ids: tuple[str, ...],
     ) -> int:
         """creates a new homolog table entry for this relationship id / group"""
         # need a join of homology by relationship
@@ -599,7 +608,8 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
             )
             # now get the homology id for this group
             homology_id = self._get_homology_group_id(
-                relationship_id=rel_type_id, gene_ids=gene_ids
+                relationship_id=rel_type_id,
+                gene_ids=gene_ids,
             )
             values = [(int(gene_id), int(homology_id)) for gene_id in gene_ids]
             self.db.executemany(sql, values)
@@ -624,7 +634,8 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
         WHERE hm.homology_type = ? AND hm.stableid_id = ?
         """
         homology_id = self._execute_sql(
-            sql, (relationship_type, stableid_id[0])
+            sql,
+            (relationship_type, stableid_id[0]),
         ).fetchone()
 
         if not homology_id:
@@ -653,7 +664,8 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
         results = {}
         for result in self._execute_sql(sql, (relationship_type,)).fetchall():
             record = results.get(
-                result["homology_id"], homolog_group(relationship=relationship_type)
+                result["homology_id"],
+                homolog_group(relationship=relationship_type),
             )
             record.gene_ids |= {result["stableid"]: result["species_db"]}
             results[result["homology_id"]] = record
@@ -661,7 +673,7 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
 
     def num_records(self):
         return list(
-            self._execute_sql("SELECT COUNT(*) as count FROM member").fetchone()
+            self._execute_sql("SELECT COUNT(*) as count FROM member").fetchone(),
         )[0]
 
 
@@ -693,7 +705,9 @@ class load_homologies:
             "gene_id_2",
         )
         self._reader = FilteringParser(
-            row_condition=self._matching_species, columns=self.src_cols, sep="\t"
+            row_condition=self._matching_species,
+            columns=self.src_cols,
+            sep="\t",
         )
 
     def _matching_species(self, row):
@@ -730,7 +744,8 @@ class collect_seqs:
         for species, sp_genes in homologs.species_ids().items():
             if species not in self._genomes:
                 self._genomes[species] = elt_genome.load_genome(
-                    config=self._config, species=species
+                    config=self._config,
+                    species=species,
                 )
             genome = self._genomes[species]
             for name in sp_genes:
@@ -752,7 +767,9 @@ class collect_seqs:
 
         if not seqs:
             return NotCompleted(
-                type="FAIL", origin=self, message=f"no CDS for {homologs.source=}"
+                type="FAIL",
+                origin=self,
+                message=f"no CDS for {homologs.source=}",
             )
 
         return make_unaligned_seqs(data=seqs, moltype="dna")

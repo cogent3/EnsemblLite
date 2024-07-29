@@ -12,7 +12,8 @@ class TestSpeciesNamemaps(TestCase):
         self.assertEqual(Species.get_species_name("human"), "Homo sapiens")
         self.assertEqual(Species.get_species_name("homo_sapiens"), "Homo sapiens")
         self.assertEqual(
-            Species.get_species_name("canis_lupus_familiaris"), "Canis lupus familiaris"
+            Species.get_species_name("canis_lupus_familiaris"),
+            "Canis lupus familiaris",
         )
         self.assertEqual(Species.get_common_name("Mus musculus"), "Mouse")
         self.assertEqual(Species.get_common_name("mus_musculus"), "Mouse")
@@ -39,13 +40,16 @@ class TestSpeciesNamemaps(TestCase):
         self.assertEqual(Species.get_common_name(species_name), common_name)
         self.assertEqual(Species.get_common_name("Bushbaby"), common_name)
         self.assertEqual(
-            Species.get_ensembl_db_prefix("Bushbaby"), "otolemur_garnettii"
+            Species.get_ensembl_db_prefix("Bushbaby"),
+            "otolemur_garnettii",
         )
         self.assertEqual(
-            Species.get_ensembl_db_prefix(species_name), "otolemur_garnettii"
+            Species.get_ensembl_db_prefix(species_name),
+            "otolemur_garnettii",
         )
         self.assertEqual(
-            Species.get_ensembl_db_prefix(common_name), "otolemur_garnettii"
+            Species.get_ensembl_db_prefix(common_name),
+            "otolemur_garnettii",
         )
 
     def test_amend_existing(self):
@@ -79,7 +83,8 @@ class TestSpeciesNamemaps(TestCase):
 
 
 @pytest.mark.parametrize(
-    "name", ("Human", "human", "Anas platyrhynchos", "Dog - Basenji")
+    "name",
+    ("Human", "human", "Anas platyrhynchos", "Dog - Basenji"),
 )
 def test_contains(name):
     assert name in Species

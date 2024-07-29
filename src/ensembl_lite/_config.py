@@ -2,8 +2,8 @@ import configparser
 import fnmatch
 import pathlib
 import typing
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 import click
 
@@ -20,7 +20,8 @@ _GENOMES_NAME: str = "genomes"
 
 
 def make_relative_to(
-    staging_path: pathlib.Path, install_path: pathlib.Path
+    staging_path: pathlib.Path,
+    install_path: pathlib.Path,
 ) -> pathlib.Path:
     assert staging_path.is_absolute() and install_path.is_absolute()
 
@@ -197,7 +198,7 @@ class InstalledConfig:
 
         if len(align_dirs) > 1:
             raise ValueError(
-                f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}"
+                f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}",
             )
 
         return align_dirs[0]
@@ -224,7 +225,7 @@ def read_installed_cfg(path: elt_util.PathType) -> InstalledConfig:
         path if path.name == INSTALLED_CONFIG_NAME else (path / INSTALLED_CONFIG_NAME)
     )
     if not path.exists():
-        print(f"{str(path)} does not exist, exiting")
+        print(f"{path!s} does not exist, exiting")
         exit(1)
 
     parser.read(path)
@@ -233,14 +234,16 @@ def read_installed_cfg(path: elt_util.PathType) -> InstalledConfig:
 
 
 def _standardise_path(
-    path: elt_util.PathType, config_path: pathlib.Path
+    path: elt_util.PathType,
+    config_path: pathlib.Path,
 ) -> pathlib.Path:
     path = pathlib.Path(path).expanduser()
     return path if path.is_absolute() else (config_path / path).resolve()
 
 
 def read_config(
-    config_path: pathlib.Path, root_dir: typing.Optional[pathlib.Path] = None
+    config_path: pathlib.Path,
+    root_dir: typing.Optional[pathlib.Path] = None,
 ) -> Config:
     """returns ensembl release, local path, and db specifics from the provided
     config path"""

@@ -86,7 +86,8 @@ def seq2gaps(record: dict) -> elt_align.AlignRecord:
     indel_map, _ = seq.parse_out_gaps()
     if indel_map.num_gaps:
         record["gap_spans"] = numpy.array(
-            [indel_map.gap_pos, indel_map.get_gap_lengths()], dtype=numpy.int32
+            [indel_map.gap_pos, indel_map.get_gap_lengths()],
+            dtype=numpy.int32,
         ).T
     else:
         record["gap_spans"] = numpy.array([], dtype=numpy.int32)
