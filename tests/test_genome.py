@@ -4,6 +4,7 @@ import numpy
 import pytest
 from cogent3 import make_unaligned_seqs
 from ensembl_lite import _genome as elt_genome
+from ensembl_lite import _storage_mixin as elt_mixin
 from numpy.testing import assert_allclose
 
 
@@ -377,6 +378,45 @@ def test_gff_record_hashing():
     assert v[name] == 21
     n = {name: 21}
     assert v == n
+
+
+@pytest.mark.parametrize("exclude_null", (True, False))
+def test_gff_record_to_record(exclude_null):
+    data = {
+        "seqid": "s1",
+        "name": "gene-01",
+        "biotype": "gene",
+        "spans": [(1, 3), (7, 9)],
+        "start": 1,
+        "stop": 9,
+        "strand": "+",
+    }
+    all_fields = (
+        {} if exclude_null else {s: None for s in elt_genome.EnsemblGffRecord.__slots__}
+    )
+    all_fields.pop("_is_updated", None)
+    record = elt_genome.EnsemblGffRecord(**data)
+    got = record.to_record(exclude_null=exclude_null)
+    expect = all_fields | data
+    expect.pop("spans")
+    got_spans = got.pop("spans")
+    assert got == expect
+    assert numpy.array_equal(elt_mixin.blob_to_array(got_spans), data["spans"])
+
+
+@pytest.mark.parametrize("exclude_null", (True, False))
+def test_gff_record_to_record_selected_fields(exclude_null):
+    data = {
+        "seqid": "s1",
+        "name": "gene-01",
+        "start": None,
+        "stop": None,
+    }
+    fields = list(data)
+    record = elt_genome.EnsemblGffRecord(**data)
+    got = record.to_record(fields=fields, exclude_null=exclude_null)
+    expect = {f: data[f] for f in fields if data[f] is not None or not exclude_null}
+    assert got == expect
 
 
 @pytest.fixture

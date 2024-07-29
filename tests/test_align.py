@@ -274,7 +274,6 @@ def test_select_alignment_minus_strand(start_end, namer):
         spans=[(max(1, start or 0), min(end or 12, 12))],
     )
     expect = aln[ft.map.start : min(ft.map.end, 12)]
-
     # mouse sequence is on minus strand, so need to adjust
     # coordinates for query
     s2 = aln.get_seq("s2")
@@ -305,7 +304,7 @@ def test_select_alignment_minus_strand(start_end, namer):
         )
     )
     # drop the strand info
-    assert len(got) == 1
+    assert len(got) == 1, f"{s2_ft=}"
     assert got[0].to_dict() == expect.to_dict()
 
 
