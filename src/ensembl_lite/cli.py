@@ -554,6 +554,8 @@ def homologs(
             if limit and len(related) >= limit:
                 break
 
+        progress.update(searching, advance=len(gene_ids))
+
         if verbose:
             print(f"Found {len(related)} homolog groups")
 
