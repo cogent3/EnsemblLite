@@ -1,11 +1,43 @@
 import contextlib
 import dataclasses
+import functools
+import io
 import os
 import sqlite3
+
+import numpy
 
 from ensembl_lite import _util as elt_util
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
+
+
+@functools.singledispatch
+def array_to_blob(data: numpy.ndarray) -> bytes:
+    with io.BytesIO() as out:
+        numpy.save(out, data)
+        out.seek(0)
+        output = out.read()
+    return output
+
+
+@array_to_blob.register
+def _(data: bytes) -> bytes:
+    # already a blob
+    return data
+
+
+@functools.singledispatch
+def blob_to_array(data: bytes) -> numpy.ndarray:
+    with io.BytesIO(data) as out:
+        out.seek(0)
+        result = numpy.load(out)
+    return result
+
+
+@blob_to_array.register
+def _(data: numpy.ndarray) -> numpy.ndarray:
+    return data
 
 
 def _make_table_sql(

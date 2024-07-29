@@ -6,6 +6,7 @@ from cogent3 import load_table
 from ensembl_lite import _align as elt_align
 from ensembl_lite import _homology as elt_homology
 from ensembl_lite import _maf as elt_maf
+from ensembl_lite import _storage_mixin as elt_mixin
 
 
 @pytest.fixture(scope="function")
@@ -106,3 +107,27 @@ def test_pickling_db(db_align):
     pkl = pickle.dumps(db_align)  # nosec B301
     upkl = pickle.loads(pkl)  # nosec B301
     assert db_align.source == upkl.source
+
+
+@pytest.mark.parametrize(
+    "data", (numpy.array([], dtype=numpy.int32), numpy.array([0, 3], dtype=numpy.uint8))
+)
+def test_array_blob_roundtrip(data):
+    blob = elt_mixin.array_to_blob(data)
+    assert isinstance(blob, bytes)
+    inflated = elt_mixin.blob_to_array(blob)
+    assert numpy.array_equal(inflated, data)
+    assert inflated.dtype is data.dtype
+
+
+@pytest.mark.parametrize(
+    "data",
+    (
+        numpy.array([0, 3], dtype=numpy.uint8),
+        elt_mixin.array_to_blob(numpy.array([0, 3], dtype=numpy.uint8)),
+    ),
+)
+def test_blob_array(data):
+    # handles array or bytes as input
+    inflated = elt_mixin.blob_to_array(data)
+    assert numpy.array_equal(inflated, numpy.array([0, 3], dtype=numpy.uint8))

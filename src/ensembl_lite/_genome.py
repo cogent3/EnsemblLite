@@ -56,8 +56,32 @@ def tidy_gff3_stableids(attrs: str) -> str:
     return _typed_id.sub(_lower_case_match, attrs)
 
 
+@functools.singledispatch
+def _array_int32(data: Any) -> numpy.ndarray:
+    """coerce data to a 32-bit numpy array
+
+    Notes
+    -----
+    intended for use by the EnsemblGffRecord class in producing
+    the spans_array
+    """
+    return numpy.array(data, dtype=numpy.int32)
+
+
+@_array_int32.register
+def _(data: numpy.ndarray) -> numpy.ndarray:
+    return data.astype(numpy.int32)
+
+
+@_array_int32.register
+def _(data: bytes) -> numpy.ndarray:
+    return elt_mixin.blob_to_array(data)
+
+
 class EnsemblGffRecord(GffRecord):
-    __slots__ = GffRecord.__slots__ + ("feature_id",)
+    """this is a mutable object!"""
+
+    __slots__ = GffRecord.__slots__ + ("feature_id", "_is_updated")
 
     def __init__(self, feature_id: Optional[int] = None, **kwargs):
         is_canonical = kwargs.pop("is_canonical", None)
@@ -73,6 +97,8 @@ class EnsemblGffRecord(GffRecord):
 
         if descr:
             self.attrs = f"description={descr};" + (self.attrs or "")
+
+        self._is_updated: bool = False
 
     def __hash__(self) -> int:
         return hash(self.name)
@@ -101,14 +127,17 @@ class EnsemblGffRecord(GffRecord):
         attrs = self.attrs or ""
         return "Ensembl_canonical" in attrs
 
-    def update_from_attrs(self) -> None:
-        """updates attributes from the attrs string
+    def update_record(self) -> None:
+        """updates attributes
 
         Notes
         -----
-        also updates biotype from the prefix in the name
+        uses the attrs string, also updates biotype from
+        the prefix in the name and start / stop from the spans
         """
-        attrs = self.attrs
+        if self._is_updated:
+            return
+        attrs = self.attrs or ""
         id_regex = _feature_id if "ID=" in attrs else _exon_id
         attr = tidy_gff3_stableids(attrs)
         if feature_id := id_regex.search(attr):
@@ -124,10 +153,59 @@ class EnsemblGffRecord(GffRecord):
             biotype = self.name.split(":")[0]
             self.biotype = "mrna" if biotype == "transcript" else biotype
 
+        if self.spans is not None:
+            spans = self.spans_array()
+            self.start = int(spans.min())
+            self.stop = int(spans.max())
+
+        self.start = None if self.start is None else int(self.start)
+        self.stop = None if self.stop is None else int(self.stop)
+
+        self._is_updated = True
+
     @property
     def size(self) -> int:
         """the sum of span segments"""
         return 0 if self.spans is None else sum(abs(s - e) for s, e in self.spans)
+
+    def spans_array(self) -> numpy.ndarray | None:
+        """returns the spans as a 32-bit array"""
+        return None if self.spans is None else _array_int32(self.spans)
+
+    def to_record(
+        self,
+        *,
+        fields: list[str] | None = None,
+        exclude_null: bool = False,
+        array_to_blob: bool = False,
+    ) -> dict[str, str | bytes | int | None]:
+        """returns dict with values suitable for a database record
+
+        Parameters
+        ----------
+        fields
+            names of attributes to include, by default all
+        exclude_null
+            excludes fields with None values
+        array_to_blob
+            converts numpy arrays to bytes, don't use for sqlite3 based
+            cogent3 databases since those declare a custom type for arrays
+
+        Notes
+        -----
+        spans are converted to a 32-bit numpy array
+        """
+        record = {}
+        fields = fields or [s for s in self.__slots__ if s != "_is_updated"]
+        for field in fields:
+            value = self.spans_array() if field == "spans" else self[field]
+            if field == "spans" and array_to_blob and value is not None:
+                value = elt_mixin.array_to_blob(value)
+
+            if exclude_null and value is None:
+                continue
+            record[field] = value
+        return record
 
 
 def custom_gff_parser(
@@ -141,7 +219,7 @@ def custom_gff_parser(
         gff3=gff3,
         make_record=EnsemblGffRecord,
     ):
-        record.update_from_attrs()
+        record.update_record()
         if not record.name:
             record.name = f"unknown-{num_fake_ids}"
             num_fake_ids += 1
@@ -182,7 +260,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         "description": "TEXT",
         "attributes": "TEXT",
         "comments": "TEXT",
-        "spans": "array",  # aggregation of coords across records
+        "spans": "BLOB",  # aggregation of coords across records
         "stableid": "TEXT",
         "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
         "is_canonical": "INTEGER",
@@ -301,14 +379,11 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         if feature is None:
             feature = self._build_feature(kwargs)
 
+        feature.update_record()  # custom_gff_parser already does this
         id_cols = ("biotype_id", "id")
         cols = [col for col in self._feature_schema if col not in id_cols]
-        # do conversion to numpy array after the above statement to avoid issue of
-        # having a numpy array in a conditional
-        feature.spans = numpy.array(feature.spans)
-        feature.start = feature.start or int(feature.spans.min())
-        feature.stop = feature.stop or int(feature.spans.max())
-        vals = [feature[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
+        record = feature.to_record(fields=cols, array_to_blob=True)
+        vals = [record[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
         cols += ["biotype_id"]
         placeholders = ",".join("?" * len(cols))
         sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders}) RETURNING id"
@@ -383,7 +458,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             table_name="gff", columns=columns, **query_args
         ):
             result = dict(zip(columns, result))
-            result["spans"] = [tuple(c) for c in result["spans"]]
+            result["spans"] = [
+                tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
+            ]
             yield result
 
     def get_feature_children(
@@ -398,7 +475,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             table_name="parent_to_child", columns=cols, parent_stableid=name, **kwargs
         ):
             result = dict(zip(cols, result))
-            result["spans"] = [tuple(c) for c in result["spans"]]
+            result["spans"] = [
+                tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
+            ]
             results[result["name"]] = result
         return list(results.values())
 
@@ -414,6 +493,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             table_name="child_to_parent", columns=cols, child_stableid=name
         ):
             result = dict(zip(cols, result))
+            result["spans"] = [
+                tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
+            ]
             results[result["name"]] = result
         return list(results.values())
 
@@ -433,11 +515,15 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             k: v for k, v in locals().items() if k not in ("self", "allow_partial")
         }
         sql, vals = _select_records_sql("gff", kwargs, allow_partial=allow_partial)
-        col_names = None
+        cols = None
         for result in self._execute_sql(sql, values=vals):
-            if col_names is None:
-                col_names = result.keys()
-            yield {c: result[c] for c in col_names}
+            if cols is None:
+                cols = result.keys()
+            result = dict(zip(cols, result))
+            result["spans"] = [
+                tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
+            ]
+            yield result
 
     def biotype_counts(self) -> dict[str, int]:
         sql = "SELECT biotype, COUNT(*) as count FROM gff GROUP BY biotype"
@@ -529,7 +615,7 @@ def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str
     """returns the prefixes of the stableids"""
     prefixes = set()
     for record in records:
-        record.update_from_attrs()
+        record.update_record()
         try:
             prefix = elt_util.get_stableid_prefix(record.stableid)
         except ValueError:

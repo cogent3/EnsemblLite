@@ -98,7 +98,7 @@ class GapStore(elt_mixin.Hdf5Mixin):
         try:
             self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
         except OSError:
-            print(source)
+            print(f"{source=}")
             raise
 
         if "r" not in self.mode and "align_name" not in self._file.attrs:
