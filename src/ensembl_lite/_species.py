@@ -156,10 +156,12 @@ class SpeciesNameMap:
                 self._stableid_species[prefix] = ensembl_name
 
     def add_stableid_prefix(
-        self, species_name: str, stableid_prefix: str | elt_util.CaseInsensitiveString
+        self,
+        species_name: str,
+        stableid_prefix: str | elt_util.CaseInsensitiveString,
     ):
         self._stableid_species[str(stableid_prefix)] = self.get_species_name(
-            species_name
+            species_name,
         )
 
     def to_table(self):
@@ -170,7 +172,7 @@ class SpeciesNameMap:
             ensembl = self._species_ensembl[species]
             # all prefixes for this species
             stableids = ",".join(
-                [k for k, v in self._stableid_species.items() if v == ensembl]
+                [k for k, v in self._stableid_species.items() if v == ensembl],
             )
             rows += [[species, common, stableids]]
         return Table(

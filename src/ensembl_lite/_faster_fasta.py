@@ -15,7 +15,8 @@ class converter:
 
     def __init__(self, dtype=numpy.uint8):
         self._tr = b"".maketrans(
-            "".join(alphabet).encode("utf8"), bytes(bytearray(range(len(alphabet))))
+            "".join(alphabet).encode("utf8"),
+            bytes(bytearray(range(len(alphabet)))),
         )
         self.dtype = dtype
 
@@ -28,7 +29,8 @@ bytes_to_array = converter()
 
 
 def quicka_parser(
-    path: pathlib.Path, converter: typing.Callable[[bytes], bytes] = bytes_to_array
+    path: pathlib.Path,
+    converter: typing.Callable[[bytes], bytes] = bytes_to_array,
 ):
     """generator returning sequence labels and sequences converted bytes from a fasta file
 

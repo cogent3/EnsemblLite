@@ -36,14 +36,14 @@ def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
 
     path = path / elt_config.INSTALLED_CONFIG_NAME
     if not path.exists():
-        click.secho(f"{str(path)} missing", fg="red")
+        click.secho(f"{path!s} missing", fg="red")
         exit(1)
     return path
 
 
 def _values_from_csv(ctx, param, value) -> list[str] | None:
     if value is None:
-        return
+        return None
 
     return [f.strip() for f in value.split(",")]
 
@@ -52,7 +52,7 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     """returns species names"""
     species = _values_from_csv(ctx, param, species)
     if species is None:
-        return
+        return None
 
     db_names = []
     for name in species:
@@ -90,10 +90,18 @@ _installed = click.option(
     help="Path to root directory of an installation.",
 )
 _outpath = click.option(
-    "-o", "--outpath", required=True, type=pathlib.Path, help="path to write json file"
+    "-o",
+    "--outpath",
+    required=True,
+    type=pathlib.Path,
+    help="path to write json file",
 )
 _outdir = click.option(
-    "-od", "--outdir", required=True, type=pathlib.Path, help="path to write files"
+    "-od",
+    "--outdir",
+    required=True,
+    type=pathlib.Path,
+    help="path to write files",
 )
 _align_name = click.option(
     "--align_name",
@@ -170,7 +178,6 @@ _mask_features = click.option(
 @click.version_option(__version__)
 def main():
     """Tools for obtaining and interrogating subsets of https://ensembl.org genomic data."""
-    pass
 
 
 @main.command(no_args_is_help=True)
@@ -201,11 +208,12 @@ def download(configpath, debug, verbose):
     from rich import progress
 
     if configpath.name == elt_download._cfg:
-        # todo is this statement correct if we're seting a root dir now?
+        # TODO is this statement correct if we're seting a root dir now?
         click.secho(
-            "WARN: using the built in demo cfg, will write to /tmp", fg="yellow"
+            "WARN: using the built in demo cfg, will write to /tmp",
+            fg="yellow",
         )
-    config = elt_config.read_config(configpath, root_dir=pathlib.Path(".").resolve())
+    config = elt_config.read_config(configpath, root_dir=pathlib.Path().resolve())
 
     if verbose:
         print(config)
@@ -393,7 +401,7 @@ def alignments(
 
     from ensembl_lite import _align as elt_align
 
-    # todo support genomic coordinates, e.g. coord_name:start-stop, for
+    # TODO support genomic coordinates, e.g. coord_name:start-stop, for
     #  a reference species
 
     if not ref:
@@ -454,7 +462,9 @@ def alignments(
     )
 
     maker = elt_align.construct_alignment(
-        align_db=align_db, genomes=genomes, mask_features=mask_features
+        align_db=align_db,
+        genomes=genomes,
+        mask_features=mask_features,
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
@@ -467,7 +477,8 @@ def alignments(
             progress.TimeElapsedColumn(),
         ) as progress:
             task = progress.add_task(
-                total=limit or len(locations), description="Getting alignment data"
+                total=limit or len(locations),
+                description="Getting alignment data",
             )
             for results in maker.as_completed(locations, show_progress=False):
                 progress.update(task, advance=1)
@@ -502,7 +513,14 @@ def alignments(
 @_force
 @_verbose
 def homologs(
-    installed, outpath, relationship, ref, num_procs, limit, force_overwrite, verbose
+    installed,
+    outpath,
+    relationship,
+    ref,
+    num_procs,
+    limit,
+    force_overwrite,
+    verbose,
 ):
     """exports CDS sequence data in fasta format for homology type relationship"""
     from rich import progress
@@ -533,7 +551,7 @@ def homologs(
     if verbose:
         print(f"Found {len(gene_ids):,} gene IDs for {ref!r}")
     db = elt_homology.load_homology_db(
-        path=config.homologies_path / elt_homology.HOMOLOGY_STORE_NAME
+        path=config.homologies_path / elt_homology.HOMOLOGY_STORE_NAME,
     )
     related = []
     with progress.Progress(
@@ -544,7 +562,8 @@ def homologs(
         progress.TimeElapsedColumn(),
     ) as progress:
         searching = progress.add_task(
-            total=limit or len(gene_ids), description="Homolog search"
+            total=limit or len(gene_ids),
+            description="Homolog search",
         )
         for gid in gene_ids:
             if rel := db.get_related_to(gene_id=gid, relationship_type=relationship):
@@ -574,7 +593,8 @@ def homologs(
                 if verbose:
                     print(f"{seqs=}")
                 out_dstore.write_not_completed(
-                    data=seqs.obj.to_json(), unique_id=seqs.source.source
+                    data=seqs.obj.to_json(),
+                    unique_id=seqs.source.source,
                 )
                 continue
             if not seqs.obj.seqs:

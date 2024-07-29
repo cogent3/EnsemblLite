@@ -77,7 +77,7 @@ def parse_emf(
         data = infile.readlines()
         if check_format and not data[0].startswith("##FORMAT (compara)"):
             raise NotImplementedError(
-                f"only compara format supported, not {data[0].strip()!r}"
+                f"only compara format supported, not {data[0].strip()!r}",
             )
 
     blocks = _iter_blocks(data)
