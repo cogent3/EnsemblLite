@@ -26,16 +26,16 @@ def tmp_config(tmp_dir):
     parser.set("local path", "staging_path", value=str(tmp_dir / "staging"))
     parser.set("local path", "install_path", value=str(tmp_dir / "install"))
     download_cfg = tmp_dir / "download.cfg"
-    with open(download_cfg, "wt") as out:
+    with open(download_cfg, "w") as out:
         parser.write(out)
 
-    yield download_cfg
+    return download_cfg
 
 
 def name_as_seqid(species, seqid, start, end):
     return seqid
 
 
-@pytest.fixture
+@pytest.fixture()
 def namer():
     return name_as_seqid

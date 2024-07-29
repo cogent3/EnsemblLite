@@ -25,7 +25,7 @@ def test_read_installed(tmp_config, tmp_path):
     outpath = elt_config.write_installed_cfg(config)
     got = elt_config.read_installed_cfg(outpath)
     assert str(got.installed_genome("human")) == str(
-        got.install_path / "genomes/homo_sapiens"
+        got.install_path / "genomes/homo_sapiens",
     )
 
 
@@ -36,19 +36,19 @@ def test_installed_config_hash():
     assert len(v) == 1
 
 
-@pytest.fixture
+@pytest.fixture()
 def installed_aligns(tmp_path):
     align_dir = tmp_path / elt_config._COMPARA_NAME / elt_config._ALIGNS_NAME
     align_dir.mkdir(parents=True, exist_ok=True)
     # make two alignment paths with similar names
     (align_dir / f"10_primates.epo.{elt_align.ALIGN_STORE_SUFFIX}").open(mode="w")
     (align_dir / f"24_primates.epo_extended.{elt_align.ALIGN_STORE_SUFFIX}").open(
-        mode="w"
+        mode="w",
     )
     # and their associated HDF5 seqs
     (align_dir / f"10_primates.epo.{elt_align.GAP_STORE_SUFFIX}").open(mode="w")
     (align_dir / f"24_primates.epo_extended.{elt_align.GAP_STORE_SUFFIX}").open(
-        mode="w"
+        mode="w",
     )
 
     return elt_config.InstalledConfig(release="11", install_path=tmp_path)

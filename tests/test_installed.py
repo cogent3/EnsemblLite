@@ -5,7 +5,7 @@ from ensembl_lite import _config as elt_config
 from ensembl_lite import _genome as elt_genome
 
 
-@pytest.fixture
+@pytest.fixture()
 def one_genome(DATA_DIR, tmp_dir):
     cfg = elt_config.InstalledConfig(release="110", install_path=tmp_dir)
     # we're only making a genomes directory
@@ -49,8 +49,11 @@ def test_get_genes(one_genome, make_seq_name):
 
     gene = list(
         elt_genome.get_seqs_for_ids(
-            config=config, species=species, names=[name], make_seq_name=make_seq_name
-        )
+            config=config,
+            species=species,
+            names=[name],
+            make_seq_name=make_seq_name,
+        ),
     )[0]
     expect = [ft.get_slice() for ft in seq.get_features(name=f"CDS:{cds_name}")][0]
     assert gene.name == (

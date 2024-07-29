@@ -60,7 +60,7 @@ class AlignRecord:
                 self.start,
                 self.stop,
                 self.strand,
-            )
+            ),
         )
 
     @property
@@ -122,7 +122,10 @@ class GapStore(elt_mixin.Hdf5Mixin):
             # but it's different, which is a problem
             raise ValueError(f"{index!r} already present but with different gaps")
         self._file.create_dataset(
-            name=index, data=gaps, chunks=True, **elt_util._HDF5_BLOSC2_KWARGS
+            name=index,
+            data=gaps,
+            chunks=True,
+            **elt_util._HDF5_BLOSC2_KWARGS,
         )
         self._file.flush()
 
@@ -130,7 +133,7 @@ class GapStore(elt_mixin.Hdf5Mixin):
         return self._file[str(index)][:]
 
 
-# todo add a table and methods to support storing the species tree used
+# TODO add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
 class AlignDb(elt_mixin.SqliteDbMixin):
     table_name = "align"
@@ -165,7 +168,10 @@ class AlignDb(elt_mixin.SqliteDbMixin):
             kwargs = dict(in_memory=False)
 
         self.gap_store = GapStore(
-            source=gap_path, align_name=source.stem, mode=mode, **kwargs
+            source=gap_path,
+            align_name=source.stem,
+            mode=mode,
+            **kwargs,
         )
         self._db = None
         self._init_tables()
@@ -175,7 +181,7 @@ class AlignDb(elt_mixin.SqliteDbMixin):
         col_order = [
             row[1]
             for row in self.db.execute(
-                f"PRAGMA table_info({self.table_name})"
+                f"PRAGMA table_info({self.table_name})",
             ).fetchall()
             if row[1] != "id"
         ]
@@ -240,12 +246,15 @@ class AlignDb(elt_mixin.SqliteDbMixin):
         # Client code is responsible for creating Aligned sequence instances
         # and the Alignment.
 
-        # todo: there's an issue here with records being duplicated, solved
+        # TODO: there's an issue here with records being duplicated, solved
         #   for now by making AlignRecord hashable and using a set for block_ids
         block_ids = {
             r["block_id"]
             for r in self._get_block_id(
-                species=species, seqid=seqid, start=start, stop=stop
+                species=species,
+                seqid=seqid,
+                start=start,
+                stop=stop,
             )
         }
         values = ", ".join("?" * len(block_ids))
@@ -280,7 +289,10 @@ def get_alignment(
         raise ValueError(f"unknown species {ref_species!r}")
 
     align_records = align_db.get_records_matching(
-        species=ref_species, seqid=seqid, start=ref_start, stop=ref_end
+        species=ref_species,
+        seqid=seqid,
+        start=ref_start,
+        stop=ref_end,
     )
     # sample the sequences
     for block in align_records:

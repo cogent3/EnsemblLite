@@ -56,7 +56,8 @@ def download_species(
     msg = "Downloading genomes"
     if progress is not None:
         species_download = progress.add_task(
-            total=len(config.species_dbs), description=msg
+            total=len(config.species_dbs),
+            description=msg,
         )
 
     patterns = dict(fasta=valid_seq_file, gff3=valid_gff3_file(config.release))
@@ -72,7 +73,7 @@ def download_species(
 
             remote_dir = remote_template.format(remote)
             remote_paths = list(
-                elt_ftp.listdir(config.host, path=remote_dir, pattern=patterns[subdir])
+                elt_ftp.listdir(config.host, path=remote_dir, pattern=patterns[subdir]),
             )
             if verbose:
                 print(f"{remote_paths=}")
@@ -100,8 +101,6 @@ def download_species(
 
         if progress is not None:
             progress.update(species_download, description=msg, advance=1)
-
-    return
 
 
 class valid_compara_align:
@@ -133,7 +132,8 @@ def download_aligns(
     msg = "Downloading alignments"
     if progress is not None:
         align_download = progress.add_task(
-            total=len(config.species_dbs), description=msg
+            total=len(config.species_dbs),
+            description=msg,
         )
 
     valid_compara = valid_compara_align()
@@ -198,13 +198,14 @@ def download_homology(
     msg = "Downloading homology"
     if progress is not None:
         species_download = progress.add_task(
-            total=len(config.species_dbs), description=msg
+            total=len(config.species_dbs),
+            description=msg,
         )
 
     for db_name in config.db_names:
         remote_path = remote_template.format(db_name)
         remote_paths = list(
-            elt_ftp.listdir(config.host, remote_path, valid_compara_homology())
+            elt_ftp.listdir(config.host, remote_path, valid_compara_homology()),
         )
         if verbose:
             print(remote_paths)
@@ -244,16 +245,21 @@ def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
     site_map = elt_site_map.get_site_map(host)
     path = f"{remote_path}/release-{release}/{site_map.trees_path}"
     return list(
-        elt_ftp.listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh"))
+        elt_ftp.listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")),
     )
 
 
 def get_species_for_alignments(
-    host: str, remote_path: str, release: str, align_names: list[str]
+    host: str,
+    remote_path: str,
+    release: str,
+    align_names: list[str],
 ) -> dict[str, list[str]]:
     """return the species for the indicated alignments"""
     ensembl_trees = get_ensembl_trees(
-        host=host, remote_path=remote_path, release=release
+        host=host,
+        remote_path=remote_path,
+        release=release,
     )
     aligns_trees = elt_util.trees_for_aligns(align_names, ensembl_trees)
     species = {}

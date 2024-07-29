@@ -16,7 +16,7 @@ def _make_expected_o2o(table):
     return result
 
 
-@pytest.fixture
+@pytest.fixture()
 def o2o_db(DATA_DIR, tmp_dir):
     raw = DATA_DIR / "one2one_homologies.tsv"
 
@@ -62,7 +62,7 @@ def test_hdb(o2o_db, gene_id):
     assert got.gene_ids.keys() == expect[gene_id]
 
 
-@pytest.fixture
+@pytest.fixture()
 def orth_records():
     return [
         ("ortholog_one2one", {"1": "sp1", "2": "sp2"}),  # grp 1
@@ -71,7 +71,7 @@ def orth_records():
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def hom_records(orth_records):
     return orth_records + [("ortholog_one2many", {"6": "sp2", "7": "sp3"})]
 
@@ -82,7 +82,7 @@ def test_hdb_get_related_groups(o2o_db):
     assert len(got) == 5
 
 
-@pytest.fixture
+@pytest.fixture()
 def hom_hdb(hom_records):
     groups = elt_homology.grouped_related(hom_records)
     hdb = elt_homology.HomologyDb(source=":memory:")
@@ -255,7 +255,8 @@ def test_merge_grouped():
         },
     )
     got = elt_homology.merge_grouped(
-        {"one2one": (a1,), "one2many": (a2,)}, {"one2one": (c,)}
+        {"one2one": (a1,), "one2many": (a2,)},
+        {"one2one": (c,)},
     )
     expect = {"one2one": (a1 | c,), "one2many": (a2,)}
     assert got == expect

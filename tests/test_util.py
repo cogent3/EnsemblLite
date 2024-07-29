@@ -14,10 +14,10 @@ def compara_cfg(tmp_config):
     parser.add_section("compara")
     alns = ",".join(("17_sauropsids.epc", "10_primates.epo"))
     parser.set("compara", "align_names", value=alns)
-    with open(tmp_config, "wt") as out:
+    with open(tmp_config, "w") as out:
         parser.write(out)
 
-    yield tmp_config
+    return tmp_config
 
 
 def test_parse_config(compara_cfg):
@@ -44,10 +44,10 @@ def gorilla_cfg(tmp_config):
     parser.read(elt_util.get_resource_path(tmp_config))
     parser.add_section("Gorilla")
     parser.set("Gorilla", "db", value="core")
-    with open(tmp_config, "wt") as out:
+    with open(tmp_config, "w") as out:
         parser.write(out)
 
-    yield tmp_config
+    return tmp_config
 
 
 def test_parse_config_gorilla(gorilla_cfg):
@@ -100,13 +100,13 @@ def just_compara_cfg(tmp_config):
     parser.add_section("compara")
     parser.set("compara", "align_names", value="10_primates.epo")
     parser.set("compara", "tree_names", value="10_primates_EPO_default.nh")
-    with open(tmp_config, "wt") as out:
+    with open(tmp_config, "w") as out:
         parser.write(out)
 
-    yield tmp_config
+    return tmp_config
 
 
-@pytest.mark.internet
+@pytest.mark.internet()
 def test_just_compara(just_compara_cfg):
     # get species names from the alignment ref tree
     cfg = elt_config.read_config(just_compara_cfg)
@@ -173,7 +173,7 @@ def test_config_update_species(tmp_config):
     assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}
 
 
-@pytest.mark.internet
+@pytest.mark.internet()
 def test_cfg_to_dict(just_compara_cfg):
     cfg = elt_config.read_config(just_compara_cfg)
     data = cfg.to_dict()
