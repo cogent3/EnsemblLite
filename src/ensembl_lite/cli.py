@@ -407,7 +407,7 @@ def alignments(
         shutil.rmtree(outdir, ignore_errors=True)
 
     config = elt_config.read_installed_cfg(installed)
-    align_path = config.path_to_alignment(align_name, _align.ALIGN_STORE_SUFFIX)
+    align_path = config.path_to_alignment(align_name, elt_align.ALIGN_STORE_SUFFIX)
     if align_path is None:
         click.secho(
             f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
