@@ -46,7 +46,8 @@ def make_records(start, end, block_id):
         imap, s = gs.parse_out_gaps()
         if imap.num_gaps:
             gap_spans = numpy.array(
-                [imap.gap_pos, imap.get_gap_lengths()], dtype=numpy.int32
+                [imap.gap_pos, imap.get_gap_lengths()],
+                dtype=numpy.int32,
             ).T
         else:
             gap_spans = numpy.array([], dtype=numpy.int32)
@@ -64,7 +65,7 @@ def make_records(start, end, block_id):
     return records
 
 
-@pytest.fixture
+@pytest.fixture()
 def small_records():
     records = make_records(1, 5, 0)
     return records
@@ -109,7 +110,7 @@ def _get_expected_seqindex(data: str, align_index: int) -> int:
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
 # based on a given alignment
-@pytest.fixture
+@pytest.fixture()
 def genomedbs_aligndb(small_records):
     align_db = elt_align.AlignDb(source=":memory:")
     align_db.add_records(records=small_records)
@@ -119,11 +120,16 @@ def genomedbs_aligndb(small_records):
     genomes = {}
     for name, seq in data.items():
         genome = elt_genome.SeqsDataHdf5(
-            source=f"{name}", species=species[name], mode="w", in_memory=True
+            source=f"{name}",
+            species=species[name],
+            mode="w",
+            in_memory=True,
         )
         genome.add_records(records=[(name, seq)])
         genomes[species[name]] = elt_genome.Genome(
-            seqs=genome, annots=None, species=species[name]
+            seqs=genome,
+            annots=None,
+            species=species[name],
         )
 
     return genomes, align_db
@@ -133,8 +139,12 @@ def test_building_alignment(genomedbs_aligndb, namer):
     genomes, align_db = genomedbs_aligndb
     got = list(
         elt_align.get_alignment(
-            align_db, genomes, ref_species="mouse", seqid="s2", namer=namer
-        )
+            align_db,
+            genomes,
+            ref_species="mouse",
+            seqid="s2",
+            namer=namer,
+        ),
     )[0]
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
@@ -177,7 +187,9 @@ def make_sample(two_aligns=False):
         )
         genome.add_records(records=[(name, str(seq))])
         genomes[species[name]] = elt_genome.Genome(
-            seqs=genome, annots=annot_dbs[name], species=species[name]
+            seqs=genome,
+            annots=annot_dbs[name],
+            species=species[name],
         )
 
     # define two alignment blocks that incorporate features
@@ -248,7 +260,7 @@ def test_select_alignment_plus_strand(species_coord, start_end, namer):
             ref_start=start,
             ref_end=end,
             namer=namer,
-        )
+        ),
     )
     assert len(got) == 1
     assert got[0].to_dict() == expect.to_dict()
@@ -301,7 +313,7 @@ def test_select_alignment_minus_strand(start_end, namer):
             ref_start=start,
             ref_end=end,
             namer=namer,
-        )
+        ),
     )
     # drop the strand info
     assert len(got) == 1, f"{s2_ft=}"
@@ -412,11 +424,15 @@ def test_write_alignments(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "gaps", [numpy.array([[0, 24], [2, 3]], dtype=int), numpy.array([], dtype=int)]
+    "gaps",
+    [numpy.array([[0, 24], [2, 3]], dtype=int), numpy.array([], dtype=int)],
 )
 def test_gapstore_add_retrieve(gaps):
     gap_store = elt_align.GapStore(
-        source="stuff", in_memory=True, mode="w", align_name="demo"
+        source="stuff",
+        in_memory=True,
+        mode="w",
+        align_name="demo",
     )
     gap_store.add_record(index=20, gaps=gaps)
     got = gap_store.get_record(index=20)
@@ -427,7 +443,10 @@ def test_gapstore_add_retrieve(gaps):
 def test_gapstore_add_duplicate():
     a = numpy.array([[0, 24], [2, 3]], dtype=int)
     gap_store = elt_align.GapStore(
-        source="stuff", in_memory=True, mode="w", align_name="demo"
+        source="stuff",
+        in_memory=True,
+        mode="w",
+        align_name="demo",
     )
     gap_store.add_record(index=20, gaps=a)
     # adding it again has now effect
@@ -440,14 +459,17 @@ def test_gapstore_add_duplicate():
 def test_gapstore_add_invalid_duplicate():
     a = numpy.array([[0, 24], [2, 3]], dtype=int)
     gap_store = elt_align.GapStore(
-        source="stuff", in_memory=True, mode="w", align_name="demo"
+        source="stuff",
+        in_memory=True,
+        mode="w",
+        align_name="demo",
     )
     gap_store.add_record(index=20, gaps=a)
     with pytest.raises(ValueError):
         gap_store.add_record(index=20, gaps=a[:1])
 
 
-@pytest.fixture
+@pytest.fixture()
 def small_db(small_records):
     import copy
 

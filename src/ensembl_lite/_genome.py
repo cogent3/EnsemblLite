@@ -38,7 +38,8 @@ SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
 ANNOT_STORE_NAME = "genome.annots-sqlitedb"
 
 _typed_id = re.compile(
-    r"\b[a-z]+:", flags=re.IGNORECASE
+    r"\b[a-z]+:",
+    flags=re.IGNORECASE,
 )  # ensembl stableid's prefixed by the type
 _feature_id = re.compile(r"(?<=\bID=)[^;]+")
 _exon_id = re.compile(r"(?<=\bexon_id=)[^;]+")
@@ -209,7 +210,8 @@ class EnsemblGffRecord(GffRecord):
 
 
 def custom_gff_parser(
-    path: elt_util.PathType, num_fake_ids: int
+    path: elt_util.PathType,
+    num_fake_ids: int,
 ) -> tuple[dict[str, EnsemblGffRecord], int]:
     """replacement for cogent3 merged_gff_records"""
     reduced = {}
@@ -373,7 +375,10 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         return EnsemblGffRecord(**kwargs)
 
     def add_feature(
-        self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
+        self,
+        *,
+        feature: typing.Optional[EnsemblGffRecord] = None,
+        **kwargs,
     ) -> None:
         """updates the feature_id attribute"""
         if feature is None:
@@ -418,7 +423,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         ]
 
     def _get_records_matching(
-        self, table_name: str, **kwargs
+        self,
+        table_name: str,
+        **kwargs,
     ) -> typing.Iterator[sqlite3.Row]:
         """return all fields"""
         columns = kwargs.pop("columns", None)
@@ -455,7 +462,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         query_args = {**kwargs}
 
         for result in self._get_records_matching(
-            table_name="gff", columns=columns, **query_args
+            table_name="gff",
+            columns=columns,
+            **query_args,
         ):
             result = dict(zip(columns, result))
             result["spans"] = [
@@ -472,7 +481,10 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         cols = "seqid", "biotype", "spans", "strand", "name"
         results = {}
         for result in self._get_records_matching(
-            table_name="parent_to_child", columns=cols, parent_stableid=name, **kwargs
+            table_name="parent_to_child",
+            columns=cols,
+            parent_stableid=name,
+            **kwargs,
         ):
             result = dict(zip(cols, result))
             result["spans"] = [
@@ -490,7 +502,9 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         cols = "seqid", "biotype", "spans", "strand", "name"
         results = {}
         for result in self._get_records_matching(
-            table_name="child_to_parent", columns=cols, child_stableid=name
+            table_name="child_to_parent",
+            columns=cols,
+            child_stableid=name,
         ):
             result = dict(zip(cols, result))
             result["spans"] = [
@@ -706,12 +720,20 @@ class SeqsDataABC(ABC):
 
     @abstractmethod
     def get_seq_str(
-        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+        self,
+        *,
+        seqid: str,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
     ) -> str: ...
 
     @abstractmethod
     def get_seq_arr(
-        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+        self,
+        *,
+        seqid: str,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
     ) -> NDArray[numpy.uint8]: ...
 
     @abstractmethod
@@ -834,7 +856,10 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
             raise ValueError(f"{seqid!r} already present but with different seq")
 
         self._file.create_dataset(
-            name=seqid, data=seq, chunks=True, **elt_util._HDF5_BLOSC2_KWARGS
+            name=seqid,
+            data=seq,
+            chunks=True,
+            **elt_util._HDF5_BLOSC2_KWARGS,
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
@@ -842,12 +867,20 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
             self.add_record(seq, seqid)
 
     def get_seq_str(
-        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+        self,
+        *,
+        seqid: str,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
     ) -> str:
         return self._arr2str(self.get_seq_arr(seqid=seqid, start=start, stop=stop))
 
     def get_seq_arr(
-        self, *, seqid: str, start: Optional[int] = None, stop: Optional[int] = None
+        self,
+        *,
+        seqid: str,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
     ) -> NDArray[numpy.uint8]:
         if not self._is_open:
             raise OSError(f"{self.source.name!r} is closed")
@@ -880,7 +913,7 @@ class genome_segment:
         return self.unique_id
 
 
-# todo: this wrapping class is required for memory efficiency because
+# TODO: this wrapping class is required for memory efficiency because
 #  the cogent3 SequenceCollection class is not designed for large sequence
 #  collections, either large sequences or large numbers of sequences. The
 #  longer term solution is improving SequenceCollections,
@@ -955,7 +988,11 @@ class Genome:
         stop: OptionalInt = None,
     ) -> typing.Iterable[Feature]:
         for ft in self.annotation_db.get_features_matching(
-            biotype=biotype, seqid=seqid, name=name, start=start, stop=stop
+            biotype=biotype,
+            seqid=seqid,
+            name=name,
+            start=start,
+            stop=stop,
         ):
             seqid = ft.pop("seqid")
             ft["spans"] = numpy.array(ft["spans"])
@@ -963,7 +1000,10 @@ class Genome:
             stop = int(ft["spans"].max())
             ft["spans"] = ft["spans"] - start
             seq = self.get_seq(
-                seqid=seqid, start=start, stop=stop, with_annotations=True
+                seqid=seqid,
+                start=start,
+                stop=stop,
+                with_annotations=True,
             )
             # because self.get_seq() automatically names seqs differently
             seq.name = seqid
@@ -971,7 +1011,9 @@ class Genome:
 
     def get_gene_cds(self, name: str, is_canonical: bool = True):
         for cds in self.annotation_db.get_feature_children(
-            name=name, biotype="cds", is_canonical=is_canonical
+            name=name,
+            biotype="cds",
+            is_canonical=is_canonical,
         ):
             seqid = cds.pop("seqid")
             cds["spans"] = numpy.array(cds["spans"])
@@ -1061,7 +1103,10 @@ def _get_all_gene_segments(
 
 
 def _get_selected_gene_segments(
-    *, annot_db: EnsemblGffDb, limit: Optional[int], stableids: list[str]
+    *,
+    annot_db: EnsemblGffDb,
+    limit: Optional[int],
+    stableids: list[str],
 ) -> list[dict]:
     result = []
     for i, stableid in enumerate(stableids):
@@ -1112,7 +1157,10 @@ def get_gene_segments(
 
 
 def get_gene_table_for_species(
-    *, annot_db: EnsemblGffDb, limit: Optional[int], species: Optional[str] = None
+    *,
+    annot_db: EnsemblGffDb,
+    limit: Optional[int],
+    species: Optional[str] = None,
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -1152,7 +1200,9 @@ def get_gene_table_for_species(
 
 
 def get_species_summary(
-    *, annot_db: EnsemblGffDb, species: Optional[str] = None
+    *,
+    annot_db: EnsemblGffDb,
+    species: Optional[str] = None,
 ) -> Table:
     """
     returns the Table summarising data for species_name

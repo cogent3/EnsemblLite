@@ -26,7 +26,9 @@ def listdir(host: str, path: str, pattern: Callable = None):
 
 
 def _copy_to_local(
-    host: str, src: elt_util.PathType, dest: elt_util.PathType
+    host: str,
+    src: elt_util.PathType,
+    dest: elt_util.PathType,
 ) -> elt_util.PathType:
     if dest.exists():
         return dest
@@ -73,7 +75,9 @@ def download_data(
 
     if progress is not None:
         download = progress.add_task(
-            total=len(remote_paths), description=description, transient=True
+            total=len(remote_paths),
+            description=description,
+            transient=True,
         )
     # load the signature data and sig calc keyed by parent dir
     all_checksums = {}
@@ -93,7 +97,9 @@ def download_data(
         msg = "Validating checksums"
         if progress:
             checking = progress.add_task(
-                total=len(remote_paths), description=msg, transient=True
+                total=len(remote_paths),
+                description=msg,
+                transient=True,
             )
         for path in saved_paths:
             if progress is not None:

@@ -13,7 +13,7 @@ from ensembl_lite import _storage_mixin as elt_mixin
 def db_align(DATA_DIR, tmp_path):
     # apps are callable
     records = elt_maf.load_align_records()(  # pylint: disable=not-callable
-        DATA_DIR / "tiny.maf"
+        DATA_DIR / "tiny.maf",
     )
     outpath = tmp_path / "blah.sqlitedb"
     db = elt_align.AlignDb(source=outpath)
@@ -45,8 +45,9 @@ def test_db_align_add_records(db_align):
     db_align.add_records(records)
     got = list(
         db_align._execute_sql(
-            f"SELECT * from {db_align.table_name} where block_id=?", (42,)
-        )
+            f"SELECT * from {db_align.table_name} where block_id=?",
+            (42,),
+        ),
     )[0]
     got = {k: got[k] for k in orig if k != "id"}
     # gap_spans not stored in the db, but in a GapStore
@@ -58,7 +59,7 @@ def test_db_align_repr(db_align, func):
     func(db_align)
 
 
-@pytest.fixture
+@pytest.fixture()
 def hom_dir(DATA_DIR, tmp_path):
     path = DATA_DIR / "small_protein_homologies.tsv.gz"
     table = load_table(path)
@@ -71,7 +72,7 @@ def hom_dir(DATA_DIR, tmp_path):
 
 def test_extract_homology_data(hom_dir):
     loader = elt_homology.load_homologies(
-        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
+        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
     )
     records = []
     for result in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False):
@@ -81,7 +82,7 @@ def test_extract_homology_data(hom_dir):
 
 def test_homology_db(hom_dir):
     loader = elt_homology.load_homologies(
-        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
+        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
     )
 
     outpath = hom_dir / "species.sqlitedb"
@@ -110,7 +111,8 @@ def test_pickling_db(db_align):
 
 
 @pytest.mark.parametrize(
-    "data", (numpy.array([], dtype=numpy.int32), numpy.array([0, 3], dtype=numpy.uint8))
+    "data",
+    (numpy.array([], dtype=numpy.int32), numpy.array([0, 3], dtype=numpy.uint8)),
 )
 def test_array_blob_roundtrip(data):
     blob = elt_mixin.array_to_blob(data)
