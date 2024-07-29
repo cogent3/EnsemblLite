@@ -1,15 +1,22 @@
 import contextlib
+import copy
 import dataclasses
 import functools
 import io
 import os
+import pathlib
 import sqlite3
 
+import duckdb
 import numpy
 
 from ensembl_lite import _util as elt_util
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
+
+# duckdb convenience templates
+AUTOINCREMENT_TEMPLATE = "(SELECT COALESCE(MAX(id), 0) + 1 FROM {})"
+LAST_ID_TEMPLATE = "SELECT MAX(id) FROM {}"
 
 
 @functools.singledispatch
@@ -57,12 +64,54 @@ def _make_table_sql(
     -------
     str
     """
+    columns = copy.deepcopy(columns)
     primary_key = columns.pop("PRIMARY KEY", None)
     columns_types = ", ".join([f"{name} {ctype}" for name, ctype in columns.items()])
     if primary_key:
         columns_types = f"{columns_types}, PRIMARY KEY ({','.join(primary_key)})"
-    sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
-    return sql
+    return f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
+
+
+class DuckDbMixin(elt_util.SerialisableMixin):
+    _db: duckdb.DuckDBPyConnection
+    table_name: str
+    table_names: tuple[str, ...]
+    source: pathlib.Path | str
+
+    def __init__(self, source) -> None:
+        self.source = source
+        self._init_tables()
+
+    def _init_tables(self) -> None:
+        # default to in memory db
+        self._db = duckdb.connect(database=str(self.source))
+        # A bit of magic.
+        # Assumes schema attributes named as `_<table name>_schema`
+        for attr in dir(self):
+            if attr.endswith("_schema"):
+                table_name = "_".join(attr.split("_")[1:-1])
+                attr = getattr(self, attr)
+                sql = _make_table_sql(table_name, attr)
+                self._db.sql(sql)
+
+    @property
+    def db(self) -> duckdb.DuckDBPyConnection:
+        return self._db
+
+    def __del__(self):
+        if self._db:
+            self._db.close()
+
+    def make_indexes(self):
+        """adds db indexes for core attributes"""
+        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
+        for table_name, columns in self._index_columns.items():
+            for col in columns:
+                index = f"{col}_index"
+                self.db.execute(sql % dict(table=table_name, index=index, col=col))
+
+    def close(self):
+        self.db.close()
 
 
 class SqliteDbMixin(elt_util.SerialisableMixin):
@@ -142,10 +191,6 @@ class SqliteDbMixin(elt_util.SerialisableMixin):
     def close(self):
         self.db.commit()
         self.db.close()
-
-    def get_distinct(self, column: str) -> set[str]:
-        sql = f"SELECT DISTINCT {column} from {self.table_name}"
-        return {r[column] for r in self._execute_sql(sql).fetchall()}
 
     def make_indexes(self):
         """adds db indexes for core attributes"""

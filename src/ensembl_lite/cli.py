@@ -415,7 +415,7 @@ def alignments(
         )
         exit(1)
 
-    align_db = elt_align.AlignDb(source=align_path)
+    align_db = elt_align.AlignDuckDb(source=align_path)
     ref_species = elt_species.Species.get_ensembl_db_prefix(ref)
     if ref_species not in align_db.get_species_names():
         click.secho(

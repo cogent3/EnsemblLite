@@ -118,7 +118,7 @@ def local_install_alignments(
         dest_dir.mkdir(parents=True, exist_ok=True)
         # write out to a db with align_name
         output_path = dest_dir / f"{align_name}.{elt_align.ALIGN_STORE_SUFFIX}"
-        db = elt_align.AlignDb(source=output_path)
+        db = elt_align.AlignDuckDb(source=output_path)
         records = []
         paths = list(src_dir.glob(f"{align_name}*maf*"))
 

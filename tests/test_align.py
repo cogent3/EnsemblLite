@@ -18,7 +18,7 @@ def small_seqs():
         array_align=False,
         info=dict(species=dict(s1="human", s2="mouse", s3="dog")),
     )
-    annot_db = elt_genome.EnsemblGffDb(source=":memory:")
+    annot_db = elt_genome.EnsemblGffDuckDb(source=":memory:")
     annot_db.add_feature(seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)])
     annot_db.add_feature(
         seqid="s2",
@@ -70,19 +70,21 @@ def small_records():
     return records
 
 
-def test_aligndb_records_match_input(small_records):
+@pytest.mark.parametrize("cls", (elt_align.AlignDuckDb, elt_align.AlignDb))
+def test_aligndb_records_match_input(small_records, cls):
     import copy
 
     orig_records = copy.deepcopy(small_records)
 
-    db = elt_align.AlignDb(source=":memory:")
+    db = cls(source=":memory:")
     db.add_records(records=small_records)
     got = list(db.get_records_matching(species="human", seqid="s1"))[0]
     assert got == set(orig_records)
 
 
-def test_aligndb_records_skip_duplicated_block_ids(small_records):
-    db = elt_align.AlignDb(source=":memory:")
+@pytest.mark.parametrize("cls", (elt_align.AlignDuckDb, elt_align.AlignDb))
+def test_aligndb_records_skip_duplicated_block_ids(small_records, cls):
+    db = cls()
     db.add_records(records=small_records)
     orig = list(db.get_records_matching(species="human", seqid="s1"))
     db.add_records(records=small_records)
@@ -109,9 +111,9 @@ def _get_expected_seqindex(data: str, align_index: int) -> int:
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
 # based on a given alignment
-@pytest.fixture
-def genomedbs_aligndb(small_records):
-    align_db = elt_align.AlignDb(source=":memory:")
+@pytest.fixture(params=(elt_align.AlignDuckDb, elt_align.AlignDb))
+def genomedbs_aligndb(small_records, request):
+    align_db = request.param(source=":memory:")
     align_db.add_records(records=small_records)
     seqs = small_seqs().degap()
     species = seqs.info.species
@@ -184,7 +186,7 @@ def make_sample(two_aligns=False):
     align_records = _update_records(s2_genome, aln, "0", 1, 12)
     if two_aligns:
         align_records += _update_records(s2_genome, aln, "1", 22, 30)
-    align_db = elt_align.AlignDb(source=":memory:")
+    align_db = elt_align.AlignDuckDb(source=":memory:")
     align_db.add_records(records=align_records)
 
     return genomes, align_db
@@ -451,7 +453,7 @@ def test_gapstore_add_invalid_duplicate():
 def small_db(small_records):
     import copy
 
-    db = elt_align.AlignDb(source=":memory:")
+    db = elt_align.AlignDuckDb(source=":memory:")
     db.add_records(records=copy.deepcopy(small_records))
     return db
 
@@ -466,6 +468,6 @@ def test_indexing(small_db, col):
         f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
     )
 
-    result = small_db._execute_sql(sql_template).fetchone()
+    result = small_db.db.execute(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect

@@ -1,4 +1,6 @@
 import dataclasses
+import functools
+import pathlib
 import typing
 
 import blosc2
@@ -11,13 +13,14 @@ from cogent3.app.typing import (
     SerialisableType,
 )
 from cogent3.parse.table import FilteringParser
-from cogent3.util.io import PathType, iter_splitlines
+from cogent3.util.io import iter_splitlines
 
 from ensembl_lite import _config as elt_config
 from ensembl_lite import _genome as elt_genome
 from ensembl_lite import _storage_mixin as elt_mixin
+from ensembl_lite import _util as elt_util
 
-HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
+HOMOLOGY_STORE_NAME = "homologies.homology-duckdb"
 
 compressor = compress(compressor=blosc2.compress2)
 decompressor = decompress(decompressor=blosc2.decompress2)
@@ -208,6 +211,237 @@ def merge_grouped(group1: T, group2: T) -> T:
     return joint
 
 
+# DuckDb implementation
+class HomologyDuckDb(elt_mixin.DuckDbMixin):
+    table_names = "homology", "relationship", "member", "species", "stableid"
+
+    _relationship_schema = {  # e.g. ortholog_one2one
+        "homology_type": "VARCHAR",
+        "id": "INTEGER PRIMARY KEY",
+    }
+
+    _homology_schema = {  # e.g. an individual homolog group of homology_type
+        "relationship_id": "INTEGER",
+        "id": "INTEGER PRIMARY KEY",
+    }
+
+    _species_schema = {
+        "species_db": "VARCHAR",
+        "id": "INTEGER PRIMARY KEY",
+    }
+
+    _stableid_schema = {
+        "stableid": "VARCHAR PRIMARY KEY",
+        "species_id": "INTEGER",
+        "id": "INTEGER",
+    }
+
+    _member_schema = {  # gene membership of a specific homolog group
+        "stableid_id": "INTEGER",  # from stableid table
+        "homology_id": "INTEGER",  # from homology table
+        "PRIMARY KEY": ("stableid_id", "homology_id"),
+    }
+
+    _index_columns = {
+        "homology": ("relationship_id",),
+        "relationship": ("homology_type",),
+        "member": ("stableid_id", "homology_id"),
+        "species": ("species_db",),
+        "stableid": ("stableid", "species_id"),
+    }
+
+    def __init__(self, source: elt_util.PathType | None = None):
+        self.source = pathlib.Path(source or ":memory:")
+        self._init_tables()
+        self._create_views()
+
+    def _create_views(self):
+        """define views to simplify queries"""
+        sql = """CREATE VIEW IF NOT EXISTS homology_member AS
+        SELECT h.id as homology_id,
+               h.relationship_id as relationship_id,
+               r.homology_type as homology_type,
+               m.stableid_id as stableid_id
+        FROM homology h
+        JOIN relationship r ON h.relationship_id = r.id
+        JOIN member m ON m.homology_id = h.id
+        """
+        self.db.execute(sql)
+        sql = """
+        CREATE VIEW IF NOT EXISTS gene_species AS
+        SELECT sp.species_db as species_db,
+               sp.id as species_id,
+               st.stableid as stableid,
+               st.id as stableid_id
+        FROM species sp
+        JOIN stableid st ON st.species_id = sp.id
+        """
+        self.db.execute(sql)
+        sql = """
+        CREATE VIEW IF NOT EXISTS related_groups AS
+        SELECT gs.stableid as stableid,
+               gs.species_db as species_db,
+               hm.homology_id as homology_id,
+               hm.homology_type as homology_type
+        FROM gene_species gs
+        JOIN homology_member hm ON hm.stableid_id = gs.stableid_id
+        """
+        self.db.execute(sql)
+
+    @functools.cache
+    def _make_species_id(self, species: str) -> int:
+        """returns the species.id value for species"""
+        incr = elt_mixin.AUTOINCREMENT_TEMPLATE.format("species")
+        sql = f"INSERT INTO species(id, species_db) VALUES ({incr},?)"
+        self.db.execute(sql, (species,))
+        return self.db.execute(elt_mixin.LAST_ID_TEMPLATE.format("species")).fetchone()[
+            0
+        ]
+
+    def _make_stableid_id(self, *, stableid: str, species: str) -> int:
+        """returns the stableid.id value for gene_id"""
+        species_id = self._make_species_id(species)
+        incr = elt_mixin.AUTOINCREMENT_TEMPLATE.format("stableid")
+        sql = f"""
+        INSERT OR IGNORE INTO stableid(id,stableid,species_id) VALUES ({incr},?,?)
+        """
+        self.db.execute(sql, (stableid, species_id))
+        sql = "SELECT id FROM stableid WHERE stableid = ? AND species_id = ?"
+        return self.db.execute(sql, (stableid, species_id)).fetchone()[0]
+
+    @functools.cache
+    def _make_relationship_type_id(self, rel_type: str) -> int:
+        """returns the relationship.id value for relationship_type"""
+        incr = elt_mixin.AUTOINCREMENT_TEMPLATE.format("relationship")
+        sql = f"INSERT INTO relationship(id, homology_type) VALUES ({incr},?)"
+        self.db.execute(sql, (rel_type,))
+        return self.db.execute(
+            elt_mixin.LAST_ID_TEMPLATE.format("relationship")
+        ).fetchone()[0]
+
+    def _get_homology_group_id(
+        self, *, relationship_id: int, gene_ids: tuple[str, ...]
+    ) -> int:
+        """creates a new homolog table entry for this relationship id / group"""
+        # need a join of homology by relationship
+        # I want to get the homology_id from member table where
+        # member.stableid_id corresponds to gene_ids
+        id_placeholders = ",".join("?" * len(gene_ids))
+        sql = f"""
+        SELECT hm.homology_id
+        FROM homology_member hm
+        WHERE hm.relationship_id = ? AND hm.stableid_id IN ({id_placeholders})
+        """
+        if r := self.db.execute(sql, (relationship_id,) + gene_ids).fetchone():
+            return r[0]
+        # this group not seen before, so we just create a homology entry
+        incr = elt_mixin.AUTOINCREMENT_TEMPLATE.format("homology")
+        sql = f"INSERT INTO homology(id, relationship_id) VALUES ({incr},?)"
+        self.db.execute(sql, (relationship_id,))
+        return self.db.execute(
+            elt_mixin.LAST_ID_TEMPLATE.format("homology")
+        ).fetchone()[0]
+
+    def add_records(
+        self,
+        *,
+        records: typing.Sequence[homolog_group],
+        relationship_type: str,
+    ) -> None:
+        """inserts homology data from records
+
+        Parameters
+        ----------
+        records
+            a sequence of homolog group instances, all with the same
+            relationship type
+        relationship_type
+            the relationship type
+        """
+        # TODO can we improve performance here by providing a callback
+        assert relationship_type is not None
+        rel_type_id = self._make_relationship_type_id(relationship_type)
+        # we now iterate over the homology groups
+        # we get a new homology id, then add all genes for that group
+        # using the IGNORE to skip duplicates
+        sql = "INSERT OR IGNORE INTO member(stableid_id,homology_id) VALUES (?, ?)"
+        for group in records:
+            if group.relationship != relationship_type:
+                raise ValueError(f"{group.relationship=} != {relationship_type=}")
+
+            # get geneids and species for this group, storing the
+            # geneid id for each record
+            gene_ids = tuple(
+                self._make_stableid_id(stableid=gene_id, species=species)
+                for gene_id, species in group.gene_ids.items()
+            )
+            # now get the homology id for this group
+            homology_id = self._get_homology_group_id(
+                relationship_id=rel_type_id, gene_ids=gene_ids
+            )
+            values = [(int(gene_id), int(homology_id)) for gene_id in gene_ids]
+            self.db.executemany(sql, values)
+
+        self.db.commit()
+
+    def get_related_to(self, *, gene_id: str, relationship_type: str) -> homolog_group:
+        """return genes with relationship type to gene_id"""
+        result = homolog_group(relationship=relationship_type, source=gene_id)
+        sql = """
+        SELECT st.id as stableid_id
+        FROM stableid st
+        WHERE st.stableid = ?
+        """
+        stableid_id = self.db.execute(sql, (gene_id,)).fetchone()
+        if not stableid_id:
+            return result
+        sql = """
+        SELECT hm.homology_id as homology_id
+        FROM homology_member hm
+        WHERE hm.homology_type = ? AND hm.stableid_id = ?
+        """
+        homology_id = self.db.execute(
+            sql, (relationship_type, stableid_id[0])
+        ).fetchone()
+
+        if not homology_id:
+            return result
+
+        homology_id = homology_id[0]
+        sql = """
+        SELECT gs.stableid as stableid,
+               gs.species_db as species_db
+        FROM gene_species gs
+        JOIN homology_member hm ON hm.stableid_id = gs.stableid_id
+        WHERE hm.homology_id = ?
+        """
+        for stableid, species_db in self.db.execute(sql, (homology_id,)).fetchall():
+            result.gene_ids[stableid] = species_db
+
+        return result
+
+    def get_related_groups(self, relationship_type: str) -> list[homolog_group]:
+        """returns all groups of relationship type"""
+        sql = """
+        SELECT homology_id, stableid, species_db
+        FROM related_groups
+        WHERE homology_type = ?
+        """
+        results = {}
+        for result in self.db.execute(sql, (relationship_type,)).fetchall():
+            record = results.get(
+                result[0], homolog_group(relationship=relationship_type)
+            )
+            record.gene_ids |= {result[1]: result[2]}
+            results[result[0]] = record
+        return list(results.values())
+
+    def num_records(self):
+        return list(self.db.execute("SELECT COUNT(*) as count FROM member").fetchone())[
+            0
+        ]
+
+
 # the homology db stores pairwise relationship information
 class HomologyDb(elt_mixin.SqliteDbMixin):
     table_names = "homology", "relationship", "member", "species", "stableid"
@@ -241,8 +475,8 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
         "stableid": ("stableid", "species_id"),
     }
 
-    def __init__(self, source: PathType = ":memory:"):
-        self.source = source
+    def __init__(self, source: elt_util.PathType | None = None):
+        self.source = source or ":memory:"
         self._relationship_types = {}
         self._species_ids = {}
         self._init_tables()
@@ -433,7 +667,7 @@ class HomologyDb(elt_mixin.SqliteDbMixin):
 
 def load_homology_db(
     *,
-    path: PathType,
+    path: elt_util.PathType,
 ) -> HomologyDb:
     return HomologyDb(source=path)
 
