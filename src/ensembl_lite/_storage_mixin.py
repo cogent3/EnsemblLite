@@ -5,6 +5,7 @@ import io
 import os
 import sqlite3
 
+import duckdb
 import numpy
 
 from ensembl_lite import _util as elt_util
@@ -63,6 +64,35 @@ def _make_table_sql(
         columns_types = f"{columns_types}, PRIMARY KEY ({','.join(primary_key)})"
     sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
     return sql
+
+
+class DuckDbMixin(elt_util.SerialisableMixin):
+    table_name = None
+    table_names = None
+    _db = None
+    source: elt_util.PathType | None = None
+
+    def __init__(self, source) -> None:
+        self.source = source
+        self._init_tables()
+
+    def _init_tables(self) -> None:
+        # default to in memory db
+        self._db = self._db or duckdb.connect()
+        # A bit of magic.
+        # Assumes schema attributes named as `_<table name>_schema`
+        for attr in dir(self):
+            if attr.endswith("_schema"):
+                table_name = "_".join(attr.split("_")[1:-1])
+                attr = getattr(self, attr)
+                sql = _make_table_sql(table_name, attr)
+                self._db.sql(sql)
+
+    def __del__(self):
+        self._db.close()
+
+    def _execute_sql(self, cmnd: str, values=None) -> duckdb.DuckDBPyConnection:
+        return self._db.execute(cmnd, values or [])
 
 
 class SqliteDbMixin(elt_util.SerialisableMixin):

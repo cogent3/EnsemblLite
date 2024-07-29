@@ -242,6 +242,290 @@ def custom_gff_parser(
 DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
 
 
+class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
+    _biotype_schema = {
+        "type": "VARCHAR",
+        "id": "INTEGER PRIMARY KEY",
+    }
+    _feature_schema = {
+        "seqid": "VARCHAR",
+        "source": "VARCHAR",
+        "biotype_id": "INTEGER",
+        "start": "INTEGER",
+        "stop": "INTEGER",
+        "score": "VARCHAR",
+        "strand": "VARCHAR",
+        "phase": "VARCHAR",
+        "attributes": "VARCHAR",
+        "comments": "VARCHAR",
+        "spans": "BLOB",
+        "stableid": "VARCHAR",
+        "id": "INTEGER PRIMARY KEY",
+        "is_canonical": "BOOL",
+    }
+    # relationships are directional, but can span levels, eg.
+    # gene -> transcript -> CDS / Exon
+    # gene -> CDS
+    _related_feature_schema = {"gene_id": "INTEGER", "related_id": "INTEGER"}
+
+    _index_columns = {
+        "feature": (
+            "seqid",
+            "stableid",
+            "start",
+            "stop",
+            "is_canonical",
+            "biotype_id",
+        ),
+        "related_feature": ("gene_id", "related_id"),
+    }
+
+    def __init__(
+        self,
+        source: elt_util.PathType = ":memory:",
+        db: typing.Optional[DbTypes] = None,
+    ):
+        self.source = source
+        if isinstance(db, self.__class__):
+            db = db.db
+
+        self._db = db
+        self._init_tables()
+        self._create_views()
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other)
+
+    def _create_views(self) -> None:
+        """define views to simplify queries"""
+        sql = """
+        CREATE VIEW gff AS
+        SELECT f.seqid as seqid,
+               b.type as biotype,
+               f.start as start,
+               f.stop as stop,
+               f.strand as strand,
+               f.spans as spans,
+               f.stableid as name,
+               f.is_canonical as is_canonical,
+               f.id as feature_id
+        FROM feature f
+        JOIN biotype b ON f.biotype_id = b.id
+        """
+        self._db.sql(sql)
+        # view to query for child given parent id and vice versa
+        p2c = """
+        CREATE VIEW IF NOT EXISTS parent_to_child AS
+        SELECT fc.stableid as name,
+               fp.stableid as parent_stableid,
+               fc.seqid as seqid,
+               b.type as biotype,
+               fc.start as start,
+               fc.stop as stop,
+               fc.strand as strand,
+               fc.spans as spans,
+               fc.is_canonical as is_canonical
+        FROM feature fc
+        JOIN biotype b ON fc.biotype_id = b.id
+        JOIN related_feature r ON fc.id = r.related_id
+        JOIN feature fp ON fp.id = r.gene_id
+        """
+        self._db.sql(p2c)
+        c2p = """
+        CREATE VIEW IF NOT EXISTS child_to_parent AS
+        SELECT fp.stableid as name,
+               fc.stableid as child_stableid,
+               fp.seqid as seqid,
+               b.type as biotype,
+               fp.start as start,
+               fp.stop as stop,
+               fp.strand as strand,
+               fp.is_canonical as is_canonical,
+               fp.spans as spans
+        FROM feature fp
+        JOIN biotype b ON fp.biotype_id = b.id
+        JOIN related_feature r ON fp.id = r.gene_id
+        JOIN feature fc ON fc.id = r.related_id
+        """
+        self._db.sql(c2p)
+
+    @functools.cache
+    def _get_biotype_id(self, biotype: str) -> int:
+        sql = """
+        INSERT OR IGNORE INTO biotype(id,type)
+        VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM biotype), ?)"""
+        self._db.sql(sql, params=[biotype])
+        return self._db.sql("SELECT MAX(id) FROM biotype").fetchone()[0]
+
+    def _build_feature(self, kwargs) -> EnsemblGffRecord:
+        # not supporting this at present, which comes from cogent3
+        # alignment objects
+        kwargs.pop("on_alignment", None)
+        return EnsemblGffRecord(**kwargs)
+
+    def make_indexes(self):
+        """adds db indexes for core attributes"""
+        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
+        for table_name, columns in self._index_columns.items():
+            for col in columns:
+                index = f"{col}_index"
+                self._db.sql(sql % dict(table=table_name, index=index, col=col))
+
+    def add_feature(
+        self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
+    ) -> None:
+        """updates the feature_id attribute"""
+        if feature is None:
+            feature = self._build_feature(kwargs)
+
+        id_cols = ("biotype_id", "id")
+        cols = [col for col in self._feature_schema if col not in id_cols]
+        # do conversion to numpy array after the above statement to avoid issue of
+        # having a numpy array in a conditional
+        spans = numpy.array(feature.spans)
+        feature.start = feature.start or int(spans.min())
+        feature.stop = feature.stop or int(spans.max())
+        feature.spans = elt_mixin.array_to_blob(spans)
+        vals = [feature[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
+        cols += ["biotype_id"]
+        placeholders = ",".join("?" * len(cols))
+        cols.insert(0, "id")
+        placeholders = f"(SELECT COALESCE(MAX(id), 0) + 1 FROM feature),{placeholders}"
+        sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders})"
+        self._db.sql(sql, params=tuple(vals))
+        feature.feature_id = self._db.sql("SELECT MAX(id) FROM feature").fetchone()[0]
+
+    def add_records(
+        self,
+        *,
+        records: typing.Iterable[EnsemblGffRecord],
+        gene_relations: dict[EnsemblGffRecord, set[EnsemblGffRecord]],
+    ) -> None:
+        for record in records:
+            self.add_feature(feature=record)
+
+        # now add the relationships
+        sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?,?)"
+        for gene, children in gene_relations.items():
+            if gene.feature_id is None:
+                raise ValueError(f"gene.feature_id not defined for {gene!r}")
+
+            child_ids = [child.feature_id for child in children]
+            if None in child_ids:
+                raise ValueError(f"child.feature_id not defined for {children!r}")
+
+            comb = [tuple(c) for c in itertools.product([gene.feature_id], child_ids)]
+            self._db.executemany(sql, comb)
+
+    def num_records(self) -> int:
+        return self._db.sql("SELECT COUNT(*) as count FROM feature").fetchone()[0]
+
+    def _get_records_matching(
+        self, table_name: str, **kwargs
+    ) -> typing.Iterator[sqlite3.Row]:
+        """return all fields"""
+        columns = kwargs.pop("columns", None)
+        allow_partial = kwargs.pop("allow_partial", False)
+        # now
+        sql, vals = _select_records_sql(
+            table_name=table_name,
+            conditions=kwargs,
+            columns=columns,
+            allow_partial=allow_partial,
+        )
+        yield from self._db.execute(sql, vals).fetchall()
+
+    def get_features_matching(
+        self,
+        *,
+        seqid: OptionalStr = None,
+        biotype: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+        **kwargs,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v
+            for k, v in locals().items()
+            if k not in ("self", "kwargs") and v is not None
+        }
+        # alignment features are created by the user specific
+        columns = ("seqid", "biotype", "spans", "strand", "name")
+        query_args = {**kwargs}
+
+        for result in self._get_records_matching(
+            table_name="gff", columns=columns, **query_args
+        ):
+            result = dict(zip(columns, result))
+            result["spans"] = elt_mixin.blob_to_array(result["spans"])
+            yield result
+
+    def get_feature_children(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="parent_to_child", columns=cols, parent_stableid=name, **kwargs
+        ):
+            result = dict(zip(cols, result))
+            result["spans"] = elt_mixin.blob_to_array(result["spans"])
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_feature_parent(
+        self,
+        *,
+        name: str,
+        **kwargs,
+    ) -> typing.List[FeatureDataType]:
+        cols = "seqid", "biotype", "spans", "strand", "name"
+        results = {}
+        for result in self._get_records_matching(
+            table_name="child_to_parent", columns=cols, child_stableid=name
+        ):
+            result = dict(zip(cols, result))
+            result["spans"] = elt_mixin.blob_to_array(result["spans"])
+            results[result["name"]] = result
+        return list(results.values())
+
+    def get_records_matching(
+        self,
+        *,
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing.Iterator[FeatureDataType]:
+        kwargs = {
+            k: v for k, v in locals().items() if k not in ("self", "allow_partial")
+        }
+        sql, vals = _select_records_sql("gff", kwargs, allow_partial=allow_partial)
+        col_names = None
+        for result in self._db.execute(sql, vals):
+            if col_names is None:
+                col_names = result.keys()
+
+            if "spans" in col_names:
+                result["spans"] = elt_mixin.blob_to_array(result["spans"])
+
+            yield {c: result[c] for c in col_names}
+
+
 class EnsemblGffDb(elt_mixin.SqliteDbMixin):
     _biotype_schema = {
         "type": "TEXT COLLATE NOCASE",
@@ -285,10 +569,10 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
 
     def __init__(
         self,
-        source: elt_util.PathType = ":memory:",
+        source: elt_util.PathType | None = None,
         db: typing.Optional[DbTypes] = None,
     ):
-        self.source = source
+        self.source = source or ":memory:"
         if isinstance(db, self.__class__):
             db = db.db
 

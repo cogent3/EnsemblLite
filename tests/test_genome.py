@@ -59,7 +59,7 @@ def small_annots():
 
 @pytest.fixture(scope="function")
 def small_annotdb(small_annots):
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = elt_genome.EnsemblGffDb()
     for record in small_annots:
         db.add_feature(**record)
     return db
@@ -454,9 +454,10 @@ def test_make_gene_relationships(ensembl_gff_records):
     assert ensembl_gff_records["cds:B0019.1"].is_canonical
 
 
-def test_featuredb(canonical_related):
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_featuredb(canonical_related, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     db.add_records(records=records.values(), gene_relations=related)
     cds = list(
         db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
@@ -464,9 +465,10 @@ def test_featuredb(canonical_related):
     assert cds["name"] == "B0019.1"
 
 
-def test_featuredb_num_records(canonical_related):
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_featuredb_num_records(canonical_related, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     assert db.num_records() == 0
     db.add_records(records=records.values(), gene_relations=related)
     assert db.num_records() == 11
@@ -480,19 +482,21 @@ def test_make_annotation_db(DATA_DIR, tmp_path):
     assert got.num_records() == 11
 
 
-def test_get_features_matching(canonical_related):
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_get_features_matching(canonical_related, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     db.add_records(records=records.values(), gene_relations=related)
     got = list(db.get_features_matching(biotype="cds"))
     assert got[0]["name"] == "B0019.1"
     assert got[0]["biotype"] == "cds"
 
 
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
 @pytest.mark.parametrize("table_name", tuple(elt_genome.EnsemblGffDb._index_columns))
-def test_indexing(canonical_related, table_name):
+def test_indexing(canonical_related, table_name, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     db.add_records(records=records.values(), gene_relations=related)
     col = elt_genome.EnsemblGffDb._index_columns[table_name][0]
     expect = ("index", f"{col}_index", table_name)
@@ -507,17 +511,19 @@ def test_indexing(canonical_related, table_name):
     assert got == expect
 
 
-def test_get_feature_parent(canonical_related):
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_get_feature_parent(canonical_related, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     db.add_records(records=records.values(), gene_relations=related)
     got = list(db.get_feature_parent(name="B0019.1"))[0]
     assert got["name"] == "WBGene00000138"
 
 
-def test_get_feature_children(canonical_related):
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_get_feature_children(canonical_related, cls):
     records, related = canonical_related
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+    db = cls()
     db.add_records(records=records.values(), gene_relations=related)
     got = list(
         db.get_feature_children(name="WBGene00000138", biotype="cds", is_canonical=True)
@@ -525,8 +531,9 @@ def test_get_feature_children(canonical_related):
     assert got["name"] == "B0019.1"
 
 
-def test_add_feature():
-    db = elt_genome.EnsemblGffDb(source=":memory:")
+@pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
+def test_add_feature(cls):
+    db = cls()
     feature = elt_genome.EnsemblGffRecord(
         start=2, stop=3, seqid="s0", name="demo", spans=[(2, 3)], biotype="gene"
     )
