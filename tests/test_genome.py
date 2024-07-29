@@ -58,7 +58,7 @@ def small_annots():
 
 
 @pytest.fixture(
-    scope="function", params=(elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb)
+    scope="function", params=(elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb)[1:]
 )
 def small_annotdb(small_annots, request):
     db = request.param()
@@ -415,6 +415,7 @@ def test_gff_record_to_record_selected_fields(exclude_null):
         "name": "gene-01",
         "start": None,
         "stop": None,
+        "feature_id": 22,
     }
     fields = list(data)
     record = elt_genome.EnsemblGffRecord(**data)
@@ -482,7 +483,7 @@ def test_make_annotation_db(DATA_DIR, tmp_path):
     src = DATA_DIR / "c_elegans_WS199_shortened.gff3"
     dest = tmp_path / elt_genome.ANNOT_STORE_NAME
     elt_genome.make_annotation_db((src, dest))
-    got = elt_genome.EnsemblGffDb(source=dest)
+    got = elt_genome.EnsemblGffDuckDb(source=dest)
     assert got.num_records() == 11
 
 
@@ -510,7 +511,7 @@ def test_indexing(canonical_related, table_name, cls):
         f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
     )
 
-    result = db._execute_sql(sql_template).fetchone()
+    result = db.db.execute(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
 

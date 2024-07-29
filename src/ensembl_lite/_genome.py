@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import click
-import duckdb
 import h5py
 import numpy
 import typing_extensions
@@ -30,13 +29,14 @@ from cogent3.util.table import Table
 from numpy.typing import NDArray
 
 from ensembl_lite import _config as elt_config
+from ensembl_lite import _genome as elt_genome
 from ensembl_lite import _species as elt_species
 from ensembl_lite import _storage_mixin as elt_mixin
 from ensembl_lite import _util as elt_util
 from ensembl_lite._faster_fasta import quicka_parser
 
 SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
-ANNOT_STORE_NAME = "genome.annots-sqlitedb"
+ANNOT_STORE_NAME = "genome.annots-duckdb"
 
 _typed_id = re.compile(
     r"\b[a-z]+:", flags=re.IGNORECASE
@@ -240,14 +240,22 @@ def custom_gff_parser(
     return reduced, num_fake_ids
 
 
-def _build_feature(kwargs) -> EnsemblGffRecord:
+@functools.singledispatch
+def _build_feature(feature: dict, feature_id: int) -> EnsemblGffRecord:
     # not supporting on_alignment at present, which comes from cogent3
     # alignment objects
-    kwargs.pop("on_alignment", None)
-    return EnsemblGffRecord(**kwargs)
+    feature.pop("on_alignment", None)
+    return _build_feature(EnsemblGffRecord(**feature), feature_id)
 
 
-DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
+@_build_feature.register
+def _(feature: EnsemblGffRecord, feature_id: int) -> EnsemblGffRecord:
+    feature.update_record()
+    feature.feature_id = feature_id
+    return feature
+
+
+DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDuckDb"]
 
 
 class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
@@ -295,13 +303,14 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         source: elt_util.PathType | None = None,
         db: typing.Optional[DbTypes] = None,
     ):
-        self.source = source or ":memory:"
+        self.source = pathlib.Path(source or ":memory:")
         if isinstance(db, self.__class__):
             db = db.db
 
         self._db = db
         self._init_tables()
         self._create_views()
+        self._feature_id = 0
 
     def __hash__(self):
         return id(self)
@@ -312,7 +321,7 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
     def _create_views(self) -> None:
         """define views to simplify queries"""
         sql = """
-        CREATE VIEW gff AS
+        CREATE VIEW IF NOT EXISTS gff AS
         SELECT f.seqid as seqid,
                b.type as biotype,
                f.start as start,
@@ -369,43 +378,62 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
 
     @functools.cache
     def _get_biotype_id(self, biotype: str) -> int:
-        sql = """
+        sql = f"""
         INSERT OR IGNORE INTO biotype(id,type)
-        VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM biotype), ?)"""
+         VALUES ({elt_mixin.AUTOINCREMENT_TEMPLATE.format('biotype')}, ?)"""
         self.db.sql(sql, params=[biotype])
-        return self.db.sql("SELECT MAX(id) FROM biotype").fetchone()[0]
+        return self.db.sql(elt_mixin.LAST_ID_TEMPLATE.format("biotype")).fetchone()[0]
 
-    def make_indexes(self):
-        """adds db indexes for core attributes"""
-        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
-        for table_name, columns in self._index_columns.items():
-            for col in columns:
-                index = f"{col}_index"
-                self._db.sql(sql % dict(table=table_name, index=index, col=col))
+    def _make_features(
+        self, records: typing.Iterable[elt_genome.EnsemblGffRecord | dict]
+    ) -> list[EnsemblGffRecord]:
+        features = []
+        for record in records:
+            feature = _build_feature(record, self._feature_id)
+            feature.update_record()
+            self._feature_id += 1
+            features.append(feature)
+        return features
+
+    def _add_features(self, features: list[elt_genome.EnsemblGffRecord]) -> None:
+        id_cols = "biotype_id", "id"
+        cols = [col for col in self._feature_schema if col not in id_cols]
+        records = []
+        for feature in features:
+            record = feature.to_record(fields=cols, array_to_blob=True)
+            records.append(
+                [record[col] for col in cols]
+                + [self._get_biotype_id(feature.biotype), feature.feature_id]
+            )
+        cols.extend(id_cols)
+        placeholders = ",".join("?" * len(cols))
+        sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders})"
+        self.db.executemany(sql, records)
 
     def add_feature(
-        self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
+        self, *, feature: typing.Optional[elt_genome.EnsemblGffRecord] = None, **kwargs
     ) -> None:
         """updates the feature_id attribute"""
         if feature is None:
-            feature = _build_feature(kwargs)
+            feature = _build_feature(kwargs, self._feature_id)
+        else:
+            feature = _build_feature(feature, self._feature_id)
+
+        self._feature_id += 1
 
         id_cols = "biotype_id", "id"
         cols = [col for col in self._feature_schema if col not in id_cols]
         # do conversion to numpy array after the above statement to avoid issue of
         # having a numpy array in a conditional
-        spans = numpy.array(feature.spans)
-        feature.start = feature.start or int(spans.min())
-        feature.stop = feature.stop or int(spans.max())
-        feature.spans = elt_mixin.array_to_blob(spans)
-        vals = [feature[col] for col in cols] + [self._get_biotype_id(feature.biotype)]
-        cols += ["biotype_id"]
+        record = feature.to_record(fields=cols, array_to_blob=True)
+        vals = [record[col] for col in cols] + [
+            self._get_biotype_id(feature.biotype),
+            feature.feature_id,
+        ]
+        cols += ["biotype_id", "id"]
         placeholders = ",".join("?" * len(cols))
-        cols.insert(0, "id")
-        placeholders = f"(SELECT COALESCE(MAX(id), 0) + 1 FROM feature),{placeholders}"
         sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders})"
-        self._db.sql(sql, params=tuple(vals))
-        feature.feature_id = self._db.sql("SELECT MAX(id) FROM feature").fetchone()[0]
+        self.db.sql(sql, params=tuple(vals))
 
     def add_records(
         self,
@@ -413,8 +441,8 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         records: typing.Iterable[EnsemblGffRecord],
         gene_relations: dict[EnsemblGffRecord, set[EnsemblGffRecord]],
     ) -> None:
-        for record in records:
-            self.add_feature(feature=record)
+        features = self._make_features(records)
+        self._add_features(features)
 
         # now add the relationships
         sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?,?)"
@@ -717,7 +745,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
     ) -> None:
         """updates the feature_id attribute"""
         if feature is None:
-            feature = _build_feature(kwargs)
+            feature = _build_feature(kwargs, 0)
 
         feature.update_record()  # custom_gff_parser already does this
         id_cols = ("biotype_id", "id")
@@ -967,7 +995,7 @@ def get_stableid_prefixes(records: typing.Sequence[EnsemblGffRecord]) -> set[str
 def make_annotation_db(
     src_dest: tuple[pathlib.Path, pathlib.Path],
 ) -> tuple[str, set[str]]:
-    """convert gff3 file into a EnsemblGffDb
+    """convert gff3 file into a db
 
     Parameters
     ----------
@@ -979,7 +1007,7 @@ def make_annotation_db(
     if dest.exists():
         return db_name, set()
 
-    db = EnsemblGffDb(source=dest)
+    db = EnsemblGffDuckDb(source=dest)
     records, _ = custom_gff_parser(src, 0)
     prefixes = get_stableid_prefixes(tuple(records.keys()))
     related = make_gene_relationships(records)
@@ -1234,7 +1262,7 @@ class Genome:
         *,
         species: str,
         seqs: SeqsDataABC,
-        annots: EnsemblGffDb,
+        annots: EnsemblGffDuckDb,
     ) -> None:
         self.species = species
         self._seqs = seqs
@@ -1344,7 +1372,7 @@ def load_genome(*, config: elt_config.InstalledConfig, species: str):
     genome_path = config.installed_genome(species) / SEQ_STORE_NAME
     seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
     ann_path = config.installed_genome(species) / ANNOT_STORE_NAME
-    ann = EnsemblGffDb(source=ann_path)
+    ann = EnsemblGffDuckDb(source=ann_path)
     return Genome(species=species, seqs=seqs, annots=ann)
 
 
@@ -1379,17 +1407,17 @@ def get_seqs_for_ids(
     del genome
 
 
-def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDb:
+def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDuckDb:
     """returns the annotation Db for species"""
     if not path.exists():
         click.secho(f"{path.name!r} is missing", fg="red")
         exit(1)
-    return EnsemblGffDb(source=path)
+    return EnsemblGffDuckDb(source=path)
 
 
 def _get_all_gene_segments(
     *,
-    annot_db: EnsemblGffDb,
+    annot_db: EnsemblGffDuckDb,
     limit: Optional[int],
 ) -> list[dict]:
     result = []
@@ -1401,7 +1429,7 @@ def _get_all_gene_segments(
 
 
 def _get_selected_gene_segments(
-    *, annot_db: EnsemblGffDb, limit: Optional[int], stableids: list[str]
+    *, annot_db: EnsemblGffDuckDb, limit: Optional[int], stableids: list[str]
 ) -> list[dict]:
     result = []
     for i, stableid in enumerate(stableids):
@@ -1414,7 +1442,7 @@ def _get_selected_gene_segments(
 
 def get_gene_segments(
     *,
-    annot_db: EnsemblGffDb,
+    annot_db: EnsemblGffDuckDb,
     limit: Optional[int] = None,
     species: Optional[str] = None,
     stableids: Optional[list[str]] = None,
@@ -1452,7 +1480,7 @@ def get_gene_segments(
 
 
 def get_gene_table_for_species(
-    *, annot_db: EnsemblGffDb, limit: Optional[int], species: Optional[str] = None
+    *, annot_db: EnsemblGffDuckDb, limit: Optional[int], species: Optional[str] = None
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -1492,7 +1520,7 @@ def get_gene_table_for_species(
 
 
 def get_species_summary(
-    *, annot_db: EnsemblGffDb, species: Optional[str] = None
+    *, annot_db: EnsemblGffDuckDb, species: Optional[str] = None
 ) -> Table:
     """
     returns the Table summarising data for species_name

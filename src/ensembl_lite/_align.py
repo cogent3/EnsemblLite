@@ -16,7 +16,7 @@ from ensembl_lite import _util as elt_util
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
 GAP_STORE_SUFFIX = "indels-hdf5_blosc2"
-ALIGN_STORE_SUFFIX = "align_coords-sqlitedb"
+ALIGN_STORE_SUFFIX = "align_coords-duckdb"
 
 
 @dataclass(slots=True)
@@ -128,6 +128,155 @@ class GapStore(elt_mixin.Hdf5Mixin):
 
     def get_record(self, *, index: int) -> numpy.ndarray:
         return self._file[str(index)][:]
+
+
+class AlignDuckDb(elt_mixin.DuckDbMixin):
+    table_name = "align"
+    _align_schema = {
+        "id": "INTEGER PRIMARY KEY",  # used to uniquely identify gap_spans in bound GapStore
+        "source": "TEXT",  # the file path
+        "block_id": "BIGINT",  # the tree id from MAF
+        "species": "TEXT",
+        "seqid": "TEXT",
+        "start": "INTEGER",
+        "stop": "INTEGER",
+        "strand": "TEXT",
+    }
+
+    _index_columns = {"align": ("id", "block_id", "seqid", "start", "stop")}
+
+    def __init__(self, *, source: elt_util.PathType | None = None, mode="a"):
+        """
+        Parameters
+        ----------
+        source
+            location to store the db, defaults to in memory only
+        """
+        # note that data is destroyed
+        source = pathlib.Path(source or ":memory:").expanduser()
+        self.source = source
+        if source.name == ":memory:":
+            gap_path = "memory"
+            kwargs = dict(in_memory=True)
+        else:
+            gap_path = source.parent / f"{source.stem}.{GAP_STORE_SUFFIX}"
+            kwargs = dict(in_memory=False)
+
+        self.gap_store = GapStore(
+            source=gap_path, align_name=source.stem, mode=mode, **kwargs
+        )
+        self._db = None  # replaced with db connection in init_tables
+        self._init_tables()
+
+    def add_records(self, records: typing.Sequence[AlignRecord]):
+        # we need to identify block_id's that have already been used
+        block_ids = tuple({r.block_id for r in records})
+        val_placeholder = ", ".join("?" * len(block_ids))
+        sql = f"SELECT DISTINCT(block_id) from {self.table_name} WHERE block_id IN ({val_placeholder})"
+        used = {r[0] for r in self.db.execute(sql, block_ids).fetchall()}
+
+        # bulk insert, make sure id is first
+        col_order = [
+            row[1]
+            for row in self.db.execute(
+                f"PRAGMA table_info({self.table_name})"
+            ).fetchall()
+            if row[1] != "id"
+        ]
+
+        val_placeholder = ", ".join("?" * len(col_order))
+        values = (
+            f"({elt_mixin.AUTOINCREMENT_TEMPLATE.format(self.table_name)},"
+            f" {val_placeholder})"
+        )
+        # id column is first
+        sql = (
+            f"INSERT INTO {self.table_name} (id,{', '.join(col_order)}) VALUES {values}"
+        )
+
+        for i in range(len(records)):
+            if records[i].block_id in used:
+                continue
+
+            self.db.execute(sql, [records[i][c] for c in col_order])
+            index = self.db.execute(
+                elt_mixin.LAST_ID_TEMPLATE.format(self.table_name)
+            ).fetchone()[0]
+            self.gap_store.add_record(index=index, gaps=records[i].gap_spans)
+
+    def _get_block_id(
+        self,
+        *,
+        species,
+        seqid: str,
+        start: int | None,
+        stop: int | None,
+    ) -> list[str]:
+        sql = f"SELECT block_id from {self.table_name} WHERE species = ? AND seqid = ?"
+        values = species, seqid
+        if start is not None and stop is not None:
+            # as long as start or stop are within the record start/stop, it's a match
+            sql = f"{sql} AND ((start <= ? AND ? < stop) OR (start <= ? AND ? < stop))"
+            values += (start, start, stop, stop)
+        elif start is not None:
+            # the aligned segment overlaps start
+            sql = f"{sql} AND start <= ? AND ? < stop"
+            values += (start, start)
+        elif stop is not None:
+            # the aligned segment overlaps stop
+            sql = f"{sql} AND start <= ? AND ? < stop"
+            values += (stop, stop)
+
+        return self.db.execute(sql, values).fetchall()
+
+    def get_records_matching(
+        self,
+        *,
+        species,
+        seqid: str,
+        start: int | None = None,
+        stop: int | None = None,
+    ) -> typing.Iterable[AlignRecord]:
+        # make sure python, not numpy, integers
+        start = None if start is None else int(start)
+        stop = None if stop is None else int(stop)
+
+        # We need the block IDs for all records for a species whose coordinates
+        # lie in the range (start, stop). We then search for all records with
+        # each block id. We return full records.
+        # Client code is responsible for creating Aligned sequence instances
+        # and the Alignment.
+
+        # todo: there's an issue here with records being duplicated, solved
+        #   for now by making AlignRecord hashable and using a set for block_ids
+        block_ids = {
+            r[0]
+            for r in self._get_block_id(
+                species=species, seqid=seqid, start=start, stop=stop
+            )
+        }
+        if not block_ids:
+            return ()
+
+        cols = tuple(self._align_schema.keys())
+        values = ", ".join("?" * len(block_ids))
+        sql = f"SELECT {','.join(cols)} from {self.table_name} WHERE block_id IN ({values})"
+        results = defaultdict(set)
+        for record in self.db.execute(sql, tuple(block_ids)).fetchall():
+            record = dict(zip(cols, record))
+            index = record.pop("id")
+            record["gap_spans"] = self.gap_store.get_record(index=index)
+            results[record["block_id"]].add(AlignRecord(**record))
+
+        return results.values()
+
+    def get_species_names(self) -> list[str]:
+        """return the list of species names"""
+        sql = f"SELECT DISTINCT species from {self.table_name}"
+        return [r[0] for r in self.db.execute(sql).fetchall()]
+
+    def close(self):
+        self.db.close()
 
 
 # todo add a table and methods to support storing the species tree used
@@ -261,7 +410,8 @@ class AlignDb(elt_mixin.SqliteDbMixin):
 
     def get_species_names(self) -> list[str]:
         """return the list of species names"""
-        return list(self.get_distinct("species"))
+        sql = f"SELECT DISTINCT species from {self.table_name}"
+        return [r[0] for r in self.db.execute(sql).fetchall()]
 
 
 def get_alignment(

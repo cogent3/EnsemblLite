@@ -15,7 +15,7 @@ def db_align(DATA_DIR, tmp_path):
     records = elt_maf.load_align_records()(  # pylint: disable=not-callable
         DATA_DIR / "tiny.maf"
     )
-    outpath = tmp_path / "blah.sqlitedb"
+    outpath = tmp_path / elt_homology.HOMOLOGY_STORE_NAME
     db = elt_align.AlignDb(source=outpath)
     db.add_records(records)
     db.close()
@@ -84,7 +84,7 @@ def test_homology_db(hom_dir):
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"}
     )
 
-    outpath = hom_dir / "species.sqlitedb"
+    outpath = hom_dir / elt_homology.HOMOLOGY_STORE_NAME
     db = elt_homology.HomologyDb(source=outpath)
     grouped = [
         r.obj

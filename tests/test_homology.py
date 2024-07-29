@@ -16,8 +16,8 @@ def _make_expected_o2o(table):
     return result
 
 
-@pytest.fixture
-def o2o_db(DATA_DIR, tmp_dir):
+@pytest.fixture(params=(elt_homology.HomologyDb, elt_homology.HomologyDuckDb))
+def o2o_db(DATA_DIR, tmp_dir, request):
     raw = DATA_DIR / "one2one_homologies.tsv"
 
     species = {
@@ -38,7 +38,7 @@ def o2o_db(DATA_DIR, tmp_dir):
     table = table.with_new_header(loader.src_cols, loader.dest_col)
     table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
     hom_groups = loader(raw)  # pylint: disable=not-callable
-    homdb = elt_homology.HomologyDb(tmp_dir / elt_homology.HOMOLOGY_STORE_NAME)
+    homdb = elt_homology.HomologyDuckDb(tmp_dir / elt_homology.HOMOLOGY_STORE_NAME)
     for rel_type, data in hom_groups.items():
         homdb.add_records(records=data, relationship_type=rel_type)
     return homdb, table
@@ -118,8 +118,6 @@ def test_group_related(hom_records):
 
 
 def test_homology_db(hom_hdb):
-    df = hom_hdb._db.execute("SELECT * FROM related_groups").fetchall()
-    print("", df, sep="\n")
     got = sorted(
         hom_hdb.get_related_groups("ortholog_one2one"),
         key=lambda x: len(x),
@@ -175,7 +173,7 @@ def test_indexing(o2o_db, table_name):
         f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
     )
 
-    result = db._execute_sql(sql_template).fetchone()
+    result = db.db.execute(sql_template).fetchone()
     got = tuple(result)[:3]
     assert got == expect
 
@@ -264,7 +262,7 @@ def test_merge_grouped():
 
 
 def test_homdb_add_invalid_record():
-    hom_db = elt_homology.HomologyDb()
+    hom_db = elt_homology.HomologyDuckDb()
     records = (
         elt_homology.homolog_group(
             relationship="one2one",
@@ -302,13 +300,13 @@ def test_homdb_get_related_to_non(o2o_db, gene_id, rel_type):
 
 def test_homology_db_update(orth_records):
     rel_type = "ortholog_one2one"
-    hom_db = elt_homology.HomologyDb()
+    hom_db = elt_homology.HomologyDuckDb()
     rec_2 = orth_records.pop(1)
     grouped = elt_homology.grouped_related(orth_records)
     hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
     grouped = elt_homology.grouped_related([rec_2])
     hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
-    got = list(hom_db.db.execute("SELECT rowid,relationship_id FROM homology"))
+    got = hom_db.db.execute("SELECT rowid,relationship_id FROM homology").fetchall()
     assert len(got) == 2
     got = hom_db.get_related_groups(relationship_type=rel_type)
     assert len(got) == 2
@@ -334,9 +332,3 @@ def test_load_homologies(DATA_DIR):
     loader = elt_homology.load_homologies(species)
     got = loader(DATA_DIR / "one2one_homologies.tsv")  # pylint: disable=not-callable
     assert len(got["ortholog_one2one"]) == 5
-
-
-def test_duckdb():
-    db = elt_homology.HomologyDuckDb()
-    got = db._make_stableid_id(stableid="ens111", species="blah")
-    got1 = db._make_relationship_type_id("ortho")
