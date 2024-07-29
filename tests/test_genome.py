@@ -478,7 +478,9 @@ def test_featuredb(canonical_related):
     db.add_records(records=records.values(), gene_relations=related)
     cds = list(
         db.get_feature_children(
-            name="WBGene00000138", biotype="cds", is_canonical=True
+            name="WBGene00000138",
+            biotype="cds",
+            is_canonical=True,
         ),
     )[0]
     assert cds["name"] == "B0019.1"
@@ -541,7 +543,9 @@ def test_get_feature_children(canonical_related):
     db.add_records(records=records.values(), gene_relations=related)
     got = list(
         db.get_feature_children(
-            name="WBGene00000138", biotype="cds", is_canonical=True
+            name="WBGene00000138",
+            biotype="cds",
+            is_canonical=True,
         ),
     )[0]
     assert got["name"] == "B0019.1"
