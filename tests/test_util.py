@@ -210,6 +210,8 @@ def test_exec_command_fail(capsys):
     with pytest.raises(SystemExit):
         elt_util.exec_command("qwertyuiop")
 
+    _ = capsys.readouterr()
+
 
 @pytest.mark.parametrize("biotype", ("gene", "exon"))
 def test_sanitise_stableid(biotype):
