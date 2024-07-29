@@ -41,8 +41,10 @@ def installed_aligns(tmp_path):
     align_dir = tmp_path / elt_config._COMPARA_NAME / elt_config._ALIGNS_NAME
     align_dir.mkdir(parents=True, exist_ok=True)
     # make two alignment paths with similar names
-    (align_dir / "10_primates.epo.sqlitedb").open(mode="w")
-    (align_dir / "24_primates.epo_extended.sqlitedb").open(mode="w")
+    (align_dir / f"10_primates.epo.{elt_align.ALIGN_STORE_SUFFIX}").open(mode="w")
+    (align_dir / f"24_primates.epo_extended.{elt_align.ALIGN_STORE_SUFFIX}").open(
+        mode="w"
+    )
     # and their associated HDF5 seqs
     (align_dir / f"10_primates.epo.{elt_align.GAP_STORE_SUFFIX}").open(mode="w")
     (align_dir / f"24_primates.epo_extended.{elt_align.GAP_STORE_SUFFIX}").open(
@@ -54,16 +56,19 @@ def installed_aligns(tmp_path):
 
 @pytest.mark.parametrize("pattern", ("10*", "1*prim*", "10_p*", "10_primates.epo"))
 def test_get_alignment_path(installed_aligns, pattern):
-    got = installed_aligns.path_to_alignment(pattern)
-    assert got.name == "10_primates.epo.sqlitedb"
+    got = installed_aligns.path_to_alignment(pattern, elt_align.ALIGN_STORE_SUFFIX)
+    assert got.name == f"10_primates.epo.{elt_align.ALIGN_STORE_SUFFIX}"
 
 
 @pytest.mark.parametrize("pattern", ("10pri*", "blah-blah", ""))
 def test_get_alignment_path_invalid(installed_aligns, pattern):
-    assert installed_aligns.path_to_alignment(pattern) is None
+    assert (
+        installed_aligns.path_to_alignment(pattern, elt_align.ALIGN_STORE_SUFFIX)
+        is None
+    )
 
 
 @pytest.mark.parametrize("pattern", ("*pri*", "*epo*"))
 def test_get_alignment_path_multiple(installed_aligns, pattern):
     with pytest.raises(ValueError):
-        installed_aligns.path_to_alignment(pattern)
+        installed_aligns.path_to_alignment(pattern, elt_align.ALIGN_STORE_SUFFIX)
