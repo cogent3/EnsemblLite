@@ -57,9 +57,11 @@ def small_annots():
     ]
 
 
-@pytest.fixture(scope="function")
-def small_annotdb(small_annots):
-    db = elt_genome.EnsemblGffDb()
+@pytest.fixture(
+    scope="function", params=(elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb)
+)
+def small_annotdb(small_annots, request):
+    db = request.param()
     for record in small_annots:
         db.add_feature(**record)
     return db
@@ -107,7 +109,9 @@ def test_get_fullseq(small_h5_genome, name):
 
 
 def test_annodb(small_annotdb):
-    list(small_annotdb.get_features_matching(seqid="s1", biotype="gene"))
+    got = list(small_annotdb.get_features_matching(seqid="s1", biotype="gene"))
+    assert len(got) == 1
+    assert_allclose(got[0]["spans"], [(1, 3), (7, 9)])
 
 
 def test_selected_seq_is_annotated(small_h5_genome, small_annotdb, namer):
@@ -531,13 +535,16 @@ def test_get_feature_children(canonical_related, cls):
     assert got["name"] == "B0019.1"
 
 
+@pytest.mark.parametrize("feature", (None, elt_genome.EnsemblGffRecord))
 @pytest.mark.parametrize("cls", (elt_genome.EnsemblGffDb, elt_genome.EnsemblGffDuckDb))
-def test_add_feature(cls):
+def test_add_feature(feature, cls):
     db = cls()
-    feature = elt_genome.EnsemblGffRecord(
+    kwargs = dict(
         start=2, stop=3, seqid="s0", name="demo", spans=[(2, 3)], biotype="gene"
     )
-    db.add_feature(feature=feature)
+    feature = feature(**kwargs) if feature else None
+    kwargs = {} if feature else kwargs
+    db.add_feature(feature=feature, **kwargs)
     got = list(db.get_features_matching(seqid="s0"))
     assert len(got) == 1
     assert got[0]["name"] == "demo"
@@ -615,3 +622,11 @@ def test_get_gene_segments_stableids(small_annotdb):
     segment = segments[0]
     assert segment.unique_id == "gene-02"
     assert segment.source == "gene-02"
+
+
+def test_subset(small_annotdb):
+    subset = small_annotdb.subset(seqid="s1")
+    assert len(subset) == len(small_annotdb) - 1
+    record = list(subset.get_records_matching(seqid="s1", name="exon-01"))
+    record = record[0]
+    assert_allclose(record["spans"], [[1, 3]])

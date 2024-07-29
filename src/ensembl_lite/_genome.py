@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import click
+import duckdb
 import h5py
 import numpy
 import typing_extensions
@@ -239,6 +240,13 @@ def custom_gff_parser(
     return reduced, num_fake_ids
 
 
+def _build_feature(kwargs) -> EnsemblGffRecord:
+    # not supporting on_alignment at present, which comes from cogent3
+    # alignment objects
+    kwargs.pop("on_alignment", None)
+    return EnsemblGffRecord(**kwargs)
+
+
 DbTypes = typing.Union[sqlite3.Connection, "EnsemblGffDb"]
 
 
@@ -256,6 +264,8 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         "score": "VARCHAR",
         "strand": "VARCHAR",
         "phase": "VARCHAR",
+        "symbol": "VARCHAR",
+        "description": "VARCHAR",
         "attributes": "VARCHAR",
         "comments": "VARCHAR",
         "spans": "BLOB",
@@ -282,10 +292,10 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
 
     def __init__(
         self,
-        source: elt_util.PathType = ":memory:",
+        source: elt_util.PathType | None = None,
         db: typing.Optional[DbTypes] = None,
     ):
-        self.source = source
+        self.source = source or ":memory:"
         if isinstance(db, self.__class__):
             db = db.db
 
@@ -311,11 +321,13 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
                f.spans as spans,
                f.stableid as name,
                f.is_canonical as is_canonical,
-               f.id as feature_id
+               f.id as feature_id,
+               f.symbol as symbol,
+               f.description as description
         FROM feature f
         JOIN biotype b ON f.biotype_id = b.id
         """
-        self._db.sql(sql)
+        self.db.sql(sql)
         # view to query for child given parent id and vice versa
         p2c = """
         CREATE VIEW IF NOT EXISTS parent_to_child AS
@@ -333,7 +345,7 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         JOIN related_feature r ON fc.id = r.related_id
         JOIN feature fp ON fp.id = r.gene_id
         """
-        self._db.sql(p2c)
+        self.db.sql(p2c)
         c2p = """
         CREATE VIEW IF NOT EXISTS child_to_parent AS
         SELECT fp.stableid as name,
@@ -350,21 +362,18 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         JOIN related_feature r ON fp.id = r.gene_id
         JOIN feature fc ON fc.id = r.related_id
         """
-        self._db.sql(c2p)
+        self.db.sql(c2p)
+
+    def __len__(self) -> int:
+        return self.num_records()
 
     @functools.cache
     def _get_biotype_id(self, biotype: str) -> int:
         sql = """
         INSERT OR IGNORE INTO biotype(id,type)
         VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM biotype), ?)"""
-        self._db.sql(sql, params=[biotype])
-        return self._db.sql("SELECT MAX(id) FROM biotype").fetchone()[0]
-
-    def _build_feature(self, kwargs) -> EnsemblGffRecord:
-        # not supporting this at present, which comes from cogent3
-        # alignment objects
-        kwargs.pop("on_alignment", None)
-        return EnsemblGffRecord(**kwargs)
+        self.db.sql(sql, params=[biotype])
+        return self.db.sql("SELECT MAX(id) FROM biotype").fetchone()[0]
 
     def make_indexes(self):
         """adds db indexes for core attributes"""
@@ -379,9 +388,9 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
     ) -> None:
         """updates the feature_id attribute"""
         if feature is None:
-            feature = self._build_feature(kwargs)
+            feature = _build_feature(kwargs)
 
-        id_cols = ("biotype_id", "id")
+        id_cols = "biotype_id", "id"
         cols = [col for col in self._feature_schema if col not in id_cols]
         # do conversion to numpy array after the above statement to avoid issue of
         # having a numpy array in a conditional
@@ -418,10 +427,10 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
                 raise ValueError(f"child.feature_id not defined for {children!r}")
 
             comb = [tuple(c) for c in itertools.product([gene.feature_id], child_ids)]
-            self._db.executemany(sql, comb)
+            self.db.executemany(sql, comb)
 
     def num_records(self) -> int:
-        return self._db.sql("SELECT COUNT(*) as count FROM feature").fetchone()[0]
+        return self.db.sql("SELECT COUNT(*) as count FROM feature").fetchone()[0]
 
     def _get_records_matching(
         self, table_name: str, **kwargs
@@ -436,7 +445,7 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
             columns=columns,
             allow_partial=allow_partial,
         )
-        yield from self._db.execute(sql, vals).fetchall()
+        yield from self.db.execute(sql, vals).fetchall()
 
     def get_features_matching(
         self,
@@ -511,19 +520,72 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         attributes: OptionalStr = None,
         allow_partial: bool = False,
     ) -> typing.Iterator[FeatureDataType]:
+        # allow_partial means include features that match and whose
+        # coordinates (i.e. seqid, start, stop) overlap with those provided
         kwargs = {
-            k: v for k, v in locals().items() if k not in ("self", "allow_partial")
+            k: v
+            for k, v in locals().items()
+            if k not in ("self", "kwargs") and v is not None
         }
-        sql, vals = _select_records_sql("gff", kwargs, allow_partial=allow_partial)
-        col_names = None
-        for result in self._db.execute(sql, vals):
-            if col_names is None:
-                col_names = result.keys()
+        col_names = [
+            r[1] for r in self.db.execute("PRAGMA table_info('gff')").fetchall()
+        ]
+        for result in self._get_records_matching(
+            table_name="gff", columns=col_names, **kwargs
+        ):
+            result = dict(zip(col_names, result))
+            result["spans"] = elt_mixin.blob_to_array(result["spans"])
+            yield result
 
-            if "spans" in col_names:
-                result["spans"] = elt_mixin.blob_to_array(result["spans"])
+    def biotype_counts(self) -> dict[str, int]:
+        sql = "SELECT biotype, COUNT(*) as count FROM gff GROUP BY biotype"
+        return dict(self.db.execute(sql).fetchall())
 
-            yield {c: result[c] for c in col_names}
+    def subset(
+        self,
+        *,
+        source: elt_util.PathType = ":memory:",
+        biotype: OptionalStr = None,
+        seqid: OptionalStr = None,
+        name: OptionalStr = None,
+        start: OptionalInt = None,
+        stop: OptionalInt = None,
+        strand: OptionalStr = None,
+        attributes: OptionalStr = None,
+        allow_partial: bool = False,
+    ) -> typing_extensions.Self:
+        """returns a new db instance with records matching the provided conditions"""
+        # make sure python, not numpy, integers
+        start = start if start is None else int(start)
+        stop = stop if stop is None else int(stop)
+        kwargs = {k: v for k, v in locals().items() if k not in {"self", "source"}}
+        newdb = self.__class__(source=source)
+        if not len(self):
+            return newdb
+        # we need to recreate the values that get passed to add_records
+        # so first identify the feature IDs that match the criteria
+        cols = [r[1] for r in self.db.execute("PRAGMA table_info('gff')").fetchall()]
+        feature_ids = {}
+        for r in self._get_records_matching(table_name="gff", **kwargs):
+            r = dict(zip(cols, r))
+            r["spans"] = elt_mixin.blob_to_array(r["spans"])
+            feature_id = r.pop("feature_id")
+            feature = EnsemblGffRecord(**r)
+            feature_ids[feature_id] = feature
+        # now build the related features by selecting the rows with matches
+        # in both columns to feature_ids
+        ids = ",".join(str(i) for i in feature_ids)
+        sql = f"""
+        SELECT gene_id, related_id FROM related_feature 
+        WHERE gene_id IN ({ids}) AND related_id IN ({ids})
+        """
+        related = collections.defaultdict(set)
+        for record in self.db.execute(sql).fetchall():
+            gene_id, related_id = record
+            gene = feature_ids[gene_id]
+            related[gene].add(feature_ids[related_id])
+        newdb.add_records(records=feature_ids.values(), gene_relations=related)
+        return newdb
 
 
 class EnsemblGffDb(elt_mixin.SqliteDbMixin):
@@ -650,18 +712,12 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         result = self.db.execute(sql, (biotype,)).fetchone()
         return result["id"]
 
-    def _build_feature(self, kwargs) -> EnsemblGffRecord:
-        # not supporting this at present, which comes from cogent3
-        # alignment objects
-        kwargs.pop("on_alignment", None)
-        return EnsemblGffRecord(**kwargs)
-
     def add_feature(
         self, *, feature: typing.Optional[EnsemblGffRecord] = None, **kwargs
     ) -> None:
         """updates the feature_id attribute"""
         if feature is None:
-            feature = self._build_feature(kwargs)
+            feature = _build_feature(kwargs)
 
         feature.update_record()  # custom_gff_parser already does this
         id_cols = ("biotype_id", "id")

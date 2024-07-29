@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import dataclasses
 import functools
 import io
@@ -58,6 +59,7 @@ def _make_table_sql(
     -------
     str
     """
+    columns = copy.deepcopy(columns)
     primary_key = columns.pop("PRIMARY KEY", None)
     columns_types = ", ".join([f"{name} {ctype}" for name, ctype in columns.items()])
     if primary_key:
@@ -87,6 +89,10 @@ class DuckDbMixin(elt_util.SerialisableMixin):
                 attr = getattr(self, attr)
                 sql = _make_table_sql(table_name, attr)
                 self._db.sql(sql)
+
+    @property
+    def db(self) -> duckdb.DuckDBPyConnection:
+        return self._db
 
     def __del__(self):
         self._db.close()

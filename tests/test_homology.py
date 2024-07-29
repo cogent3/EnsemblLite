@@ -82,10 +82,10 @@ def test_hdb_get_related_groups(o2o_db):
     assert len(got) == 5
 
 
-@pytest.fixture
-def hom_hdb(hom_records):
+@pytest.fixture(params=(elt_homology.HomologyDb, elt_homology.HomologyDuckDb))
+def hom_hdb(hom_records, request):
     groups = elt_homology.grouped_related(hom_records)
-    hdb = elt_homology.HomologyDb(source=":memory:")
+    hdb = request.param()
     for rel_type, data in groups.items():
         hdb.add_records(records=data, relationship_type=rel_type)
     return hdb
@@ -118,6 +118,8 @@ def test_group_related(hom_records):
 
 
 def test_homology_db(hom_hdb):
+    df = hom_hdb._db.execute("SELECT * FROM related_groups").fetchall()
+    print("", df, sep="\n")
     got = sorted(
         hom_hdb.get_related_groups("ortholog_one2one"),
         key=lambda x: len(x),
@@ -332,3 +334,9 @@ def test_load_homologies(DATA_DIR):
     loader = elt_homology.load_homologies(species)
     got = loader(DATA_DIR / "one2one_homologies.tsv")  # pylint: disable=not-callable
     assert len(got["ortholog_one2one"]) == 5
+
+
+def test_duckdb():
+    db = elt_homology.HomologyDuckDb()
+    got = db._make_stableid_id(stableid="ens111", species="blah")
+    got1 = db._make_relationship_type_id("ortho")
