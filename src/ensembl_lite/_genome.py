@@ -454,21 +454,65 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
         records: typing.Iterable[EnsemblGffRecord],
         gene_relations: dict[EnsemblGffRecord, set[EnsemblGffRecord]],
     ) -> None:
-        features = self._make_features(records)
-        self._add_features(features)
+        features = list(self._make_features(records))
 
-        # now add the relationships
-        sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?,?)"
-        for gene, children in gene_relations.items():
-            if gene.feature_id is None:
-                raise ValueError(f"gene.feature_id not defined for {gene!r}")
+        # determine batch size
+        total_records = len(features)
+        if total_records < 100:
+            batch_size = 10
+        elif total_records < 1000:
+            batch_size = 100
+        else:
+            batch_size = 500
 
-            child_ids = [child.feature_id for child in children]
-            if None in child_ids:
-                raise ValueError(f"child.feature_id not defined for {children!r}")
+        try:
+            self.db.execute("BEGIN TRANSACTION")
 
-            comb = [tuple(c) for c in itertools.product([gene.feature_id], child_ids)]
-            self.db.executemany(sql, comb)
+            id_cols = "biotype_id", "id"
+            cols = [col for col in self._feature_schema if col not in id_cols]
+
+            records_batch = []
+            for i, feature in enumerate(features):
+                records_batch.append(feature)
+
+                if (i + 1) % batch_size == 0:
+                    self._add_features(records_batch, cols=cols, id_cols=id_cols)
+                    records_batch.clear()
+
+            # insert any remaining records
+            if records_batch:
+                self._add_features(records_batch, cols=cols, id_cols=id_cols)
+
+            # insert related features in batches
+            relations_batch = []
+            for gene, children in gene_relations.items():
+                if gene.feature_id is None:
+                    raise ValueError(f"gene.feature_id not defined for {gene!r}")
+
+                child_ids = [child.feature_id for child in children]
+                if None in child_ids:
+                    raise ValueError(f"child.feature_id not defined for {children!r}")
+
+                relations_batch.extend(
+                    [gene.feature_id, child_id] for child_id in child_ids
+                )
+
+                if len(relations_batch) >= batch_size:
+                    sql = (
+                        "INSERT INTO related_feature(gene_id, related_id) VALUES (?, ?)"
+                    )
+                    self.db.executemany(sql, relations_batch)
+                    relations_batch.clear()
+
+            # insert any remaining relationships
+            if relations_batch:
+                sql = "INSERT INTO related_feature(gene_id, related_id) VALUES (?, ?)"
+                self.db.executemany(sql, relations_batch)
+
+            self.db.execute("COMMIT")
+        except Exception as e:
+            self.db.execute("ROLLBACK")
+            raise e
 
     def num_records(self) -> int:
         return self.db.sql("SELECT COUNT(*) as count FROM feature").fetchone()[0]
