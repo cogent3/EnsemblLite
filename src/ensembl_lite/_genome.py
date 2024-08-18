@@ -398,19 +398,26 @@ class EnsemblGffDuckDb(elt_mixin.DuckDbMixin):
             features.append(feature)
         return features
 
-    def _add_features(self, features: list[elt_genome.EnsemblGffRecord]) -> None:
-        id_cols = "biotype_id", "id"
-        cols = [col for col in self._feature_schema if col not in id_cols]
+    def _add_features(
+        self,
+        features: list[elt_genome.EnsemblGffRecord],
+        cols: typing.Optional[list[str]] = None,
+        id_cols: tuple[str, str] = ("biotype_id", "id"),
+    ) -> None:
+        if cols is None:
+            cols = [col for col in self._feature_schema if col not in id_cols]
+
         records = []
         for feature in features:
             record = feature.to_record(fields=cols, array_to_blob=True)
             records.append(
                 [record[col] for col in cols]
-                + [self._get_biotype_id(feature.biotype), feature.feature_id],
+                + [self._get_biotype_id(feature.biotype), feature.feature_id]
             )
-        cols.extend(id_cols)
-        placeholders = ",".join("?" * len(cols))
-        sql = f"INSERT INTO feature({','.join(cols)}) VALUES ({placeholders})"
+
+        all_cols = cols + list(id_cols)
+        placeholders = ",".join("?" * len(all_cols))
+        sql = f"INSERT INTO feature({','.join(all_cols)}) VALUES ({placeholders})"
         self.db.executemany(sql, records)
 
     def add_feature(
