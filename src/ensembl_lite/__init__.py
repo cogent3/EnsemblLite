@@ -1,3 +1,5 @@
+"""Ensembl cli tools"""
+
 from warnings import filterwarnings
 
 filterwarnings("ignore", message=".*MPI")
