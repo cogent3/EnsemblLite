@@ -25,7 +25,7 @@ jobs:
           pip install nox uv
 
       - name: "Run nox for Python ${{ matrix.python-version }}"
-        run: "nox -db uv -s test-${{ matrix.python-version }}" -- -m "not internet"
+        run: "nox -db uv -s test-${{ matrix.python-version }} -- -m 'not internet'"
 
   build:
     name: Build wheel and sdist
