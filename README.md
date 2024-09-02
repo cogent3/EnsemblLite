@@ -1,15 +1,25 @@
-[![CI](https://github.com/cogent3/EnsemblLite/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/EnsemblLite/actions/workflows/testing_develop.yml)
-[![CodeQL](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml)
-[![Coverage Status](https://coveralls.io/repos/github/cogent3/EnsemblLite/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/EnsemblLite?branch=develop)
+[![CI](https://github.com/cogent3/ensembl_tui/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/ensembl_tui/actions/workflows/testing_develop.yml)
+[![CodeQL](https://github.com/cogent3/ensembl_tui/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/ensembl_tui/actions/workflows/codeql.yml)
+[![Coverage Status](https://coveralls.io/repos/github/cogent3/ensembl_tui/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/ensembl_tui?branch=develop)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 # ensembl-tui
 
-ensembl-tui provides the `eti` command line application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
+ensembl-tui provides the `eti` terminal application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
 
 > **Warning**
-> ensembl-tui is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/EnsemblLite/issues).
+> ensembl-tui is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/ensembl_tui/issues).
 
 ## Installing the software
+
+<details>
+  <summary>General user installation instructions</summary>
+
+  ```
+  $ pip install ensembl-tui
+  ```
+
+</details>
 
 <details>
   <summary>Developer installation instructions</summary>
@@ -26,17 +36,11 @@ ensembl-tui provides the `eti` command line application for obtaining a subset o
   ```
 </details>
 
-<details>
-  <summary>General user installation instructions</summary>
-
-  We have not yet released on pypi. We will provide instructions here for a Docker based installation soon!
-</details>
-
 ## Resources required to subset Ensembl data
 
-Ensembl hosts some very large data sets. You need to have a machine with sufficient disk space to store the data you want to download. At present we do not have support for predicting how much storage would be required for a given selection of species and data types. We advise you to experiment.
+Ensembl hosts some very large data sets. You need to have a machine with sufficient disk space to store the data you want to download. At present we do not have support for predicting how much storage would be required for a given selection of species and data types. You will need to experiment.
 
-Some commands can be run in parallel but have moderate memory requirements. If you have a machine with limited RAM, you may need to reduce the number of parallel processes. Again, we advise you to experiment.
+Some commands can be run in parallel but have moderate memory requirements. If you have a machine with limited RAM, you may need to reduce the number of parallel processes. Again, run some experiments.
 
 ## Getting setup
 
