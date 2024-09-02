@@ -6,11 +6,11 @@ import click
 from cogent3 import load_tree
 from rich.progress import Progress
 
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _ftp_download as elt_ftp
-from ensembl_lite import _site_map as elt_site_map
-from ensembl_lite import _species as elt_species
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _ftp_download as elt_ftp
+from ensembl_tui import _site_map as elt_site_map
+from ensembl_tui import _species as elt_species
+from ensembl_tui import _util as elt_util
 
 _cfg = elt_util.get_resource_path("sample.cfg")
 

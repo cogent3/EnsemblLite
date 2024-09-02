@@ -13,9 +13,9 @@ from cogent3.app.typing import (
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import PathType, iter_splitlines
 
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _genome as elt_genome
-from ensembl_lite import _storage_mixin as elt_mixin
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _storage_mixin as elt_mixin
 
 HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
 
@@ -31,7 +31,7 @@ class species_genes:
     """contains gene IDs for species"""
 
     species: str
-    gene_ids: typing.Optional[list[str]] = None
+    gene_ids: list[str] | None = None
 
     def __hash__(self):
         return hash(self.species)
@@ -57,7 +57,7 @@ class homolog_group:
 
     relationship: str
     # gene id -> species
-    gene_ids: typing.Optional[dict[str, str]] = None
+    gene_ids: dict[str, str] | None = None
     source: str | None = None
 
     def __post_init__(self):
@@ -490,7 +490,7 @@ class collect_seqs:
     def __init__(
         self,
         config: elt_config.InstalledConfig,
-        make_seq_name: typing.Optional[typing.Callable] = None,
+        make_seq_name: typing.Callable | None = None,
         verbose: bool = False,
     ):
         self._config = config

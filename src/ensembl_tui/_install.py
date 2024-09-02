@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import shutil
-import typing
 
 from rich.progress import Progress
 
-from ensembl_lite import _align as elt_align
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _genome as elt_genome
-from ensembl_lite import _homology as elt_homology
-from ensembl_lite import _maf as elt_maf
-from ensembl_lite import _species as elt_species
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _align as elt_align
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _homology as elt_homology
+from ensembl_tui import _maf as elt_maf
+from ensembl_tui import _species as elt_species
+from ensembl_tui import _util as elt_util
 
 
 def _make_src_dest_annotation_paths(
@@ -29,7 +28,7 @@ def local_install_genomes(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
-    progress: typing.Optional[Progress] = None,
+    progress: Progress | None = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
@@ -107,7 +106,7 @@ def local_install_alignments(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
-    progress: typing.Optional[Progress] = None,
+    progress: Progress | None = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
@@ -164,7 +163,7 @@ def local_install_homology(
     force_overwrite: bool,
     max_workers: int | None,
     verbose: bool = False,
-    progress: typing.Optional[Progress] = None,
+    progress: Progress | None = None,
 ):
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)

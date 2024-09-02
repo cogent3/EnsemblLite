@@ -7,7 +7,7 @@ import sqlite3
 
 import numpy
 
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _util as elt_util
 
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 

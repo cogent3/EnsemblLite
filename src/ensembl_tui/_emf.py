@@ -5,8 +5,8 @@ import typing
 
 from cogent3 import open_
 
-from ensembl_lite import _name as elt_name
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _name as elt_name
+from ensembl_tui import _util as elt_util
 
 
 # TODO spaces are optional between columns representing SEQ and SCORE lines
@@ -28,7 +28,7 @@ def _get_block_seqnames(data) -> dict[str, str]:
     # they also include ancestral sequences, which exclude
     return {
         n: "".join(s)
-        for n, *s in zip(names, *seq_data)
+        for n, *s in zip(names, *seq_data, strict=False)
         if n.species != "ancestral_sequences"
     }
 

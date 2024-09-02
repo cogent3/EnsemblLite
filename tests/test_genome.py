@@ -3,9 +3,10 @@ import pathlib
 import numpy
 import pytest
 from cogent3 import make_unaligned_seqs
-from ensembl_lite import _genome as elt_genome
-from ensembl_lite import _storage_mixin as elt_mixin
 from numpy.testing import assert_allclose
+
+from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _storage_mixin as elt_mixin
 
 
 @pytest.fixture(scope="function")
@@ -83,7 +84,7 @@ def h5_genome(tmp_path):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def small_h5_genome(small_data, h5_genome):
     # in memory db
     h5_genome.add_records(records=small_data.items())
@@ -436,7 +437,7 @@ def test_gff_record_to_record_selected_fields(exclude_null):
     assert got == expect
 
 
-@pytest.fixture()
+@pytest.fixture
 def ensembl_gff_records(DATA_DIR):
     records, _ = elt_genome.custom_gff_parser(
         DATA_DIR / "c_elegans_WS199_shortened.gff3",
@@ -445,12 +446,12 @@ def ensembl_gff_records(DATA_DIR):
     return records
 
 
-@pytest.fixture()
+@pytest.fixture
 def non_canonical_related(ensembl_gff_records):
     return elt_genome.make_gene_relationships(ensembl_gff_records.values())
 
 
-@pytest.fixture()
+@pytest.fixture
 def canonical_related(ensembl_gff_records):
     transcript = ensembl_gff_records["transcript:B0019.1"]
     transcript.attrs = f"Ensembl_canonical;{transcript.attrs}"
@@ -577,7 +578,8 @@ def fasta_data(DATA_DIR, tmp_path, request):
 
 def test_faster_fasta(fasta_data):
     from cogent3.parse.fasta import MinimalFastaParser
-    from ensembl_lite._faster_fasta import bytes_to_array, quicka_parser
+
+    from ensembl_tui._faster_fasta import bytes_to_array, quicka_parser
 
     expect = {
         n: bytes_to_array(s.encode("utf8")) for n, s in MinimalFastaParser(fasta_data)

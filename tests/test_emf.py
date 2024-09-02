@@ -1,6 +1,7 @@
 import pytest
-from ensembl_lite import _emf as elt_emf
-from ensembl_lite import _name as elt_name
+
+from ensembl_tui import _emf as elt_emf
+from ensembl_tui import _name as elt_name
 
 
 def test_load(DATA_DIR):

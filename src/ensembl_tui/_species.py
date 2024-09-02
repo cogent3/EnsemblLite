@@ -6,7 +6,7 @@ from cogent3 import load_table
 from cogent3.core.tree import TreeNode
 from cogent3.util.table import Table
 
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _util as elt_util
 
 SPECIES_NAME = "species.tsv"
 StrOrNone = typing.Union[str, type(None)]
@@ -79,7 +79,7 @@ class SpeciesNameMap:
             msg = f"Unknown species name: {name}"
             if level == "raise":
                 raise ValueError(msg)
-            elif level == "warn":
+            if level == "warn":
                 print(f"WARN: {msg}")
 
         return common_name
@@ -99,7 +99,7 @@ class SpeciesNameMap:
             msg = f"Unknown common name: {name}"
             if level == "raise":
                 raise ValueError(msg)
-            elif level == "warn":
+            if level == "warn":
                 print(f"WARN: {msg}")
 
         return species_name

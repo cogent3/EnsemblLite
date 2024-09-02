@@ -1,7 +1,8 @@
 import numpy
 import pytest
-from ensembl_lite import _align as elt_align
-from ensembl_lite import _genome as elt_genome
+
+from ensembl_tui import _align as elt_align
+from ensembl_tui import _genome as elt_genome
 
 
 def small_seqs():
@@ -65,7 +66,7 @@ def make_records(start, end, block_id):
     return records
 
 
-@pytest.fixture()
+@pytest.fixture
 def small_records():
     records = make_records(1, 5, 0)
     return records
@@ -110,7 +111,7 @@ def _get_expected_seqindex(data: str, align_index: int) -> int:
 
 # fixture to make synthetic GenomeSeqsDb and alignment db
 # based on a given alignment
-@pytest.fixture()
+@pytest.fixture
 def genomedbs_aligndb(small_records):
     align_db = elt_align.AlignDb(source=":memory:")
     align_db.add_records(records=small_records)
@@ -330,7 +331,9 @@ def test_select_alignment_minus_strand(start_end, namer):
     ),
 )
 def test_get_alignment_features(coord):
-    kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
+    kwargs = dict(
+        zip(("ref_species", "seqid", "ref_start", "ref_end"), coord, strict=False),
+    )
     genomes, align_db = make_sample(two_aligns=False)
     got = list(elt_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
     assert len(got.annotation_db) == 1
@@ -346,7 +349,9 @@ def test_get_alignment_features(coord):
     ),
 )
 def test_get_alignment_masked_features(coord):
-    kwargs = dict(zip(("ref_species", "seqid", "ref_start", "ref_end"), coord))
+    kwargs = dict(
+        zip(("ref_species", "seqid", "ref_start", "ref_end"), coord, strict=False),
+    )
     kwargs["mask_features"] = ["gene"]
     genomes, align_db = make_sample(two_aligns=False)
     got = list(elt_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
@@ -363,7 +368,7 @@ def test_get_alignment_masked_features(coord):
     ),
 )
 def test_align_db_get_records(coord):
-    kwargs = dict(zip(("species", "seqid", "start", "stop"), coord))
+    kwargs = dict(zip(("species", "seqid", "start", "stop"), coord, strict=False))
     # records are, we should get a single hit from each query
     # [('blah', 0, 'human', 's1', 1, 12, '+', array([], dtype=int32)),
     _, align_db = make_sample(two_aligns=True)
@@ -380,7 +385,7 @@ def test_align_db_get_records(coord):
     ),
 )
 def test_align_db_get_records_required_only(coord):
-    kwargs = dict(zip(("species", "seqid"), coord))
+    kwargs = dict(zip(("species", "seqid"), coord, strict=False))
     # two hits for each species
     _, align_db = make_sample(two_aligns=True)
     got = list(align_db.get_records_matching(**kwargs))
@@ -396,7 +401,7 @@ def test_align_db_get_records_required_only(coord):
     ),
 )
 def test_align_db_get_records_no_matches(coord):
-    kwargs = dict(zip(("species", "seqid"), coord))
+    kwargs = dict(zip(("species", "seqid"), coord, strict=False))
     # no hits at all
     _, align_db = make_sample()
     got = list(align_db.get_records_matching(**kwargs))
@@ -469,7 +474,7 @@ def test_gapstore_add_invalid_duplicate():
         gap_store.add_record(index=20, gaps=a[:1])
 
 
-@pytest.fixture()
+@pytest.fixture
 def small_db(small_records):
     import copy
 

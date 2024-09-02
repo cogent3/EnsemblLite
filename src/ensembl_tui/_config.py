@@ -1,14 +1,13 @@
 import configparser
 import fnmatch
 import pathlib
-import typing
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 import click
 
-from ensembl_lite import _species as elt_species
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _species as elt_species
+from ensembl_tui import _util as elt_util
 
 INSTALLED_CONFIG_NAME = "installed.cfg"
 DOWNLOADED_CONFIG_NAME = "downloaded.cfg"
@@ -25,7 +24,9 @@ def make_relative_to(
 ) -> pathlib.Path:
     assert staging_path.is_absolute() and install_path.is_absolute()
 
-    for i, (s_part, i_part) in enumerate(zip(staging_path.parts, install_path.parts)):
+    for i, (s_part, i_part) in enumerate(
+        zip(staging_path.parts, install_path.parts, strict=False),
+    ):
         if s_part != i_part:
             break
     change_up = ("..",) * (len(staging_path.parts) - i)
@@ -243,11 +244,11 @@ def _standardise_path(
 
 def read_config(
     config_path: pathlib.Path,
-    root_dir: typing.Optional[pathlib.Path] = None,
+    root_dir: pathlib.Path | None = None,
 ) -> Config:
     """returns ensembl release, local path, and db specifics from the provided
     config path"""
-    from ensembl_lite._download import download_ensembl_tree
+    from ensembl_tui._download import download_ensembl_tree
 
     if not config_path.exists():
         click.secho(f"File not found {config_path.resolve()!s}", fg="red")

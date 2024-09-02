@@ -9,9 +9,10 @@ import subprocess
 import sys
 import typing
 import uuid
+from collections.abc import Callable
 from hashlib import md5
 from tempfile import mkdtemp
-from typing import IO, Callable, Union
+from typing import IO, Union
 
 import blosc2
 import hdf5plugin
@@ -59,7 +60,7 @@ def _get_resource_dir() -> PathType:
     if "ENSEMBLDBRC" in os.environ:
         path = os.environ["ENSEMBLDBRC"]
     else:
-        from ensembl_lite import data
+        from ensembl_tui import data
 
         path = pathlib.Path(data.__file__).parent
 
@@ -306,7 +307,7 @@ def rich_display(c3t, title_justify="left"):
         j = "right" if numeric_type else "left"
         rich_table.add_column(col, justify=j, no_wrap=numeric_type)
 
-    for row in zip(*columns):
+    for row in zip(*columns, strict=False):
         rich_table.add_row(*row)
 
     console = Console()
@@ -323,7 +324,7 @@ def _name_parts(path: str) -> list[str]:
 def _simple_check(align_parts: str, tree_parts: str) -> int:
     """evaluates whether the start of the two paths match"""
     matches = 0
-    for a, b in zip(align_parts, tree_parts):
+    for a, b in zip(align_parts, tree_parts, strict=False):
         if a != b:
             break
         matches += 1
@@ -413,13 +414,12 @@ def get_iterable_tasks(
     *,
     func: typing.Callable,
     series: typing.Sequence,
-    max_workers: typing.Optional[int],
+    max_workers: int | None,
     **kwargs,
 ) -> typing.Iterator:
     if max_workers == 1:
         return map(func, series)
-    else:
-        return as_completed(func, series, max_workers=max_workers, **kwargs)
+    return as_completed(func, series, max_workers=max_workers, **kwargs)
 
 
 # From http://mart.ensembl.org/info/genome/stable_ids/prefixes.html

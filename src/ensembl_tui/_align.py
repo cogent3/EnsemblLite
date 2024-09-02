@@ -9,9 +9,9 @@ from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 
-from ensembl_lite import _genome as elt_genome
-from ensembl_lite import _storage_mixin as elt_mixin
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _storage_mixin as elt_mixin
+from ensembl_tui import _util as elt_util
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
@@ -81,7 +81,7 @@ class GapStore(elt_mixin.Hdf5Mixin):
     def __init__(
         self,
         source: elt_util.PathType,
-        align_name: typing.Optional[str] = None,
+        align_name: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
     ):
@@ -402,7 +402,7 @@ def _add_alignments(*alns, sep="?") -> Alignment:
         all_names.update(set(aln.names))
 
     result = {n: [] for n in all_names}
-    for aln, default in zip(alns, defaults):
+    for aln, default in zip(alns, defaults, strict=False):
         data = aln.to_dict()
         for name in all_names:
             result[name].append(data.get(name, default))
@@ -423,7 +423,7 @@ class construct_alignment:
         self,
         align_db: AlignDb,
         genomes: dict[str, elt_genome.Genome],
-        mask_features: typing.Optional[list[str]] = None,
+        mask_features: list[str] | None = None,
         sep: str = "?",
     ) -> None:
         self._align_db = align_db

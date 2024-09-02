@@ -1,11 +1,11 @@
 import pathlib
+from collections.abc import Callable
 from ftplib import FTP
-from typing import Callable
 
 from rich.progress import Progress, track
 from unsync import unsync
 
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _util as elt_util
 
 
 def configured_ftp(host: str = "ftp.ensembl.org") -> FTP:
