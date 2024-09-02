@@ -3,10 +3,11 @@ import pickle  # nosec B403
 import numpy
 import pytest
 from cogent3 import load_table
-from ensembl_lite import _align as elt_align
-from ensembl_lite import _homology as elt_homology
-from ensembl_lite import _maf as elt_maf
-from ensembl_lite import _storage_mixin as elt_mixin
+
+from ensembl_tui import _align as elt_align
+from ensembl_tui import _homology as elt_homology
+from ensembl_tui import _maf as elt_maf
+from ensembl_tui import _storage_mixin as elt_mixin
 
 
 @pytest.fixture(scope="function")
@@ -59,7 +60,7 @@ def test_db_align_repr(db_align, func):
     func(db_align)
 
 
-@pytest.fixture()
+@pytest.fixture
 def hom_dir(DATA_DIR, tmp_path):
     path = DATA_DIR / "small_protein_homologies.tsv.gz"
     table = load_table(path)

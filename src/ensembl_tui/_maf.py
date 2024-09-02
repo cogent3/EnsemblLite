@@ -9,9 +9,9 @@ from cogent3 import make_seq, open_
 from cogent3.app.composable import LOADER, define_app
 from cogent3.app.typing import IdentifierType
 
-from ensembl_lite import _align as elt_align
-from ensembl_lite import _name as elt_name
-from ensembl_lite import _util as elt_util
+from ensembl_tui import _align as elt_align
+from ensembl_tui import _name as elt_name
+from ensembl_tui import _util as elt_util
 
 _id_pattern = re.compile(r"(?<=id[:])\s*\d+")
 

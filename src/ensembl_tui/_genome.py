@@ -7,7 +7,7 @@ import re
 import sqlite3
 import typing
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import click
 import h5py
@@ -28,11 +28,11 @@ from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
 
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _species as elt_species
-from ensembl_lite import _storage_mixin as elt_mixin
-from ensembl_lite import _util as elt_util
-from ensembl_lite._faster_fasta import quicka_parser
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _species as elt_species
+from ensembl_tui import _storage_mixin as elt_mixin
+from ensembl_tui import _util as elt_util
+from ensembl_tui._faster_fasta import quicka_parser
 
 SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
 ANNOT_STORE_NAME = "genome.annots-sqlitedb"
@@ -84,7 +84,7 @@ class EnsemblGffRecord(GffRecord):
 
     __slots__ = GffRecord.__slots__ + ("feature_id", "_is_updated")
 
-    def __init__(self, feature_id: Optional[int] = None, **kwargs):
+    def __init__(self, feature_id: int | None = None, **kwargs):
         is_canonical = kwargs.pop("is_canonical", None)
         symbol = kwargs.pop("symbol", None)
         descr = kwargs.pop("description", None)
@@ -288,7 +288,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
     def __init__(
         self,
         source: elt_util.PathType = ":memory:",
-        db: typing.Optional[DbTypes] = None,
+        db: DbTypes | None = None,
     ):
         self.source = source
         if isinstance(db, self.__class__):
@@ -377,7 +377,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
     def add_feature(
         self,
         *,
-        feature: typing.Optional[EnsemblGffRecord] = None,
+        feature: EnsemblGffRecord | None = None,
         **kwargs,
     ) -> None:
         """updates the feature_id attribute"""
@@ -466,7 +466,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             columns=columns,
             **query_args,
         ):
-            result = dict(zip(columns, result))
+            result = dict(zip(columns, result, strict=False))
             result["spans"] = [
                 tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
             ]
@@ -477,7 +477,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         *,
         name: str,
         **kwargs,
-    ) -> typing.List[FeatureDataType]:
+    ) -> list[FeatureDataType]:
         cols = "seqid", "biotype", "spans", "strand", "name"
         results = {}
         for result in self._get_records_matching(
@@ -486,7 +486,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             parent_stableid=name,
             **kwargs,
         ):
-            result = dict(zip(cols, result))
+            result = dict(zip(cols, result, strict=False))
             result["spans"] = [
                 tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
             ]
@@ -498,7 +498,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         *,
         name: str,
         **kwargs,
-    ) -> typing.List[FeatureDataType]:
+    ) -> list[FeatureDataType]:
         cols = "seqid", "biotype", "spans", "strand", "name"
         results = {}
         for result in self._get_records_matching(
@@ -506,7 +506,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
             columns=cols,
             child_stableid=name,
         ):
-            result = dict(zip(cols, result))
+            result = dict(zip(cols, result, strict=False))
             result["spans"] = [
                 tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
             ]
@@ -533,7 +533,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         for result in self._execute_sql(sql, values=vals):
             if cols is None:
                 cols = result.keys()
-            result = dict(zip(cols, result))
+            result = dict(zip(cols, result, strict=False))
             result["spans"] = [
                 tuple(c) for c in elt_mixin.blob_to_array(result["spans"])
             ]
@@ -576,7 +576,7 @@ class EnsemblGffDb(elt_mixin.SqliteDbMixin):
         for r in self._get_records_matching(table_name="gff", **kwargs):
             if cols is None:
                 cols = r.keys()
-            r = dict(zip(cols, r))
+            r = dict(zip(cols, r, strict=False))
             feature_id = r.pop("feature_id")
             feature = EnsemblGffRecord(**r)
             feature_ids[feature_id] = feature
@@ -707,7 +707,7 @@ class SeqsDataABC(ABC):
     species: str
     mode: str  # as per standard file opening modes, r, w, a
     _is_open = False
-    _file: Optional[Any] = None
+    _file: Any | None = None
 
     @abstractmethod
     def __hash__(self): ...
@@ -723,8 +723,8 @@ class SeqsDataABC(ABC):
         self,
         *,
         seqid: str,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
     ) -> str: ...
 
     @abstractmethod
@@ -732,8 +732,8 @@ class SeqsDataABC(ABC):
         self,
         *,
         seqid: str,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
     ) -> NDArray[numpy.uint8]: ...
 
     @abstractmethod
@@ -794,7 +794,7 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
     def __init__(
         self,
         source: elt_util.PathType,
-        species: Optional[str] = None,
+        species: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
     ):
@@ -870,8 +870,8 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
         self,
         *,
         seqid: str,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
     ) -> str:
         return self._arr2str(self.get_seq_arr(seqid=seqid, start=start, stop=stop))
 
@@ -879,8 +879,8 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
         self,
         *,
         seqid: str,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
     ) -> NDArray[numpy.uint8]:
         if not self._is_open:
             raise OSError(f"{self.source.name!r} is closed")
@@ -937,8 +937,8 @@ class Genome:
         self,
         *,
         seqid: str,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
         namer: typing.Callable | None = None,
         with_annotations: bool = True,
     ) -> str:
@@ -1055,7 +1055,7 @@ def get_seqs_for_ids(
     config: elt_config.InstalledConfig,
     species: str,
     names: list[str],
-    make_seq_name: typing.Optional[typing.Callable] = None,
+    make_seq_name: typing.Callable | None = None,
 ) -> typing.Iterable[Sequence]:
     genome = load_genome(config=config, species=species)
     # is it possible to do batch query for all names?
@@ -1092,7 +1092,7 @@ def load_annotations_for_species(*, path: pathlib.Path) -> EnsemblGffDb:
 def _get_all_gene_segments(
     *,
     annot_db: EnsemblGffDb,
-    limit: Optional[int],
+    limit: int | None,
 ) -> list[dict]:
     result = []
     for i, record in enumerate(annot_db.get_records_matching(biotype="gene")):
@@ -1105,7 +1105,7 @@ def _get_all_gene_segments(
 def _get_selected_gene_segments(
     *,
     annot_db: EnsemblGffDb,
-    limit: Optional[int],
+    limit: int | None,
     stableids: list[str],
 ) -> list[dict]:
     result = []
@@ -1120,9 +1120,9 @@ def _get_selected_gene_segments(
 def get_gene_segments(
     *,
     annot_db: EnsemblGffDb,
-    limit: Optional[int] = None,
-    species: Optional[str] = None,
-    stableids: Optional[list[str]] = None,
+    limit: int | None = None,
+    species: str | None = None,
+    stableids: list[str] | None = None,
 ) -> list[genome_segment]:
     """return genome segment information for genes
 
@@ -1159,8 +1159,8 @@ def get_gene_segments(
 def get_gene_table_for_species(
     *,
     annot_db: EnsemblGffDb,
-    limit: Optional[int],
-    species: Optional[str] = None,
+    limit: int | None,
+    species: str | None = None,
 ) -> Table:
     """
     returns gene data from a GffDb
@@ -1202,7 +1202,7 @@ def get_gene_table_for_species(
 def get_species_summary(
     *,
     annot_db: EnsemblGffDb,
-    species: Optional[str] = None,
+    species: str | None = None,
 ) -> Table:
     """
     returns the Table summarising data for species_name

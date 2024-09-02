@@ -2,7 +2,8 @@ from unittest import TestCase
 
 import pytest
 from cogent3.util.table import Table
-from ensembl_lite._species import Species
+
+from ensembl_tui._species import Species
 
 
 class TestSpeciesNamemaps(TestCase):

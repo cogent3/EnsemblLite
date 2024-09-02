@@ -52,7 +52,7 @@ jobs:
       - name: Upload sdist and wheel
         uses: actions/upload-artifact@v4
         with:
-          name: elt-wheel-sdist
+          name: eti-wheel-sdist
           path: |
             ./dist/*.whl
             ./dist/*.tar.gz
@@ -69,7 +69,7 @@ jobs:
       - name: Download sdist and wheel
         uses: actions/download-artifact@v4
         with:
-          name: elt-wheel-sdist
+          name: eti-wheel-sdist
           path: ./dist
 
       - name: Publish package distributions to Test PyPI
@@ -89,7 +89,7 @@ jobs:
       - name: Download sdist and wheel
         uses: actions/download-artifact@v4
         with:
-          name: elt-wheel-sdist
+          name: eti-wheel-sdist
           path: ./dist
 
       - name: Publish package distributions to PyPI

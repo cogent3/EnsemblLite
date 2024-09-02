@@ -1,5 +1,6 @@
 import pytest
-from ensembl_lite._name import EnsemblDbName
+
+from ensembl_tui._name import EnsemblDbName
 
 
 def test_cmp_name():

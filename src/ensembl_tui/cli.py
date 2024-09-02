@@ -8,16 +8,16 @@ from scitrack import CachingLogger
 try:
     from wakepy.keep import running as keep_running
 except ImportError:
-    from ensembl_lite._util import fake_wake as keep_running
+    from ensembl_tui._util import fake_wake as keep_running
 
 from trogon import tui
 
-from ensembl_lite import __version__
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _download as elt_download
-from ensembl_lite import _genome as elt_genome
-from ensembl_lite import _species as elt_species
-from ensembl_lite import _util as elt_util
+from ensembl_tui import __version__
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _download as elt_download
+from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _species as elt_species
+from ensembl_tui import _util as elt_util
 
 try:
     # trap flaky behaviour on linux
@@ -25,7 +25,7 @@ try:
         ...
 
 except NotImplementedError:
-    from ensembl_lite._util import fake_wake as keep_running
+    from ensembl_tui._util import fake_wake as keep_running
 
 
 def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
@@ -259,7 +259,7 @@ def install(download, num_procs, force_overwrite, verbose):
     """create the local representations of the data"""
     from rich import progress
 
-    from ensembl_lite._install import (
+    from ensembl_tui._install import (
         local_install_alignments,
         local_install_genomes,
         local_install_homology,
@@ -399,7 +399,7 @@ def alignments(
     from cogent3 import load_table
     from rich import progress
 
-    from ensembl_lite import _align as elt_align
+    from ensembl_tui import _align as elt_align
 
     # TODO support genomic coordinates, e.g. coord_name:start-stop, for
     #  a reference species
@@ -525,7 +525,7 @@ def homologs(
     """exports CDS sequence data in fasta format for homology type relationship"""
     from rich import progress
 
-    from ensembl_lite import _homology as elt_homology
+    from ensembl_tui import _homology as elt_homology
 
     LOGGER = CachingLogger()
     LOGGER.log_args()

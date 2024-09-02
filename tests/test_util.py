@@ -2,8 +2,9 @@ from configparser import ConfigParser
 from random import shuffle
 
 import pytest
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _util as elt_util
+
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _util as elt_util
 
 
 @pytest.fixture(scope="function")
@@ -70,7 +71,7 @@ def test_parse_config_gorilla(gorilla_cfg):
     ),
 )
 def test_invalid_seq(name):
-    from ensembl_lite._download import valid_seq_file
+    from ensembl_tui._download import valid_seq_file
 
     assert not valid_seq_file(name)
 
@@ -86,7 +87,7 @@ def test_invalid_seq(name):
     ),
 )
 def test_valid_seq(name):
-    from ensembl_lite._download import valid_seq_file
+    from ensembl_tui._download import valid_seq_file
 
     assert valid_seq_file(name)
 
@@ -106,7 +107,7 @@ def just_compara_cfg(tmp_config):
     return tmp_config
 
 
-@pytest.mark.internet()
+@pytest.mark.internet
 def test_just_compara(just_compara_cfg):
     # get species names from the alignment ref tree
     cfg = elt_config.read_config(just_compara_cfg)
@@ -137,7 +138,7 @@ def test_match_align_tree(tmp_config):
         "pub/release-110/maf/ensembl-compara/multiple_alignments/65_amniotes.pecan",
     ]
 
-    expect = dict(zip(aligns, trees))
+    expect = dict(zip(aligns, trees, strict=False))
     shuffle(aligns)
     result = elt_util.trees_for_aligns(aligns, trees)
     assert result == expect
@@ -173,7 +174,7 @@ def test_config_update_species(tmp_config):
     assert set(config.db_names) == {"homo_sapiens", "saccharomyces_cerevisiae"}
 
 
-@pytest.mark.internet()
+@pytest.mark.internet
 def test_cfg_to_dict(just_compara_cfg):
     cfg = elt_config.read_config(just_compara_cfg)
     data = cfg.to_dict()

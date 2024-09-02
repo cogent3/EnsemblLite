@@ -1,8 +1,9 @@
 import pathlib
 
 import pytest
-from ensembl_lite import _align as elt_align
-from ensembl_lite import _config as elt_config
+
+from ensembl_tui import _align as elt_align
+from ensembl_tui import _config as elt_config
 
 
 def test_installed_genome():
@@ -36,7 +37,7 @@ def test_installed_config_hash():
     assert len(v) == 1
 
 
-@pytest.fixture()
+@pytest.fixture
 def installed_aligns(tmp_path):
     align_dir = tmp_path / elt_config._COMPARA_NAME / elt_config._ALIGNS_NAME
     align_dir.mkdir(parents=True, exist_ok=True)

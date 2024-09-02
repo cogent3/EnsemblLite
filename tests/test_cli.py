@@ -4,14 +4,15 @@ import sys
 
 import pytest
 from click.testing import CliRunner
-from ensembl_lite import cli as elt_cli
+
+from ensembl_tui import cli as elt_cli
 
 if sys.platform.startswith("linux"):
     pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
 
 
-@pytest.mark.slow()
-@pytest.mark.internet()
+@pytest.mark.slow
+@pytest.mark.internet
 def test_download(tmp_config):
     """runs download, install, drop according to a special test cfg"""
     tmp_dir = tmp_config.parent

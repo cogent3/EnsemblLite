@@ -1,5 +1,6 @@
 import pytest
-from ensembl_lite import _maf as elt_maf
+
+from ensembl_tui import _maf as elt_maf
 
 
 def test_read(DATA_DIR):

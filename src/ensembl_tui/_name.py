@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import typing
 from dataclasses import dataclass
 
 from ._species import Species
@@ -137,7 +136,7 @@ class MafName:
     start: int
     stop: int
     strand: str
-    coord_length: typing.Optional[str | int]
+    coord_length: str | int | None
 
     def __post_init__(self):
         # adjust the lengths to be ints

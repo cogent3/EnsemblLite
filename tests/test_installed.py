@@ -1,11 +1,12 @@
 # this will be used to test integrated features
 import pytest
 from cogent3 import load_seq
-from ensembl_lite import _config as elt_config
-from ensembl_lite import _genome as elt_genome
+
+from ensembl_tui import _config as elt_config
+from ensembl_tui import _genome as elt_genome
 
 
-@pytest.fixture()
+@pytest.fixture
 def one_genome(DATA_DIR, tmp_dir):
     cfg = elt_config.InstalledConfig(release="110", install_path=tmp_dir)
     # we're only making a genomes directory

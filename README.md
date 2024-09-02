@@ -1,15 +1,25 @@
-[![CI](https://github.com/cogent3/EnsemblLite/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/EnsemblLite/actions/workflows/testing_develop.yml)
-[![CodeQL](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/EnsemblLite/actions/workflows/codeql.yml)
-[![Coverage Status](https://coveralls.io/repos/github/cogent3/EnsemblLite/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/EnsemblLite?branch=develop)
+[![CI](https://github.com/cogent3/ensembl_tui/actions/workflows/testing_develop.yml/badge.svg)](https://github.com/cogent3/ensembl_tui/actions/workflows/testing_develop.yml)
+[![CodeQL](https://github.com/cogent3/ensembl_tui/actions/workflows/codeql.yml/badge.svg)](https://github.com/cogent3/ensembl_tui/actions/workflows/codeql.yml)
+[![Coverage Status](https://coveralls.io/repos/github/cogent3/ensembl_tui/badge.svg?branch=develop)](https://coveralls.io/github/cogent3/ensembl_tui?branch=develop)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-# EnsemblLite
+# ensembl-tui
 
-EnsemblLite provides the `elt` command line application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
+ensembl-tui provides the `eti` terminal application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
 
 > **Warning**
-> EnsemblLite is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/EnsemblLite/issues).
+> ensembl-tui is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/ensembl_tui/issues).
 
 ## Installing the software
+
+<details>
+  <summary>General user installation instructions</summary>
+
+  ```
+  $ pip install ensembl-tui
+  ```
+
+</details>
 
 <details>
   <summary>Developer installation instructions</summary>
@@ -26,17 +36,11 @@ EnsemblLite provides the `elt` command line application for obtaining a subset o
   ```
 </details>
 
-<details>
-  <summary>General user installation instructions</summary>
-
-  We have not yet released on pypi. We will provide instructions here for a Docker based installation soon!
-</details>
-
 ## Resources required to subset Ensembl data
 
-Ensembl hosts some very large data sets. You need to have a machine with sufficient disk space to store the data you want to download. At present we do not have support for predicting how much storage would be required for a given selection of species and data types. We advise you to experiment.
+Ensembl hosts some very large data sets. You need to have a machine with sufficient disk space to store the data you want to download. At present we do not have support for predicting how much storage would be required for a given selection of species and data types. You will need to experiment.
 
-Some commands can be run in parallel but have moderate memory requirements. If you have a machine with limited RAM, you may need to reduce the number of parallel processes. Again, we advise you to experiment.
+Some commands can be run in parallel but have moderate memory requirements. If you have a machine with limited RAM, you may need to reduce the number of parallel processes. Again, run some experiments.
 
 ## Getting setup
 
@@ -47,17 +51,17 @@ Some commands can be run in parallel but have moderate memory requirements. If y
 
   <!-- [[[cog
   import cog
-  from ensembl_lite import cli
+  from ensembl_tui import cli
   from click.testing import CliRunner
   runner = CliRunner()
   result = runner.invoke(cli.main, ["exportrc", "--help"])
-  help = result.output.replace("Usage: main", "Usage: elt")
+  help = result.output.replace("Usage: main", "Usage: eti")
   cog.out(
       "```\n{}\n```".format(help)
   )
   ]]] -->
   ```
-  Usage: elt exportrc [OPTIONS]
+  Usage: eti exportrc [OPTIONS]
 
     exports sample config and species table to the nominated path
 
@@ -69,7 +73,7 @@ Some commands can be run in parallel but have moderate memory requirements. If y
   <!-- [[[end]]] -->
 
   ```shell
-  $ elt exportrc -o ~/Desktop/Outbox/ensembl_download
+  $ eti exportrc -o ~/Desktop/Outbox/ensembl_download
   ```
   This command creates a `ensembl_download` download directory and writes two plain text files into it:
 
@@ -85,17 +89,17 @@ Some commands can be run in parallel but have moderate memory requirements. If y
 
   <!-- [[[cog
   import cog
-  from ensembl_lite import cli
+  from ensembl_tui import cli
   from click.testing import CliRunner
   runner = CliRunner()
   result = runner.invoke(cli.main, ["download", "--help"])
-  help = result.output.replace("Usage: main", "Usage: elt")
+  help = result.output.replace("Usage: main", "Usage: eti")
   cog.out(
       "```\n{}\n```".format(help)
   )
   ]]] -->
   ```
-  Usage: elt download [OPTIONS]
+  Usage: eti download [OPTIONS]
 
     download data from Ensembl's ftp site
 
@@ -114,7 +118,7 @@ Some commands can be run in parallel but have moderate memory requirements. If y
 
   ```shell
   $ cd to/directory/with/config.cfg
-  $ elt download -c config.cfg
+  $ eti download -c config.cfg
   ```
 
   > **Note**
@@ -129,17 +133,17 @@ The download creates a new `.cfg` file inside the download directory. This file 
   
   <!-- [[[cog
   import cog
-  from ensembl_lite import cli
+  from ensembl_tui import cli
   from click.testing import CliRunner
   runner = CliRunner()
   result = runner.invoke(cli.main, ["install", "--help"])
-  help = result.output.replace("Usage: main", "Usage: elt")
+  help = result.output.replace("Usage: main", "Usage: eti")
   cog.out(
       "```\n{}\n```".format(help)
   )
   ]]] -->
   ```
-  Usage: elt install [OPTIONS]
+  Usage: eti install [OPTIONS]
 
     create the local representations of the data
 
@@ -158,7 +162,7 @@ The following command uses 2 CPUs and has been safe on systems with only 16GB of
 
 ```shell
 $ cd to/directory/with/downloaded_data
-$ elt install -d downloaded_data -np 2
+$ eti install -d downloaded_data -np 2
 ```
 
 </details>
@@ -168,17 +172,17 @@ $ elt install -d downloaded_data -np 2
   
   <!-- [[[cog
   import cog
-  from ensembl_lite import cli
+  from ensembl_tui import cli
   from click.testing import CliRunner
   runner = CliRunner()
   result = runner.invoke(cli.main, ["installed", "--help"])
-  help = result.output.replace("Usage: main", "Usage: elt")
+  help = result.output.replace("Usage: main", "Usage: eti")
   cog.out(
       "```\n{}\n```".format(help)
   )
   ]]] -->
   ```
-  Usage: elt installed [OPTIONS]
+  Usage: eti installed [OPTIONS]
 
     show what is installed
 
@@ -198,21 +202,21 @@ We provide a conventional command line interface for querying the data with subc
 <details>
   <summary>The full list of subcommands</summary>
 
-  You can get help on individual subcommands by running `elt <subcommand>` in the terminal.
+  You can get help on individual subcommands by running `eti <subcommand>` in the terminal.
 
   <!-- [[[cog
   import cog
-  from ensembl_lite import cli
+  from ensembl_tui import cli
   from click.testing import CliRunner
   runner = CliRunner()
   result = runner.invoke(cli.main)
-  help = result.output.replace("Usage: main", "Usage: elt")
+  help = result.output.replace("Usage: main", "Usage: eti")
   cog.out(
       "```\n{}\n```".format(help)
   )
   ]]] -->
   ```
-  Usage: elt [OPTIONS] COMMAND [ARGS]...
+  Usage: eti [OPTIONS] COMMAND [ARGS]...
 
     Tools for obtaining and interrogating subsets of https://ensembl.org genomic
     data.
