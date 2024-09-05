@@ -8,7 +8,7 @@
 ensembl-tui provides the `eti` terminal application for obtaining a subset of the data provided by Ensembl which can then be queried locally. You can have multiple such subsets on your machine, each corresponding to a different selection of species and data types.
 
 > **Warning**
-> ensembl-tui is in a preliminary phase of development with a limited feature set and incomplete test coverage! Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/ensembl_tui/issues).
+> ensembl-tui is in a preliminary phase of development with a limited feature set and incomplete test coverage! We currently **only support accessing data from the main ensembl.org** site. Please validate results against the web version. If you discover errors, please post a [bug report](https://github.com/cogent3/ensembl_tui/issues).
 
 ## Installing the software
 
