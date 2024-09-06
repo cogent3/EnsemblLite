@@ -220,3 +220,8 @@ def test_sanitise_stableid(biotype):
     stableid = f"{biotype}:{identifier}"
     got = elt_util.sanitise_stableid(stableid)
     assert got == identifier
+
+
+@pytest.mark.parametrize("text", ["'primate'", '"primate"'])
+def test_stripquotes(text):
+    assert elt_util.strip_quotes(text) == "primate"

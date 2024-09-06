@@ -410,6 +410,13 @@ class SerialisableMixin:
         return obj
 
 
+_quotes = re.compile(r"^[\'\"]|[\'\"]$")
+
+
+def strip_quotes(text: str):
+    return _quotes.sub("", text)
+
+
 def get_iterable_tasks(
     *,
     func: typing.Callable,

@@ -415,6 +415,7 @@ def alignments(
         shutil.rmtree(outdir, ignore_errors=True)
 
     config = elt_config.read_installed_cfg(installed)
+    align_name = elt_util.strip_quotes(align_name)
     align_path = config.path_to_alignment(align_name, elt_align.ALIGN_STORE_SUFFIX)
     if align_path is None:
         click.secho(
@@ -480,17 +481,16 @@ def alignments(
                 total=limit or len(locations),
                 description="Getting alignment data",
             )
-            for results in maker.as_completed(locations, show_progress=False):
+            for alignments in maker.as_completed(locations, show_progress=False):
                 progress.update(task, advance=1)
-                if not results.obj:
+                if not alignments:
                     continue
-                input_source = results.source.source
-                alignments = results.obj
+                input_source = alignments[0].info.source
                 if len(alignments) == 1:
                     writer(alignments[0], identifier=input_source)
                     continue
 
-                for i, aln in enumerate(results.obj):
+                for i, aln in enumerate(alignments):
                     identifier = f"{input_source}-{i}"
                     writer(aln, identifier=identifier)
 
