@@ -6,6 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "ensembl_tui"
 authors = [
     { name = "Gavin Huttley", email = "Gavin.Huttley@anu.edu.au"},
+    { name = "Arne Becker", email = "arne@ebi.ac.uk"},
 ]
 keywords = ["biology", "genomics", "evolution", "bioinformatics"]
 readme = "README.md"
