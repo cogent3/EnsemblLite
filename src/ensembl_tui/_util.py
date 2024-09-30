@@ -23,6 +23,17 @@ from cogent3.util.parallel import as_completed
 
 PathType = Union[str, pathlib.Path, os.PathLike]
 
+try:
+    from wakepy.keep import running as keep_running
+
+    # trap flaky behaviour on linux
+    with keep_running():
+        ...
+
+except (NotImplementedError, ImportError):
+    keep_running = contextlib.nullcontext
+
+
 _HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
     cname="blosclz",
     clevel=9,
@@ -387,11 +398,6 @@ def sanitise_stableid(stableid: str) -> str:
     this function removes redundant biotype component.
     """
     return _biotypes.sub("", stableid)
-
-
-@contextlib.contextmanager
-def fake_wake(*args, **kwargs):
-    yield
 
 
 class SerialisableMixin:

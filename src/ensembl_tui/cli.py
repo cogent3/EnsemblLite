@@ -1,16 +1,11 @@
 import pathlib
 import shutil
+import sys
 
 import click
+import trogon
 from cogent3 import get_app, open_data_store
 from scitrack import CachingLogger
-
-try:
-    from wakepy.keep import running as keep_running
-except ImportError:
-    from ensembl_tui._util import fake_wake as keep_running
-
-from trogon import tui
 
 from ensembl_tui import __version__
 from ensembl_tui import _config as elt_config
@@ -18,14 +13,6 @@ from ensembl_tui import _download as elt_download
 from ensembl_tui import _genome as elt_genome
 from ensembl_tui import _species as elt_species
 from ensembl_tui import _util as elt_util
-
-try:
-    # trap flaky behaviour on linux
-    with keep_running():
-        ...
-
-except NotImplementedError:
-    from ensembl_tui._util import fake_wake as keep_running
 
 
 def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
@@ -37,7 +24,7 @@ def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
     path = path / elt_config.INSTALLED_CONFIG_NAME
     if not path.exists():
         click.secho(f"{path!s} missing", fg="red")
-        exit(1)
+        sys.exit(1)
     return path
 
 
@@ -60,12 +47,17 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
             db_name = elt_species.Species.get_ensembl_db_prefix(name)
         except ValueError:
             click.secho(f"ERROR: unknown species {name!r}", fg="red")
-            exit(1)
+            sys.exit(1)
 
         db_names.append(db_name)
 
     return db_names
 
+
+_click_command_opts = dict(
+    no_args_is_help=True,
+    context_settings={"show_default": True},
+)
 
 # defining some of the options
 _cfgpath = click.option(
@@ -106,6 +98,7 @@ _outdir = click.option(
 _align_name = click.option(
     "--align_name",
     default=None,
+    required=True,
     help="Ensembl alignment name or a glob pattern, e.g. '*primates*'.",
 )
 _ref = click.option("--ref", default=None, help="Reference species.")
@@ -173,14 +166,14 @@ _mask_features = click.option(
 )
 
 
-@tui()
-@click.group()
+@trogon.tui()
+@click.group(**_click_command_opts)
 @click.version_option(__version__)
 def main():
     """Tools for obtaining and interrogating subsets of https://ensembl.org genomic data."""
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_dbrc_out
 def exportrc(outpath):
     """exports sample config and species table to the nominated path"""
@@ -199,7 +192,7 @@ def exportrc(outpath):
     click.secho(f"Contents written to {outpath}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_cfgpath
 @_debug
 @_verbose
@@ -220,7 +213,7 @@ def download(configpath, debug, verbose):
 
     if not any((config.species_dbs, config.align_names)):
         click.secho("No genomes, no alignments specified", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if not config.species_dbs:
         species = elt_download.get_species_for_alignments(
@@ -235,7 +228,7 @@ def download(configpath, debug, verbose):
         print(config.species_dbs)
 
     config.write()
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
@@ -250,7 +243,7 @@ def download(configpath, debug, verbose):
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_download
 @_nprocs
 @_force
@@ -275,7 +268,7 @@ def install(download, num_procs, force_overwrite, verbose):
 
     config.install_path.mkdir(parents=True, exist_ok=True)
     elt_config.write_installed_cfg(config)
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
@@ -313,7 +306,7 @@ def install(download, num_procs, force_overwrite, verbose):
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 def installed(installed):
     """show what is installed"""
@@ -348,7 +341,7 @@ def installed(installed):
         elt_util.rich_display(table)
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_species
 def species_summary(installed, species):
@@ -357,24 +350,24 @@ def species_summary(installed, species):
     config = elt_config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if len(species) > 1:
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     species = species[0]
     path = config.installed_genome(species=species) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
     summary = elt_genome.get_species_summary(annot_db=annot_db, species=species)
     elt_util.rich_display(summary)
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_outdir
 @_align_name
@@ -409,7 +402,7 @@ def alignments(
             "ERROR: must specify a reference genome",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     if force_overwrite:
         shutil.rmtree(outdir, ignore_errors=True)
@@ -422,7 +415,7 @@ def alignments(
             f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     align_db = elt_align.AlignDb(source=align_path)
     ref_species = elt_species.Species.get_ensembl_db_prefix(ref)
@@ -431,7 +424,7 @@ def alignments(
             f"species {ref!r} not in the alignment",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     # get all the genomes
     if verbose:
@@ -450,7 +443,7 @@ def alignments(
                 f"'stableid' column missing from {str(ref_genes_file)!r}",
                 fg="red",
             )
-            exit(1)
+            sys.exit(1)
         stableids = table.columns["stableid"]
     else:
         stableids = None
@@ -469,7 +462,7 @@ def alignments(
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
@@ -497,7 +490,7 @@ def alignments(
     click.secho("Done!", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_outpath
 @click.option(
@@ -532,7 +525,7 @@ def homologs(
 
     if ref is None:
         click.secho("ERROR: a reference species name is required, use --ref", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
@@ -611,7 +604,7 @@ def homologs(
     log_file_path.unlink()
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_species
 @_outdir
@@ -622,16 +615,16 @@ def dump_genes(installed, species, outdir, limit):
     config = elt_config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if len(species) > 1:
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     path = config.installed_genome(species=species[0]) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
     path = annot_db.source
