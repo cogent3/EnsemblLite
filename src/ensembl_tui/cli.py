@@ -1,5 +1,6 @@
 import pathlib
 import shutil
+import sys
 
 import click
 from cogent3 import get_app, open_data_store
@@ -22,7 +23,7 @@ def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
     path = path / elt_config.INSTALLED_CONFIG_NAME
     if not path.exists():
         click.secho(f"{path!s} missing", fg="red")
-        exit(1)
+        sys.exit(1)
     return path
 
 
@@ -45,7 +46,7 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
             db_name = elt_species.Species.get_ensembl_db_prefix(name)
         except ValueError:
             click.secho(f"ERROR: unknown species {name!r}", fg="red")
-            exit(1)
+            sys.exit(1)
 
         db_names.append(db_name)
 
@@ -205,7 +206,7 @@ def download(configpath, debug, verbose):
 
     if not any((config.species_dbs, config.align_names)):
         click.secho("No genomes, no alignments specified", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if not config.species_dbs:
         species = elt_download.get_species_for_alignments(
@@ -342,17 +343,17 @@ def species_summary(installed, species):
     config = elt_config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if len(species) > 1:
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     species = species[0]
     path = config.installed_genome(species=species) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
     summary = elt_genome.get_species_summary(annot_db=annot_db, species=species)
@@ -394,7 +395,7 @@ def alignments(
             "ERROR: must specify a reference genome",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     if force_overwrite:
         shutil.rmtree(outdir, ignore_errors=True)
@@ -407,7 +408,7 @@ def alignments(
             f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     align_db = elt_align.AlignDb(source=align_path)
     ref_species = elt_species.Species.get_ensembl_db_prefix(ref)
@@ -416,7 +417,7 @@ def alignments(
             f"species {ref!r} not in the alignment",
             fg="red",
         )
-        exit(1)
+        sys.exit(1)
 
     # get all the genomes
     if verbose:
@@ -435,7 +436,7 @@ def alignments(
                 f"'stableid' column missing from {str(ref_genes_file)!r}",
                 fg="red",
             )
-            exit(1)
+            sys.exit(1)
         stableids = table.columns["stableid"]
     else:
         stableids = None
@@ -517,7 +518,7 @@ def homologs(
 
     if ref is None:
         click.secho("ERROR: a reference species name is required, use --ref", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if force_overwrite:
         shutil.rmtree(outpath, ignore_errors=True)
@@ -607,16 +608,16 @@ def dump_genes(installed, species, outdir, limit):
     config = elt_config.read_installed_cfg(installed)
     if species is None:
         click.secho("ERROR: a species name is required", fg="red")
-        exit(1)
+        sys.exit(1)
 
     if len(species) > 1:
         click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     path = config.installed_genome(species=species[0]) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
         click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
     path = annot_db.source
