@@ -3,6 +3,7 @@ import shutil
 import sys
 
 import click
+import trogon
 from cogent3 import get_app, open_data_store
 from scitrack import CachingLogger
 
@@ -53,6 +54,11 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     return db_names
 
 
+_click_command_opts = dict(
+    no_args_is_help=True,
+    context_settings={"show_default": True},
+)
+
 # defining some of the options
 _cfgpath = click.option(
     "-c",
@@ -92,6 +98,7 @@ _outdir = click.option(
 _align_name = click.option(
     "--align_name",
     default=None,
+    required=True,
     help="Ensembl alignment name or a glob pattern, e.g. '*primates*'.",
 )
 _ref = click.option("--ref", default=None, help="Reference species.")
@@ -159,14 +166,14 @@ _mask_features = click.option(
 )
 
 
-@tui()
-@click.group()
+@trogon.tui()
+@click.group(**_click_command_opts)
 @click.version_option(__version__)
 def main():
     """Tools for obtaining and interrogating subsets of https://ensembl.org genomic data."""
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_dbrc_out
 def exportrc(outpath):
     """exports sample config and species table to the nominated path"""
@@ -185,7 +192,7 @@ def exportrc(outpath):
     click.secho(f"Contents written to {outpath}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_cfgpath
 @_debug
 @_verbose
@@ -236,7 +243,7 @@ def download(configpath, debug, verbose):
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_download
 @_nprocs
 @_force
@@ -299,7 +306,7 @@ def install(download, num_procs, force_overwrite, verbose):
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 def installed(installed):
     """show what is installed"""
@@ -334,7 +341,7 @@ def installed(installed):
         elt_util.rich_display(table)
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_species
 def species_summary(installed, species):
@@ -360,7 +367,7 @@ def species_summary(installed, species):
     elt_util.rich_display(summary)
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_outdir
 @_align_name
@@ -483,7 +490,7 @@ def alignments(
     click.secho("Done!", fg="green")
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_outpath
 @click.option(
@@ -597,7 +604,7 @@ def homologs(
     log_file_path.unlink()
 
 
-@main.command(no_args_is_help=True)
+@main.command(**_click_command_opts)
 @_installed
 @_species
 @_outdir
