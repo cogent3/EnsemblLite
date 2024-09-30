@@ -5,27 +5,12 @@ import click
 from cogent3 import get_app, open_data_store
 from scitrack import CachingLogger
 
-try:
-    from wakepy.keep import running as keep_running
-except ImportError:
-    from ensembl_tui._util import fake_wake as keep_running
-
-from trogon import tui
-
 from ensembl_tui import __version__
 from ensembl_tui import _config as elt_config
 from ensembl_tui import _download as elt_download
 from ensembl_tui import _genome as elt_genome
 from ensembl_tui import _species as elt_species
 from ensembl_tui import _util as elt_util
-
-try:
-    # trap flaky behaviour on linux
-    with keep_running():
-        ...
-
-except NotImplementedError:
-    from ensembl_tui._util import fake_wake as keep_running
 
 
 def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
@@ -235,7 +220,7 @@ def download(configpath, debug, verbose):
         print(config.species_dbs)
 
     config.write()
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
@@ -275,7 +260,7 @@ def install(download, num_procs, force_overwrite, verbose):
 
     config.install_path.mkdir(parents=True, exist_ok=True)
     elt_config.write_installed_cfg(config)
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
@@ -469,7 +454,7 @@ def alignments(
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
-    with keep_running():
+    with elt_util.keep_running():
         with progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
