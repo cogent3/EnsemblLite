@@ -577,7 +577,7 @@ def homologs(
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
         for seqs in get_seqs.as_completed(
             related,
-            parallel=True,
+            parallel=num_procs > 1,
             show_progress=False,
             par_kw=dict(max_workers=num_procs),
         ):
