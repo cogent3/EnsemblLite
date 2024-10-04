@@ -530,6 +530,11 @@ class collect_seqs:
                 type="FAIL",
                 origin=self,
                 message=f"no CDS for {homologs.source=}",
+                source=homologs.source,
             )
 
-        return make_unaligned_seqs(data=seqs, moltype="dna")
+        return make_unaligned_seqs(
+            data=seqs,
+            moltype="dna",
+            info=dict(source=homologs.source),
+        )
