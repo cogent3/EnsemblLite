@@ -586,17 +586,17 @@ def homologs(
                 if verbose:
                     print(f"{seqs=}")
                 out_dstore.write_not_completed(
-                    data=seqs.obj.to_json(),
-                    unique_id=seqs.source.source,
+                    data=seqs.to_json(),
+                    unique_id=seqs.source,
                 )
                 continue
-            if not seqs.obj.seqs:
+            if not seqs.seqs:
                 if verbose:
-                    print(f"{seqs.obj.seqs=}")
+                    print(f"{seqs.seqs=}")
                 continue
 
-            txt = seqs.obj.to_fasta()
-            out_dstore.write(data=txt, unique_id=seqs.source.source)
+            txt = seqs.to_fasta()
+            out_dstore.write(data=txt, unique_id=seqs.info.source)
 
     log_file_path = pathlib.Path(LOGGER.log_file_path)
     LOGGER.shutdown()
