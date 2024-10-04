@@ -972,9 +972,14 @@ class Genome:
             name = f"{self.species}:{seqid}:{start}-{stop}"
         # we use seqid to make the sequence here because that identifies the
         # parent seq identity, required for querying annotations
-        seq = make_seq(seq, name=seqid, moltype="dna")
+        try:
+            seq = make_seq(seq, name=seqid, moltype="dna", annotation_offset=start or 0)
+        except TypeError:
+            # older version of cogent3
+            seq = make_seq(seq, name=seqid, moltype="dna")
+            seq.annotation_offset = start or 0
+
         seq.name = name
-        seq.annotation_offset = start or 0
         seq.annotation_db = self.annotation_db if with_annotations else None
         return seq
 
