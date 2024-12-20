@@ -92,7 +92,7 @@ def local_install_genomes(
     for result in tasks:
         if not result:
             print(result)
-            raise RuntimeError
+            raise RuntimeError(f"{result=}")
 
         if progress is not None:
             progress.update(writing, description=msg, advance=1)
