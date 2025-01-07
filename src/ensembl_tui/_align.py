@@ -1,5 +1,6 @@
 import pathlib
 import typing
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -85,6 +86,9 @@ class GapStore(elt_mixin.Hdf5Mixin):
         mode: str = "r",
         in_memory: bool = False,
     ):
+        in_memory = in_memory or "memory" in str(source)
+        source = uuid.uuid4().hex if in_memory else source
+
         self.source = pathlib.Path(source)
         self.mode = "w-" if mode == "w" else mode
         h5_kwargs = (
