@@ -6,6 +6,7 @@ import pathlib
 import re
 import sqlite3
 import typing
+import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -799,25 +800,25 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
         in_memory: bool = False,
     ):
         # note that species are converted into the Ensembl db prefix
+        in_memory = in_memory or "memory" in str(source)
+        source = uuid.uuid4().hex if in_memory else source
+        self.source = pathlib.Path(source)
 
-        source = pathlib.Path(source)
-        self.source = source
-
-        if mode == "r" and not source.exists():
+        if not in_memory and mode == "r" and not self.source.exists():
             raise OSError(f"{self.source!s} not found")
 
         species = (
             elt_species.Species.get_ensembl_db_prefix(species) if species else None
         )
         self.mode = "w-" if mode == "w" else mode
-        if in_memory:
-            h5_kwargs = dict(
+        h5_kwargs = (
+            dict(
                 driver="core",
                 backing_store=False,
             )
-        else:
-            h5_kwargs = {}
-
+            if in_memory
+            else {}
+        )
         try:
             self._file: h5py.File = h5py.File(source, mode=self.mode, **h5_kwargs)
         except OSError:

@@ -50,3 +50,6 @@ venv/
 working/
 # vi
 .*.swp
+
+# test data installed via download
+small-113/*

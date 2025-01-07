@@ -36,3 +36,4 @@ dist/*
 working/*
 lcov*.info
 .ruff_cache/*
+small-113/*

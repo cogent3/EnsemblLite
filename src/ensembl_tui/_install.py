@@ -92,7 +92,7 @@ def local_install_genomes(
     for result in tasks:
         if not result:
             print(result)
-            raise RuntimeError
+            raise RuntimeError(f"{result=}")
 
         if progress is not None:
             progress.update(writing, description=msg, advance=1)
@@ -176,7 +176,7 @@ def local_install_homology(
     dirnames = []
     for sp in config.db_names:
         path = config.staging_homologies / sp
-        dirnames.extend(list(path.glob("*.tsv.gz")))
+        dirnames.extend(list(path.glob("*.tsv*")))
 
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)
