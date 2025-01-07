@@ -176,7 +176,7 @@ def local_install_homology(
     dirnames = []
     for sp in config.db_names:
         path = config.staging_homologies / sp
-        dirnames.extend(list(path.glob("*.tsv.gz")))
+        dirnames.extend(list(path.glob("*.tsv*")))
 
     if max_workers:
         max_workers = min(len(dirnames) + 1, max_workers)

@@ -171,7 +171,7 @@ class valid_compara_homology:
     """homology tsv files"""
 
     def __init__(self) -> None:
-        self._valid = re.compile("([.]tsv[.]gz|README|MD5SUM)")
+        self._valid = re.compile("([.]tsv|[.]tsv[.]gz|README|MD5SUM)$")
 
     def __call__(self, name: str) -> bool:
         return self._valid.search(name) is not None
@@ -208,7 +208,7 @@ def download_homology(
             elt_ftp.listdir(config.host, remote_path, valid_compara_homology()),
         )
         if verbose:
-            print(remote_paths)
+            print(f"{remote_path=}", f"{remote_paths=}", sep="\n")
 
         if debug:
             # we need the checksum files
