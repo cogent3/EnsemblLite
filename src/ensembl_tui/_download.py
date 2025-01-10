@@ -12,7 +12,7 @@ from ensembl_tui import _site_map as elt_site_map
 from ensembl_tui import _species as elt_species
 from ensembl_tui import _util as elt_util
 
-_cfg = elt_util.get_resource_path("sample.cfg")
+DEFAULT_CFG = elt_util.get_resource_path("sample.cfg")
 
 _invalid_seq = re.compile("(dna_(sm|rm)|(toplevel|primary_assembly).fa.gz)")
 

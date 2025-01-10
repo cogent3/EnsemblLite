@@ -63,7 +63,7 @@ _click_command_opts = dict(
 _cfgpath = click.option(
     "-c",
     "--configpath",
-    default=elt_download._cfg,
+    default=elt_download.DEFAULT_CFG,
     type=pathlib.Path,
     help="Path to config file specifying databases, (only "
     "species or compara at present).",
@@ -200,7 +200,7 @@ def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
     from rich import progress
 
-    if configpath.name == elt_download._cfg:  # noqa: SLF001
+    if configpath.name == elt_download.DEFAULT_CFG:
         # TODO is this statement correct if we're seting a root dir now?
         elt_util.print_colour(
             text="WARN: using the built in demo cfg, will write to /tmp",
