@@ -78,13 +78,6 @@ _installed = click.option(
     callback=_get_installed_config_path,
     help="Path to root directory of an installation.",
 )
-_outpath = click.option(
-    "-o",
-    "--outpath",
-    required=True,
-    type=pathlib.Path,
-    help="path to write json file",
-)
 _outdir = click.option(
     "-od",
     "--outdir",
@@ -247,7 +240,12 @@ def download(configpath, debug, verbose):
 @_nprocs
 @_force
 @_verbose
-def install(download, num_procs, force_overwrite, verbose):
+def install(
+    download: pathlib.Path,
+    num_procs: int,
+    force_overwrite: bool,
+    verbose: bool,
+) -> None:
     """create the local representations of the data"""
     from rich import progress
 
@@ -364,14 +362,6 @@ def species_summary(installed, species):
         sys.exit(1)
 
     species = species[0]
-    path = config.installed_genome(species=species) / elt_genome.ANNOT_STORE_NAME
-    if not path.exists():
-        elt_util.print_colour(
-            text=f"{species!r} not in {str(config.install_path.parent)!r}",
-            colour="red",
-        )
-        sys.exit(1)
-
     annot_db = eti_genome.load_annotations_for_species(
         path=config.installed_genome(species=species),
     )
@@ -509,7 +499,7 @@ def alignments(
 
 @main.command(**_click_command_opts)
 @_installed
-@_outpath
+@_outdir
 @click.option(
     "-r",
     "--relationship",
@@ -524,7 +514,7 @@ def alignments(
 @_verbose
 def homologs(
     installed,
-    outpath,
+    outdir,
     relationship,
     ref,
     num_procs,
@@ -548,11 +538,11 @@ def homologs(
         sys.exit(1)
 
     if force_overwrite:
-        shutil.rmtree(outpath, ignore_errors=True)
+        shutil.rmtree(outdir, ignore_errors=True)
 
-    outpath.mkdir(parents=True, exist_ok=True)
+    outdir.mkdir(parents=True, exist_ok=True)
 
-    LOGGER.log_file_path = outpath / f"homologs-{ref}-{relationship}.log"
+    LOGGER.log_file_path = outdir / f"homologs-{ref}-{relationship}.log"
 
     config = eti_config.read_installed_cfg(installed)
     eti_species.Species.update_from_file(config.genomes_path / "species.tsv")
@@ -562,7 +552,7 @@ def homologs(
     if verbose:
         eti_util.print_colour(text=f"Loaded genome for {ref!r}", colour="yellow")
 
-    gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
+    gene_ids = list(genome.get_ids_for_biotype(biotype="protein_coding"))
 
     if verbose:
         eti_util.print_colour(
@@ -601,8 +591,8 @@ def homologs(
                 colour="yellow",
             )
 
-        out_dstore = open_data_store(base_path=outpath, suffix="fa", mode="w")
         get_seqs = eti_homology.collect_seqs(config=config)
+        out_dstore = open_data_store(base_path=outdir, suffix="fa", mode="w")
 
         reading = progress.add_task(total=len(related), description="Extracting  🧬")
         for seqs in get_seqs.as_completed(
@@ -655,15 +645,9 @@ def dump_genes(installed, species, outdir, limit):
         )
         sys.exit(1)
 
-    path = config.installed_genome(species=species[0]) / elt_genome.ANNOT_STORE_NAME
-    if not path.exists():
-        elt_util.print_colour(
-            text=f"{species!r} not in {str(config.install_path.parent)!r}",
-            colour="red",
-        )
-        sys.exit(1)
-
-    annot_db = elt_genome.load_annotations_for_species(path=path)
+    annot_db = eti_genome.load_annotations_for_species(
+        path=config.installed_genome(species=species[0]),
+    )
     path = annot_db.source
     table = eti_genome.get_gene_table_for_species(annot_db=annot_db, limit=limit)
     outdir.mkdir(parents=True, exist_ok=True)
