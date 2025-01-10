@@ -9,6 +9,7 @@ from rich.progress import Progress
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _ftp_download as eti_ftp
 from ensembl_tui import _mysql_core_attr as eti_db_attr
+from ensembl_tui import _mysql_ingest as eti_db_ingest
 from ensembl_tui import _name as eti_name
 from ensembl_tui import _site_map as eti_site_map
 from ensembl_tui import _species as eti_species
@@ -60,14 +61,56 @@ def get_remote_mysql_paths(db_name: str) -> list[str]:
     return [f"{db_name}/{name}" for name in eti_db_attr.make_mysqldump_names()]
 
 
+def make_core_db_templates(
+    config: eti_config.Config,
+    sp_db_map: dict[str, str],
+    progress: Progress | None = None,
+) -> None:
+    """creates duckdb db files for importing Ensembl mysql data
+
+    Parameters
+    ----------
+    config
+        eti configuration
+    sp_db_map
+        mapping of species to mysql db names
+    progress
+        rich.progress context manager for tracking progress
+
+    Notes
+    -----
+    Communicates with the Ensembl MySQL server to infer the table schema's.
+    """
+    table_names = eti_db_attr.get_all_tables()
+    if progress is not None:
+        msg = "Making db templates"
+        make_templates = progress.add_task(
+            total=len(table_names),
+            description=msg,
+        )
+
+    template_dest = config.staging_template_path
+    # get one species db name which wqe use to infer the db schema
+    db_name = next(iter(sp_db_map.values())).split("/")[-1]
+    template_dest.mkdir(parents=True, exist_ok=True)
+    for table_name in table_names:
+        eti_db_ingest.make_table_template(
+            dest_dir=template_dest,
+            db_name=db_name,
+            table_name=table_name,
+        )
+        if progress is not None:
+            progress.update(make_templates, description=msg, advance=1)
+
+
 def download_species(
     config: eti_config.Config,
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
 ) -> None:
-    """download seq and gff data"""
-    remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
+    """download seq and annotation data"""
+    remote_template = f"{config.remote_release_path}/" + "{}"
     site_map = eti_site_map.get_site_map(config.host)
     if verbose:
         eti_util.print_colour(
@@ -85,6 +128,9 @@ def download_species(
 
     sp_db_map = get_core_db_dirnames(config)
 
+    # create the duckdb templates for the tables, if they don't exist
+    make_core_db_templates(config, sp_db_map, progress=progress)
+
     msg = "Downloading genomes"
     if progress is not None:
         species_download = progress.add_task(
@@ -97,26 +143,35 @@ def download_species(
         db_prefix = eti_species.Species.get_ensembl_db_prefix(key)
         local_root = config.staging_genomes / db_prefix
         local_root.mkdir(parents=True, exist_ok=True)
-        for subdir in ("fasta", "gff3"):
-            if subdir == "fasta":
-                remote = site_map.get_seqs_path(db_prefix)
-            else:
-                remote = site_map.get_annotations_path(db_prefix)
+        # getting genome sequences
+        remote = site_map.get_seqs_path(db_prefix)
+        remote_dir = remote_template.format(remote)
+        remote_paths = list(
+            eti_ftp.listdir(config.host, path=remote_dir, pattern=patterns["fasta"]),
+        )
+        if verbose:
+            eti_util.print_colour(text=f"{remote_paths=}", colour="yellow")
 
-            remote_dir = remote_template.format(remote)
-            remote_paths = list(
-                elt_ftp.listdir(config.host, path=remote_dir, pattern=patterns[subdir]),
-            )
-            if verbose:
-                print(f"{remote_paths=}")
-            if debug:
-                # we need the checksum files
-                paths = [p for p in remote_paths if elt_util.is_signature(p)]
-                # but fewer data files, to reduce time for debugging
-                remote_paths = [
-                    p for p in remote_paths if not elt_util.dont_checksum(p)
-                ]
-                remote_paths = remote_paths[:4] + paths
+        if debug:
+            # we need the checksum files
+            paths = [p for p in remote_paths if eti_util.is_signature(p)]
+            # but fewer data files, to reduce time for debugging
+            remote_paths = [p for p in remote_paths if not eti_util.dont_checksum(p)]
+            remote_paths = remote_paths[:4] + paths
+
+        dest_path = config.staging_genomes / db_prefix / "fasta"
+        dest_path.mkdir(parents=True, exist_ok=True)
+        # cleanup previous download attempts
+        _remove_tmpdirs(dest_path)
+        icon = "🧬🧬"
+        eti_ftp.download_data(
+            host=config.host,
+            local_dest=dest_path,
+            remote_paths=remote_paths,
+            description=f"{db_prefix[:10]}... {icon}",
+            do_checksum=True,
+            progress=progress,
+        )
 
         # getting the annotations from mysql tables
         remote_dir = sp_db_map[db_prefix]

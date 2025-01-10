@@ -55,6 +55,10 @@ class Config:
     def remote_release_path(self) -> str:
         return f"{self.remote_path}/release-{self.release}"
 
+    @property
+    def staging_template_path(self) -> pathlib.Path:
+        return self.staging_genomes / "coredb_templates"
+
     def update_species(self, species: dict[str, list[str]]) -> None:
         if not species:
             return
