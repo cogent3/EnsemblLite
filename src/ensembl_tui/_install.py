@@ -4,21 +4,10 @@ from rich.progress import Progress
 
 from ensembl_tui import _align as eti_align
 from ensembl_tui import _config as eti_config
-
-
-def _make_src_dest_annotation_paths(
-    src_dir: pathlib.Path,
-    dest_dir: pathlib.Path,
-) -> list[tuple[pathlib.Path, pathlib.Path]]:
-    src_dir = src_dir / "gff3"
-    dest = dest_dir / elt_genome.ANNOT_STORE_NAME
-    paths = list(src_dir.glob("*.gff3.gz"))
-    return [(path, dest) for path in paths]
-
-
 from ensembl_tui import _genome as eti_genome
 from ensembl_tui import _homology as eti_homology
 from ensembl_tui import _maf as eti_maf
+from ensembl_tui import _mysql_ingest as eti_db_ingest
 from ensembl_tui import _species as eti_species
 from ensembl_tui import _util as eti_util
 
@@ -47,35 +36,8 @@ def local_install_genomes(
     if verbose:
         print(f"genomes {max_workers=}")
 
-    # we load the individual gff3 files and write to annotation db's
-    src_dest_paths = []
-    for db_name in config.db_names:
-        src_dir = config.staging_genomes / db_name
-        dest_dir = config.install_genomes / db_name
-        src_dest_paths.extend(_make_src_dest_annotation_paths(src_dir, dest_dir))
-
-    msg = "Installing features 📚"
-    if progress is not None:
-        writing = progress.add_task(total=len(src_dest_paths), description=msg)
-
-    tasks = elt_util.get_iterable_tasks(
-        func=elt_genome.make_annotation_db,
-        series=src_dest_paths,
-        max_workers=max_workers,
-    )
-    for db_name, prefixes in tasks:
-        if verbose:
-            print(f"{db_name=} {prefixes=}")
-
-        if prefixes:
-            for prefix in prefixes:
-                elt_species.Species.add_stableid_prefix(db_name, prefix)
-
-        if progress is not None:
-            progress.update(writing, description=msg, advance=1)
-
-    species_table = elt_species.Species.to_table()
-    species_table.write(config.install_genomes / elt_species.SPECIES_NAME)
+    # we do this the installation of features in serial for now
+    eti_db_ingest.install_parquet_tables(config=config, progress=progress)
     species_table = eti_species.Species.to_table()
     species_table.write(config.install_genomes / eti_species.SPECIES_NAME)
     if verbose:
