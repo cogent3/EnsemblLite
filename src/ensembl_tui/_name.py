@@ -56,7 +56,7 @@ class EnsemblDbName:
     def __init__(self, db_name: str) -> None:
         """db_name: and Emsembl database name"""
         self.name = db_name
-        self.type = get_dbtype_from_name(db_name)
+        self.db_type = get_dbtype_from_name(db_name)
         self.prefix = get_db_prefix(db_name)
 
         release, build = get_version_from_name(db_name)
@@ -65,7 +65,7 @@ class EnsemblDbName:
 
         self.build = None
         if build and len(build) == 1:
-            if self.type != "compara":
+            if self.db_type != "compara":
                 self.build = build[0]
             else:
                 self.general_release = build[0]
@@ -77,7 +77,7 @@ class EnsemblDbName:
 
     def __repr__(self) -> str:
         build = f"; build='{self.build}'" if self.build is not None else ""
-        return f"db(prefix='{self.prefix}'; type='{self.type}'; release='{self.release}'{build})"
+        return f"db(prefix='{self.prefix}'; type='{self.db_type}'; release='{self.release}'{build})"
 
     def __str__(self) -> str:
         return self.name
