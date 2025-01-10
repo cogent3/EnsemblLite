@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import pathlib
 import shutil
 
 from rich.progress import Progress
@@ -14,9 +13,9 @@ from ensembl_tui import _util as elt_util
 
 
 def _make_src_dest_annotation_paths(
-    src_dir: elt_util.PathType,
-    dest_dir: elt_util.PathType,
-) -> list[tuple[elt_util.PathType, elt_util.PathType]]:
+    src_dir: pathlib.Path,
+    dest_dir: pathlib.Path,
+) -> list[tuple[pathlib.Path, pathlib.Path]]:
     src_dir = src_dir / "gff3"
     dest = dest_dir / elt_genome.ANNOT_STORE_NAME
     paths = list(src_dir.glob("*.gff3.gz"))
@@ -29,7 +28,7 @@ def local_install_genomes(
     max_workers: int | None,
     verbose: bool = False,
     progress: Progress | None = None,
-):
+) -> None:
     if force_overwrite:
         shutil.rmtree(config.install_genomes, ignore_errors=True)
     # we create the local installation

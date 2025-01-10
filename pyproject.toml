@@ -150,7 +150,11 @@ target-version = "py310"
 # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
 # McCabe complexity (`C901`) by default.
 select = ["ALL"]
-ignore = ["EXE002", "FA100", "E501", "D"]
+# ignoring checks on having boolean flag as arguments to functions
+# ignoring checks on the number of arguments to a functions
+# numpy should NOT always be imported as np
+# turning of SQL injectiuon risk warnings, we are querying public data only
+ignore = ["EXE002", "FA100", "E501", "D", "ICN001", "FBT001", "FBT002", "PLR0913", "S608"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

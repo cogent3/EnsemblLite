@@ -1,4 +1,5 @@
 import pathlib
+import typing
 from collections.abc import Callable
 from ftplib import FTP
 
@@ -14,7 +15,11 @@ def configured_ftp(host: str = "ftp.ensembl.org") -> FTP:
     return ftp
 
 
-def listdir(host: str, path: str, pattern: Callable = None):
+def listdir(
+    host: str,
+    path: str,
+    pattern: Callable | None = None,
+) -> typing.Iterator[str]:
     """returns directory listing"""
     pattern = pattern or (lambda x: True)
     ftp = configured_ftp(host=host)
@@ -67,7 +72,7 @@ def download_data(
     host: str,
     local_dest: elt_util.PathType,
     remote_paths: list[elt_util.PathType],
-    description,
+    description: str,
     do_checksum: bool,
     progress: Progress | None = None,
 ) -> bool:

@@ -1,6 +1,7 @@
 import configparser
 import fnmatch
 import pathlib
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -46,16 +47,17 @@ class Config:
     tree_names: Iterable[str]
     homologies: bool
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.staging_path = pathlib.Path(self.staging_path)
         self.install_path = pathlib.Path(self.install_path)
 
-    def update_species(self, species: dict[str, list[str]]):
+    def update_species(self, species: dict[str, list[str]]) -> None:
         if not species:
             return
         for k in species:
             if k not in elt_species.Species:
-                raise ValueError(f"Unknown species {k}")
+                msg = f"Unknown species {k=!r}"
+                raise ValueError(msg)
         self.species_dbs |= species
 
     @property
@@ -90,7 +92,8 @@ class Config:
     def to_dict(self, relative_paths: bool = True) -> dict[str, str]:
         """returns cfg as a dict"""
         if not self.db_names:
-            raise ValueError("no db names")
+            msg = "no db names"
+            raise ValueError(msg)
 
         if not relative_paths:
             staging_path = str(self.staging_path)
@@ -125,7 +128,7 @@ class Config:
 
         return data
 
-    def write(self):
+    def write(self) -> None:
         """writes a ini to staging_path/DOWNLOADED_CONFIG_NAME
 
         Notes
@@ -149,10 +152,10 @@ class InstalledConfig:
     release: str
     install_path: pathlib.Path
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return id(self)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.install_path = pathlib.Path(self.install_path)
 
     @property
@@ -175,7 +178,7 @@ class InstalledConfig:
         db_name = elt_species.Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
-    def list_genomes(self):
+    def list_genomes(self) -> list[str]:
         """returns list of installed genomes"""
         return [
             p.name for p in self.genomes_path.glob("*") if p.name in elt_species.Species
@@ -198,8 +201,9 @@ class InstalledConfig:
             return None
 
         if len(align_dirs) > 1:
+            msg = f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}"
             raise ValueError(
-                f"{pattern!r} matches too many directories in {self.aligns_path} {align_dirs}",
+                msg,
             )
 
         return align_dirs[0]
@@ -227,7 +231,7 @@ def read_installed_cfg(path: elt_util.PathType) -> InstalledConfig:
     )
     if not path.exists():
         print(f"{path!s} does not exist, exiting")
-        exit(1)
+        sys.exit(1)
 
     parser.read(path)
     release = parser.get("release", "release")
@@ -252,7 +256,7 @@ def read_config(
 
     if not config_path.exists():
         click.secho(f"File not found {config_path.resolve()!s}", fg="red")
-        exit(1)
+        sys.exit(1)
 
     parser = configparser.ConfigParser()
 
@@ -300,7 +304,7 @@ def read_config(
         for tree_name in tree_names:
             tree = download_ensembl_tree(host, remote_path, release, tree_name)
             sp = elt_species.species_from_ensembl_tree(tree)
-            species_dbs.update(sp)
+            species_dbs |= sp
 
     return Config(
         host=host,

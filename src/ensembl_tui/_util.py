@@ -12,16 +12,18 @@ import uuid
 from collections.abc import Callable
 from hashlib import md5
 from tempfile import mkdtemp
-from typing import IO, Union
+from typing import IO
 
 import blosc2
 import hdf5plugin
 import numba
 import numpy
+import typing_extensions
 from cogent3.app.composable import define_app
+from cogent3.util import table as c3_table
 from cogent3.util.parallel import as_completed
 
-PathType = Union[str, pathlib.Path, os.PathLike]
+PathType = str | pathlib.Path | os.PathLike
 
 try:
     from wakepy.keep import running as keep_running
@@ -54,7 +56,7 @@ def md5sum(data: bytes, *args) -> str:
 # based on https://www.reddit.com/r/learnpython/comments/9bpgjl/implementing_bsd_16bit_checksum/
 # and https://www.gnu.org/software/coreutils/manual/html_node/sum-invocation.html#sum-invocation
 @numba.jit(nopython=True)
-def checksum(data: bytes, size: int):  # pragma: no cover
+def checksum(data: bytes, size: int) -> tuple[int, int]:  # pragma: no cover
     """computes BSD style checksum"""
     # equivalent to command line BSD sum
     nb = numpy.ceil(size / 1024)
@@ -77,7 +79,8 @@ def _get_resource_dir() -> PathType:
 
     path = pathlib.Path(path).expanduser().absolute()
     if not path.exists():
-        raise ValueError(f"ENSEMBLDBRC directory {str(path)!r} does not exist")
+        msg = f"ENSEMBLDBRC directory {str(path)!r} does not exist"
+        raise ValueError(msg)
 
     return pathlib.Path(path)
 
@@ -93,7 +96,11 @@ def get_resource_path(resource: PathType) -> PathType:
 ENSEMBLDBRC = _get_resource_dir()
 
 
-def exec_command(cmnd, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+def exec_command(
+    cmnd: str,
+    stdout: int = subprocess.PIPE,
+    stderr: int = subprocess.PIPE,
+) -> str | None:
     """executes shell command and returns stdout if completes exit code 0
 
     Parameters
@@ -116,24 +123,26 @@ def exec_command(cmnd, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
 class CaseInsensitiveString(str):
     """A case-insensitive string class. Comparisons are also case-insensitive."""
 
-    def __new__(cls, arg, h=None):
+    __slots__ = ("_hash", "_lower")
+
+    def __new__(cls, arg, h=None) -> "CaseInsensitiveString":
         n = str.__new__(cls, str(arg))
         n._lower = "".join(list(n)).lower()
         n._hash = hash(n._lower)
         return n
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing_extensions.Self) -> bool:
         return self._lower == "".join(list(other)).lower()
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # dict hashing done via lower case
         return self._hash
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "".join(list(self))
 
 
-def load_ensembl_checksum(path: PathType) -> dict:
+def load_ensembl_checksum(path: pathlib.Path) -> dict:
     """loads the BSD checksums from Ensembl CHECKSUMS file"""
     result = {}
     for line in path.read_text().splitlines():
@@ -146,7 +155,7 @@ def load_ensembl_checksum(path: PathType) -> dict:
     return result
 
 
-def load_ensembl_md5sum(path: PathType) -> dict:
+def load_ensembl_md5sum(path: pathlib.Path) -> dict:
     """loads the md5 sum from Ensembl MD5SUM file"""
     result = {}
     for line in path.read_text().splitlines():
@@ -159,10 +168,16 @@ def load_ensembl_md5sum(path: PathType) -> dict:
     return result
 
 
-class atomic_write:
+class atomic_write:  # noqa: N801
     """performs atomic write operations, cleans up if fails"""
 
-    def __init__(self, path: PathType, tmpdir=None, mode="wb", encoding=None):
+    def __init__(
+        self,
+        path: pathlib.Path,
+        tmpdir: str | None = None,
+        mode: str = "wb",
+        encoding: str | None = None,
+    ) -> None:
         """
 
         Parameters
@@ -187,7 +202,7 @@ class atomic_write:
         self.succeeded = None
         self._close_func = self._close_rename_standard
 
-    def _make_tmppath(self, tmpdir):
+    def _make_tmppath(self, tmpdir: str | None) -> pathlib.Path:
         """returns path of temporary file
 
         Parameters
@@ -206,21 +221,22 @@ class atomic_write:
         suffixes = "".join(self._path.suffixes)
         parent = self._path.parent
         name = f"{uuid.uuid4()}{suffixes}"
-        tmpdir = (
+        tmpdir: pathlib.Path = (
             pathlib.Path(mkdtemp(dir=parent))
             if tmpdir is None
             else pathlib.Path(tmpdir)
         )
 
         if not tmpdir.exists():
-            raise FileNotFoundError(f"{tmpdir} directory does not exist")
+            msg = f"{tmpdir} directory does not exist"
+            raise FileNotFoundError(msg)
 
         return tmpdir / name
 
-    def _get_fileobj(self):
+    def _get_fileobj(self) -> IO:
         """returns file to be written to"""
         if self._file is None:
-            self._file = open(self._tmppath, self._mode)
+            self._file = open(self._tmppath, self._mode)  # noqa: SIM115
 
         return self._file
 
@@ -238,8 +254,10 @@ class atomic_write:
 
         shutil.rmtree(src.parent)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._file.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):  # noqa: ANN204
+        if self._file is not None:
+            self._file.close()
+
         if exc_type is None:
             self._close_func(self._tmppath)
             self.succeeded = True
@@ -248,18 +266,18 @@ class atomic_write:
 
         shutil.rmtree(self._tmppath.parent, ignore_errors=True)
 
-    def write(self, text):
+    def write(self, text: str) -> None:
         """writes text to file"""
         fileobj = self._get_fileobj()
         fileobj.write(text)
 
-    def close(self):
+    def close(self) -> None:
         """closes file"""
         self.__exit__(None, None, None)
 
 
-_sig_load_funcs = dict(CHECKSUMS=load_ensembl_checksum, MD5SUM=load_ensembl_md5sum)
-_sig_calc_funcs = dict(CHECKSUMS=checksum, MD5SUM=md5sum)
+_sig_load_funcs = {"CHECKSUMS": load_ensembl_checksum, "MD5SUM": load_ensembl_md5sum}
+_sig_calc_funcs = {"CHECKSUMS": checksum, "MD5SUM": md5sum}
 _dont_checksum = re.compile("(CHECKSUMS|MD5SUM|README)")
 _sig_file = re.compile("(CHECKSUMS|MD5SUM)")
 
@@ -269,7 +287,7 @@ def dont_checksum(path: PathType) -> bool:
 
 
 @functools.singledispatch
-def is_signature(path: PathType) -> bool:
+def is_signature(path: pathlib.Path) -> bool:
     return _sig_file.search(path.name) is not None
 
 
@@ -279,9 +297,10 @@ def _(path: str) -> bool:
 
 
 @functools.singledispatch
-def get_sig_calc_func(sig_path) -> Callable:
+def get_sig_calc_func(sig_path) -> Callable:  # noqa: ANN001
     """returns signature calculating function based on Ensembl path name"""
-    raise NotImplementedError(f"{type(sig_path)} not supported")
+    msg = f"{type(sig_path)} not supported"
+    raise NotImplementedError(msg)
 
 
 @get_sig_calc_func.register
@@ -289,11 +308,11 @@ def _(sig_path: str) -> Callable:
     return _sig_calc_funcs[sig_path]
 
 
-def get_signature_data(path: PathType) -> Callable:
+def get_signature_data(path: pathlib.Path) -> dict:
     return _sig_load_funcs[path.name](path)
 
 
-def rich_display(c3t, title_justify="left"):
+def rich_display(c3t: c3_table.Table, title_justify: str = "left") -> None:
     """converts a cogent3 Table to a Rich Table and displays it"""
     from rich.console import Console
     from rich.table import Table
@@ -354,7 +373,8 @@ def trees_for_aligns(aligns, trees) -> dict[str, str]:
         ]
         v, p = max(dists)
         if v == 0:
-            raise ValueError(f"no tree for {align}")
+            msg = f"no tree for {align}"
+            raise ValueError(msg)
 
         result[align] = p
 
@@ -379,7 +399,7 @@ def blosc_compress_it(data: bytes) -> bytes:
 
 
 @define_app
-def blosc_decompress_it(data: bytes, as_bytearray=True) -> bytes:
+def blosc_decompress_it(data: bytes, as_bytearray: bool = True) -> bytes:
     return bytes(blosc2.decompress(data, as_bytearray=as_bytearray))
 
 
@@ -419,7 +439,7 @@ class SerialisableMixin:
 _quotes = re.compile(r"^[\'\"]|[\'\"]$")
 
 
-def strip_quotes(text: str):
+def strip_quotes(text: str) -> str:
     return _quotes.sub("", text)
 
 
@@ -428,7 +448,7 @@ def get_iterable_tasks(
     func: typing.Callable,
     series: typing.Sequence,
     max_workers: int | None,
-    **kwargs,
+    **kwargs: dict,
 ) -> typing.Iterator:
     if max_workers == 1:
         return map(func, series)
@@ -453,10 +473,12 @@ _feature_type_2 = {"FM", "GT"}
 def get_stableid_prefix(stableid: str) -> str:
     """returns the prefix component of a stableid"""
     if len(stableid) < 15:
-        raise ValueError(f"{stableid!r} too short")
+        msg = f"{stableid!r} too short"
+        raise ValueError(msg)
 
     if stableid[-13:-11] in _feature_type_2:
         return stableid[:-13]
     if stableid[-12] not in _feature_type_1:
-        raise ValueError(f"{stableid!r} has unknown feature type {stableid[-13]!r}")
+        msg = f"{stableid!r} has unknown feature type {stableid[-13]!r}"
+        raise ValueError(msg)
     return stableid[:-12]

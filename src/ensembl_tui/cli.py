@@ -200,13 +200,13 @@ def download(configpath, debug, verbose):
     """download data from Ensembl's ftp site"""
     from rich import progress
 
-    if configpath.name == elt_download._cfg:
+    if configpath.name == elt_download._cfg:  # noqa: SLF001
         # TODO is this statement correct if we're seting a root dir now?
         click.secho(
             "WARN: using the built in demo cfg, will write to /tmp",
             fg="yellow",
         )
-    config = elt_config.read_config(configpath, root_dir=pathlib.Path().resolve())
+    config = elt_config.read_config(configpath, root_dir=pathlib.Path.cwd())
 
     if verbose:
         print(config)
@@ -228,17 +228,19 @@ def download(configpath, debug, verbose):
         print(config.species_dbs)
 
     config.write()
-    with elt_util.keep_running():
-        with progress.Progress(
+    with (
+        elt_util.keep_running(),
+        progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
             progress.TaskProgressColumn(),
             progress.TimeRemainingColumn(),
             progress.TimeElapsedColumn(),
-        ) as progress:
-            elt_download.download_species(config, debug, verbose, progress=progress)
-            elt_download.download_homology(config, debug, verbose, progress=progress)
-            elt_download.download_aligns(config, debug, verbose, progress=progress)
+        ) as progress,
+    ):
+        elt_download.download_species(config, debug, verbose, progress=progress)
+        elt_download.download_homology(config, debug, verbose, progress=progress)
+        elt_download.download_aligns(config, debug, verbose, progress=progress)
 
     click.secho(f"Downloaded to {config.staging_path}", fg="green")
 
@@ -268,40 +270,42 @@ def install(download, num_procs, force_overwrite, verbose):
 
     config.install_path.mkdir(parents=True, exist_ok=True)
     elt_config.write_installed_cfg(config)
-    with elt_util.keep_running():
-        with progress.Progress(
+    with (
+        elt_util.keep_running(),
+        progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
             progress.TaskProgressColumn(),
             progress.TimeRemainingColumn(),
             progress.TimeElapsedColumn(),
-        ) as progress:
-            local_install_genomes(
-                config,
-                force_overwrite=force_overwrite,
-                max_workers=num_procs,
-                verbose=verbose,
-                progress=progress,
-            )
-            # On test cases, only 30% speedup from running install homology data
-            # in parallel due to overhead of pickling the data, but considerable
-            # increase in memory. So, run in serial to avoid memory issues since
-            # it's reasonably fast anyway. (At least until we have
-            # a more robust solution.)
-            local_install_homology(
-                config,
-                force_overwrite=force_overwrite,
-                max_workers=num_procs,
-                verbose=verbose,
-                progress=progress,
-            )
-            local_install_alignments(
-                config,
-                force_overwrite=force_overwrite,
-                max_workers=num_procs,
-                verbose=verbose,
-                progress=progress,
-            )
+        ) as progress,
+    ):
+        local_install_genomes(
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
+            progress=progress,
+        )
+        # On test cases, only 30% speedup from running install homology data
+        # in parallel due to overhead of pickling the data, but considerable
+        # increase in memory. So, run in serial to avoid memory issues since
+        # it's reasonably fast anyway. (At least until we have
+        # a more robust solution.)
+        local_install_homology(
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
+            progress=progress,
+        )
+        local_install_alignments(
+            config,
+            force_overwrite=force_overwrite,
+            max_workers=num_procs,
+            verbose=verbose,
+            progress=progress,
+        )
 
     click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
 
@@ -462,30 +466,32 @@ def alignments(
     )
     output = open_data_store(outdir, mode="w", suffix="fa")
     writer = get_app("write_seqs", format="fasta", data_store=output)
-    with elt_util.keep_running():
-        with progress.Progress(
+    with (
+        elt_util.keep_running(),
+        progress.Progress(
             progress.TextColumn("[progress.description]{task.description}"),
             progress.BarColumn(),
             progress.TaskProgressColumn(),
             progress.TimeRemainingColumn(),
             progress.TimeElapsedColumn(),
-        ) as progress:
-            task = progress.add_task(
-                total=limit or len(locations),
-                description="Getting alignment data",
-            )
-            for alignments in maker.as_completed(locations, show_progress=False):
-                progress.update(task, advance=1)
-                if not alignments:
-                    continue
-                input_source = alignments[0].info.source
-                if len(alignments) == 1:
-                    writer(alignments[0], identifier=input_source)
-                    continue
+        ) as progress,
+    ):
+        task = progress.add_task(
+            total=limit or len(locations),
+            description="Getting alignment data",
+        )
+        for alignments in maker.as_completed(locations, show_progress=False):
+            progress.update(task, advance=1)
+            if not alignments:
+                continue
+            input_source = alignments[0].info.source
+            if len(alignments) == 1:
+                writer(alignments[0], identifier=input_source)
+                continue
 
-                for i, aln in enumerate(alignments):
-                    identifier = f"{input_source}-{i}"
-                    writer(aln, identifier=identifier)
+            for i, aln in enumerate(alignments):
+                identifier = f"{input_source}-{i}"
+                writer(aln, identifier=identifier)
 
     click.secho("Done!", fg="green")
 

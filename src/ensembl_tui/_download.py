@@ -1,6 +1,7 @@
 import pathlib
 import re
 import shutil
+import typing
 
 import click
 from cogent3 import load_tree
@@ -22,7 +23,7 @@ def valid_seq_file(name: str) -> bool:
     return _invalid_seq.search(name) is None
 
 
-class valid_gff3_file:
+class valid_gff3_file:  # noqa: N801
     """whole genome gff3"""
 
     def __init__(self, release: str) -> None:
@@ -32,7 +33,7 @@ class valid_gff3_file:
         return self._valid.search(name) is not None
 
 
-def _remove_tmpdirs(path: elt_util.PathType):
+def _remove_tmpdirs(path: elt_util.PathType) -> None:
     """delete any tmp dirs left over from unsuccessful runs"""
     tmpdirs = [p for p in path.glob("tmp*") if p.is_dir()]
     for tmpdir in tmpdirs:
@@ -44,7 +45,7 @@ def download_species(
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
-):
+) -> None:
     """download seq and gff data"""
     remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
     site_map = elt_site_map.get_site_map(config.host)
@@ -60,7 +61,7 @@ def download_species(
             description=msg,
         )
 
-    patterns = dict(fasta=valid_seq_file, gff3=valid_gff3_file(config.release))
+    patterns = {"fasta": valid_seq_file, "gff3": valid_gff3_file(config.release)}
     for key in config.species_dbs:
         db_prefix = elt_species.Species.get_ensembl_db_prefix(key)
         local_root = config.staging_genomes / db_prefix
@@ -103,7 +104,7 @@ def download_species(
             progress.update(species_download, description=msg, advance=1)
 
 
-class valid_compara_align:
+class valid_compara_align:  # noqa: N801
     """whole genome alignment data"""
 
     def __init__(self) -> None:
@@ -118,7 +119,7 @@ def download_aligns(
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
-):
+) -> None:
     """download whole genome alignments"""
     if not config.align_names:
         return
@@ -253,7 +254,7 @@ def get_species_for_alignments(
     host: str,
     remote_path: str,
     release: str,
-    align_names: list[str],
+    align_names: typing.Iterable[str],
 ) -> dict[str, list[str]]:
     """return the species for the indicated alignments"""
     ensembl_trees = get_ensembl_trees(
