@@ -8,6 +8,7 @@ from rich.progress import Progress
 
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _ftp_download as eti_ftp
+from ensembl_tui import _name as eti_name
 from ensembl_tui import _site_map as eti_site_map
 from ensembl_tui import _species as eti_species
 from ensembl_tui import _util as eti_util
@@ -37,6 +38,21 @@ def _remove_tmpdirs(path: eti_util.PathType) -> None:
     tmpdirs = [p for p in path.glob("tmp*") if p.is_dir()]
     for tmpdir in tmpdirs:
         shutil.rmtree(tmpdir)
+
+
+def get_core_db_dirnames(config: eti_config.Config) -> dict[str, str]:
+    """maps species name to ftp path to mysql core dbs"""
+    all_db_names = list(
+        eti_ftp.listdir(config.host, f"{config.remote_release_path}/mysql"),
+    )
+    selected_species = {}
+    for db_name in all_db_names:
+        if "_core_" not in db_name:
+            continue
+        db = eti_name.EnsemblDbName(db_name.rsplit("/", maxsplit=1)[1])
+        if db.species in config.species_dbs and db.db_type == "core":
+            selected_species[db.prefix] = db_name
+    return selected_species
 
 
 def download_species(

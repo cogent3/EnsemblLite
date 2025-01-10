@@ -9,6 +9,24 @@ from ._species import Species
 
 _release = re.compile(r"\d+")
 
+_db_types = (
+    "cdna",
+    "core",
+    "otherfeatures",
+    "rnaseq",
+    "variation",
+    "funcgen",
+    "compara",
+    "mart",
+)
+_db_type = re.compile(f'([.]{"|".join(_db_types)}[.])')
+_name_delim = re.compile("_")
+
+
+def get_dbtype_from_name(name: str) -> str:
+    """returns the data base type from the name"""
+    return match.group(0) if (match := _db_type.search(name)) else ""
+
 
 def get_version_from_name(name):
     """returns the release and build identifiers from an ensembl db_name"""
@@ -25,28 +43,11 @@ def get_version_from_name(name):
     return release, b
 
 
-_name_delim = re.compile("_")
-
-
-def get_dbtype_from_name(name: str) -> str:
-    """returns the data base type from the name"""
-    parts = _release.split(name)
-    parts = [s for s in _name_delim.split(parts[0]) if s]
-    return parts[1] if parts[0] == "ensembl" else parts[-1]
-
-
 def get_db_prefix(name: str) -> str:
     """returns the db prefix, typically an organism or `ensembl'"""
-    parts = _release.split(name)
-    parts = [s for s in _name_delim.split(parts[0]) if s]
-    if parts[0] == "ensembl":
-        prefix = "ensembl"
-    elif len(parts) > 2:
-        prefix = "_".join(parts[:-1])
-    else:
-        msg = f"Unknown name structure: {'_'.join(parts)}"
-        raise ValueError(msg)
-    return prefix
+    db_type = get_dbtype_from_name(name)
+    parts = name.split(db_type)[0].split("_")
+    return "_".join(parts[:-1])
 
 
 class EnsemblDbName:
