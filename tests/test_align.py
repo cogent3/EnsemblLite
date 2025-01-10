@@ -1,8 +1,74 @@
+import duckdb
 import numpy
 import pytest
 
-from ensembl_tui import _align as elt_align
-from ensembl_tui import _genome as elt_genome
+from ensembl_tui import _align as eti_align
+from ensembl_tui import _annotation as eti_annots
+from ensembl_tui import _genome as eti_genome
+
+
+def make_gene_attr(records: list[dict]) -> eti_annots.GeneView:
+    schema = (
+        "stable_id TEXT",
+        "biotype TEXT",
+        "seqid TEXT",
+        "start INTEGER",
+        "stop INTEGER",
+        "strand TINYINT",
+        "canonical_transcript_id INTEGER",
+        "symbol TEXT",
+        "gene_id INTEGER",
+        "description TEXT",
+    )
+    columns = [c.split()[0] for c in schema]
+    sql = f"""CREATE TABLE IF NOT EXISTS gene_attr ({','.join(schema)})"""
+    conn = duckdb.connect(":memory:")
+    conn.sql(sql)
+    sql = "INSERT INTO gene_attr VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    rows = [[r.get(c) for c in columns] for r in records]
+    conn.executemany(sql, parameters=rows)
+    return eti_annots.GeneView(source=":memory:", db=conn)
+
+
+def get_annotation_db() -> dict[str, eti_annots.Annotations]:
+    gene_attr = {
+        "s1": make_gene_attr(
+            [
+                {
+                    "seqid": "s1",
+                    "biotype": "protein_coding",
+                    "stable_id": "not-on-s2",
+                    "start": 4,
+                    "stop": 7,
+                },
+            ],
+        ),
+        "s2": make_gene_attr(
+            [
+                {
+                    "seqid": "s2",
+                    "biotype": "protein_coding",
+                    "stable_id": "includes-s2-gap",
+                    "start": 2,
+                    "stop": 6,
+                },
+            ],
+        ),
+        "s3": make_gene_attr(
+            [
+                {
+                    "seqid": "s3",
+                    "biotype": "protein_coding",
+                    "stable_id": "includes-s3-gap",
+                    "start": 22,
+                    "stop": 27,
+                },
+            ],
+        ),
+    }
+    for sp, gv in gene_attr.items():
+        gene_attr[sp] = eti_annots.Annotations(source=":memory:", genes=gv)
+    return gene_attr
 
 
 def small_seqs():
@@ -13,28 +79,12 @@ def small_seqs():
         "s2": "GTG------GTAGAAGTTCCAAATAATGAA",
         "s3": "GCTGAAGTAGTGGAAGTTGCAAAT---GAA",
     }
-    seqs = make_aligned_seqs(
+    return make_aligned_seqs(
         data=seqs,
         moltype="dna",
         array_align=False,
-        info=dict(species=dict(s1="human", s2="mouse", s3="dog")),
+        info={"species": {"s1": "human", "s2": "mouse", "s3": "dog"}},
     )
-    annot_db = elt_genome.EnsemblGffDb(source=":memory:")
-    annot_db.add_feature(seqid="s1", biotype="gene", name="not-on-s2", spans=[(4, 7)])
-    annot_db.add_feature(
-        seqid="s2",
-        biotype="gene",
-        name="includes-s2-gap",
-        spans=[(2, 6)],
-    )
-    annot_db.add_feature(
-        seqid="s3",
-        biotype="gene",
-        name="includes-s3-gap",
-        spans=[(22, 27)],
-    )
-    seqs.annotation_db = annot_db
-    return seqs
 
 
 def make_records(start, end, block_id):
@@ -52,7 +102,7 @@ def make_records(start, end, block_id):
             ).T
         else:
             gap_spans = numpy.array([], dtype=numpy.int32)
-        record = elt_align.AlignRecord(
+        record = eti_align.AlignRecord(
             source="blah",
             species=species[seq.name],
             block_id=block_id,
@@ -68,8 +118,7 @@ def make_records(start, end, block_id):
 
 @pytest.fixture
 def small_records():
-    records = make_records(1, 5, 0)
-    return records
+    return make_records(1, 5, 0)
 
 
 def test_aligndb_records_match_input(small_records):
@@ -77,14 +126,14 @@ def test_aligndb_records_match_input(small_records):
 
     orig_records = copy.deepcopy(small_records)
 
-    db = elt_align.AlignDb(source=":memory:")
+    db = eti_align.AlignDb(source=":memory:")
     db.add_records(records=small_records)
-    got = list(db.get_records_matching(species="human", seqid="s1"))[0]
+    got = next(iter(db.get_records_matching(species="human", seqid="s1")))
     assert got == set(orig_records)
 
 
 def test_aligndb_records_skip_duplicated_block_ids(small_records):
-    db = elt_align.AlignDb(source=":memory:")
+    db = eti_align.AlignDb(source=":memory:")
     db.add_records(records=small_records)
     orig = list(db.get_records_matching(species="human", seqid="s1"))
     db.add_records(records=small_records)
@@ -113,21 +162,21 @@ def _get_expected_seqindex(data: str, align_index: int) -> int:
 # based on a given alignment
 @pytest.fixture
 def genomedbs_aligndb(small_records):
-    align_db = elt_align.AlignDb(source=":memory:")
+    align_db = eti_align.AlignDb(source=":memory:")
     align_db.add_records(records=small_records)
     seqs = small_seqs().degap()
     species = seqs.info.species
     data = seqs.to_dict()
     genomes = {}
     for name, seq in data.items():
-        genome = elt_genome.SeqsDataHdf5(
+        genome = eti_genome.SeqsDataHdf5(
             source=f"{name}",
             species=species[name],
             mode="w",
             in_memory=True,
         )
         genome.add_records(records=[(name, seq)])
-        genomes[species[name]] = elt_genome.Genome(
+        genomes[species[name]] = eti_genome.Genome(
             seqs=genome,
             annots=None,
             species=species[name],
@@ -138,37 +187,36 @@ def genomedbs_aligndb(small_records):
 
 def test_building_alignment(genomedbs_aligndb, namer):
     genomes, align_db = genomedbs_aligndb
-    got = list(
-        elt_align.get_alignment(
-            align_db,
-            genomes,
-            ref_species="mouse",
-            seqid="s2",
-            namer=namer,
+    got = next(
+        iter(
+            eti_align.get_alignment(
+                align_db,
+                genomes,
+                ref_species="mouse",
+                seqid="s2",
+                namer=namer,
+            ),
         ),
-    )[0]
+    )
     orig = small_seqs()[1:5]
     assert got.to_dict() == orig.to_dict()
 
 
 @pytest.mark.parametrize(
     "kwargs",
-    (dict(ref_species="dodo", seqid="s2"),),
+    ({"ref_species": "dodo", "seqid": "s2"},),
 )
 def test_building_alignment_invalid_details(genomedbs_aligndb, kwargs):
     genomes, align_db = genomedbs_aligndb
     with pytest.raises(ValueError):
-        list(elt_align.get_alignment(align_db, genomes, **kwargs))
+        list(eti_align.get_alignment(align_db, genomes, **kwargs))
 
 
 def make_sample(two_aligns=False):
     aln = small_seqs()
     species = aln.info.species
     # make annotation db's
-    annot_dbs = {}
-    for name in aln.names:
-        feature_db = aln.annotation_db.subset(seqid=name)
-        annot_dbs[name] = feature_db
+    annot_dbs = get_annotation_db()
 
     # we will reverse complement the s2 genome compared to the original
     # this means our coordinates for alignment records from that genome
@@ -180,14 +228,14 @@ def make_sample(two_aligns=False):
         if seq.name == "s2":
             seq = seq.rc()
             s2_genome = str(seq)
-        genome = elt_genome.SeqsDataHdf5(
+        genome = eti_genome.SeqsDataHdf5(
             source=f"{name}",
             mode="w",
             in_memory=True,
             species=species[seq.name],
         )
         genome.add_records(records=[(name, str(seq))])
-        genomes[species[name]] = elt_genome.Genome(
+        genomes[species[name]] = eti_genome.Genome(
             seqs=genome,
             annots=annot_dbs[name],
             species=species[name],
@@ -197,7 +245,7 @@ def make_sample(two_aligns=False):
     align_records = _update_records(s2_genome, aln, "0", 1, 12)
     if two_aligns:
         align_records += _update_records(s2_genome, aln, "1", 22, 30)
-    align_db = elt_align.AlignDb(source=":memory:")
+    align_db = eti_align.AlignDb(source=":memory:")
     align_db.add_records(records=align_records)
 
     return genomes, align_db
@@ -253,7 +301,7 @@ def test_select_alignment_plus_strand(species_coord, start_end, namer):
     # one sequence is stored in reverse complement
     genomes, align_db = make_sample()
     got = list(
-        elt_align.get_alignment(
+        eti_align.get_alignment(
             align_db=align_db,
             genomes=genomes,
             ref_species=species,
@@ -290,7 +338,7 @@ def test_select_alignment_minus_strand(start_end, namer):
     # mouse sequence is on minus strand, so need to adjust
     # coordinates for query
     s2 = aln.get_seq("s2")
-    s2_ft = list(s2.get_features(name="selected"))[0]
+    s2_ft = next(iter(s2.get_features(name="selected")))
     if not any([start is None, end is None]):
         start = len(s2) - s2_ft.map.end
         end = len(s2) - s2_ft.map.start
@@ -306,7 +354,7 @@ def test_select_alignment_minus_strand(start_end, namer):
 
     genomes, align_db = make_sample(two_aligns=False)
     got = list(
-        elt_align.get_alignment(
+        eti_align.get_alignment(
             align_db=align_db,
             genomes=genomes,
             ref_species=species,
@@ -335,7 +383,9 @@ def test_get_alignment_features(coord):
         zip(("ref_species", "seqid", "ref_start", "ref_end"), coord, strict=False),
     )
     genomes, align_db = make_sample(two_aligns=False)
-    got = list(elt_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    got = next(
+        iter(eti_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs)),
+    )
     assert len(got.annotation_db) == 1
 
 
@@ -354,7 +404,9 @@ def test_get_alignment_masked_features(coord):
     )
     kwargs["mask_features"] = ["gene"]
     genomes, align_db = make_sample(two_aligns=False)
-    got = list(elt_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs))[0]
+    got = next(
+        iter(eti_align.get_alignment(align_db=align_db, genomes=genomes, **kwargs)),
+    )
     assert len(got.annotation_db) == 1
 
 
@@ -415,12 +467,12 @@ def test_get_species():
 
 def test_write_alignments(tmp_path):
     genomes, align_db = make_sample(two_aligns=True)
-    locations = elt_genome.get_gene_segments(
+    locations = eti_genome.get_gene_segments(
         annot_db=genomes["human"].annotation_db,
         species="human",
         stableids=["not-on-s2"],
     )
-    app = elt_align.construct_alignment(
+    app = eti_align.construct_alignment(
         align_db=align_db,
         genomes=genomes,
     )
@@ -433,7 +485,7 @@ def test_write_alignments(tmp_path):
     [numpy.array([[0, 24], [2, 3]], dtype=int), numpy.array([], dtype=int)],
 )
 def test_gapstore_add_retrieve(gaps):
-    gap_store = elt_align.GapStore(
+    gap_store = eti_align.GapStore(
         source="stuff",
         in_memory=True,
         mode="w",
@@ -447,7 +499,7 @@ def test_gapstore_add_retrieve(gaps):
 
 def test_gapstore_add_duplicate():
     a = numpy.array([[0, 24], [2, 3]], dtype=int)
-    gap_store = elt_align.GapStore(
+    gap_store = eti_align.GapStore(
         source="stuff",
         in_memory=True,
         mode="w",
@@ -463,7 +515,7 @@ def test_gapstore_add_duplicate():
 
 def test_gapstore_add_invalid_duplicate():
     a = numpy.array([[0, 24], [2, 3]], dtype=int)
-    gap_store = elt_align.GapStore(
+    gap_store = eti_align.GapStore(
         source="stuff",
         in_memory=True,
         mode="w",
@@ -478,12 +530,12 @@ def test_gapstore_add_invalid_duplicate():
 def small_db(small_records):
     import copy
 
-    db = elt_align.AlignDb(source=":memory:")
+    db = eti_align.AlignDb(source=":memory:")
     db.add_records(records=copy.deepcopy(small_records))
     return db
 
 
-@pytest.mark.parametrize("col", tuple(elt_align.AlignDb._index_columns["align"]))
+@pytest.mark.parametrize("col", tuple(eti_align.AlignDb._index_columns["align"]))
 def test_indexing(small_db, col):
     table_name = "align"
     expect = ("index", f"{col}_index", table_name)
