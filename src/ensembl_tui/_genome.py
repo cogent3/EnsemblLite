@@ -29,10 +29,10 @@ from cogent3.util.io import iter_splitlines
 from cogent3.util.table import Table
 from numpy.typing import NDArray
 
-from ensembl_tui import _config as elt_config
-from ensembl_tui import _species as elt_species
-from ensembl_tui import _storage_mixin as elt_mixin
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _config as eti_config
+from ensembl_tui import _species as eti_species
+from ensembl_tui import _storage_mixin as eti_mixin
+from ensembl_tui import _util as eti_util
 from ensembl_tui._faster_fasta import quicka_parser
 
 SEQ_STORE_NAME = "genome.seqs-hdf5_blosc2"
@@ -670,8 +670,8 @@ def _rename(label: str) -> str:
 
 
 @define_app
-class fasta_to_hdf5:
-    def __init__(self, config: elt_config.Config, label_to_name=_rename):
+class fasta_to_hdf5:  # noqa: N801
+    def __init__(self, config: eti_config.Config, label_to_name=_rename) -> None:
         self.config = config
         self.label_to_name = label_to_name
 
@@ -681,7 +681,7 @@ class fasta_to_hdf5:
 
         seq_store = SeqsDataHdf5(
             source=dest_dir / SEQ_STORE_NAME,
-            species=elt_species.Species.get_species_name(db_name),
+            species=eti_species.Species.get_species_name(db_name),
             mode="w",
         )
 
@@ -697,14 +697,14 @@ class fasta_to_hdf5:
         return True
 
 
-T = tuple[elt_util.PathType, list[tuple[str, str]]]
+T = tuple[eti_util.PathType, list[tuple[str, str]]]
 
 
 class SeqsDataABC(ABC):
     """interface for genome sequence storage"""
 
     # the storage reference, e.g. path to file
-    source: elt_util.PathType
+    source: eti_util.PathType
     species: str
     mode: str  # as per standard file opening modes, r, w, a
     _is_open = False
@@ -789,12 +789,12 @@ class arr2str:
 
 
 @dataclasses.dataclass
-class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
+class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
     """HDF5 sequence data storage"""
 
     def __init__(
         self,
-        source: elt_util.PathType,
+        source: eti_util.PathType,
         species: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
@@ -808,7 +808,7 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
             raise OSError(f"{self.source!s} not found")
 
         species = (
-            elt_species.Species.get_ensembl_db_prefix(species) if species else None
+            eti_species.Species.get_ensembl_db_prefix(species) if species else None
         )
         self.mode = "w-" if mode == "w" else mode
         h5_kwargs = (
@@ -860,7 +860,7 @@ class SeqsDataHdf5(elt_mixin.Hdf5Mixin, SeqsDataABC):
             name=seqid,
             data=seq,
             chunks=True,
-            **elt_util._HDF5_BLOSC2_KWARGS,
+            **eti_util._HDF5_BLOSC2_KWARGS,
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]):
@@ -1058,7 +1058,7 @@ def load_genome(*, config: elt_config.InstalledConfig, species: str):
 
 def get_seqs_for_ids(
     *,
-    config: elt_config.InstalledConfig,
+    config: eti_config.InstalledConfig,
     species: str,
     names: list[str],
     make_seq_name: typing.Callable | None = None,
@@ -1224,13 +1224,10 @@ def get_species_summary(
     species = species or annot_db.source.parent.name
     counts = annot_db.biotype_counts()
     try:
-        common_name = elt_species.Species.get_common_name(species)
+        common_name = eti_species.Species.get_common_name(species)
     except ValueError:
         common_name = species
 
-    return Table(
-        header=("biotype", "count"),
-        data=list(counts.items()),
-        title=f"{common_name} features",
-        column_templates={"count": lambda x: f"{x:,}"},
-    )
+    counts.title = f"{common_name} features"
+    counts.format_column("count", lambda x: f"{x:,}")
+    return counts

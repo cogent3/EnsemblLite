@@ -1,14 +1,12 @@
 import os
 import shutil
-import sys
 
 import pytest
 from click.testing import CliRunner
 
-from ensembl_tui import cli as elt_cli
+from ensembl_tui import cli as eti_cli
 
-if sys.platform.startswith("linux"):
-    pytest.skip("skipping cli on linux due to wakepy", allow_module_level=True)
+RUNNER = CliRunner()
 
 
 @pytest.mark.slow
@@ -17,8 +15,8 @@ def test_download(tmp_config):
     """runs download, install, drop according to a special test cfg"""
     tmp_dir = tmp_config.parent
     # now download
-    runner = CliRunner()
-    r = runner.invoke(elt_cli.download, [f"-c{tmp_config}"], catch_exceptions=False)
+
+    r = RUNNER.invoke(eti_cli.download, [f"-c{tmp_config}"], catch_exceptions=False)
     assert r.exit_code == 0, r.output
     # make sure the download checkpoint file exists
     genome_dir = tmp_dir / "staging" / "genomes"
@@ -35,9 +33,8 @@ def test_download(tmp_config):
 
 def test_exportrc(tmp_dir):
     """exportrc works correctly"""
-    runner = CliRunner()
     outdir = tmp_dir / "exported"
-    r = runner.invoke(elt_cli.exportrc, [f"-o{outdir}"])
+    r = RUNNER.invoke(eti_cli.exportrc, [f"-o{outdir}"])
     assert r.exit_code == 0, r.output
     fnames = os.listdir(outdir)
     assert "species.tsv" in fnames

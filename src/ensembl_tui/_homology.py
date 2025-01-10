@@ -13,9 +13,9 @@ from cogent3.app.typing import (
 from cogent3.parse.table import FilteringParser
 from cogent3.util.io import PathType, iter_splitlines
 
-from ensembl_tui import _config as elt_config
-from ensembl_tui import _genome as elt_genome
-from ensembl_tui import _storage_mixin as elt_mixin
+from ensembl_tui import _config as eti_config
+from ensembl_tui import _genome as eti_genome
+from ensembl_tui import _storage_mixin as eti_mixin
 
 HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
 
@@ -209,7 +209,7 @@ def merge_grouped(group1: T, group2: T) -> T:
 
 
 # the homology db stores pairwise relationship information
-class HomologyDb(elt_mixin.SqliteDbMixin):
+class HomologyDb(eti_mixin.SqliteDbMixin):
     table_names = "homology", "relationship", "member", "species", "stableid"
 
     _relationship_schema = {  # e.g. ortholog_one2one
@@ -489,7 +489,7 @@ class collect_seqs:
 
     def __init__(
         self,
-        config: elt_config.InstalledConfig,
+        config: eti_config.InstalledConfig,
         make_seq_name: typing.Callable | None = None,
         verbose: bool = False,
     ):
@@ -503,13 +503,13 @@ class collect_seqs:
         seqs = []
         for species, sp_genes in homologs.species_ids().items():
             if species not in self._genomes:
-                self._genomes[species] = elt_genome.load_genome(
+                self._genomes[species] = eti_genome.load_genome(
                     config=self._config,
                     species=species,
                 )
             genome = self._genomes[species]
             for name in sp_genes:
-                cds = list(genome.get_gene_cds(name=name, is_canonical=True))
+                cds = list(genome.get_cds(stable_id=name))
                 if not cds:
                     if self._verbose:
                         print(f"no cds for {name=} {type(name)=}")

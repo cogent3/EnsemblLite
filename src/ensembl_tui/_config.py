@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 import click
 
-from ensembl_tui import _species as elt_species
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _species as eti_species
+from ensembl_tui import _util as eti_util
 
 INSTALLED_CONFIG_NAME = "installed.cfg"
 DOWNLOADED_CONFIG_NAME = "downloaded.cfg"
@@ -55,7 +55,7 @@ class Config:
         if not species:
             return
         for k in species:
-            if k not in elt_species.Species:
+            if k not in eti_species.Species:
                 msg = f"Unknown species {k=!r}"
                 raise ValueError(msg)
         self.species_dbs |= species
@@ -63,7 +63,7 @@ class Config:
     @property
     def db_names(self) -> Iterable[str]:
         for species in self.species_dbs:
-            yield elt_species.Species.get_ensembl_db_prefix(species)
+            yield eti_species.Species.get_ensembl_db_prefix(species)
 
     @property
     def staging_genomes(self) -> pathlib.Path:
@@ -175,13 +175,13 @@ class InstalledConfig:
         return self.install_path / _GENOMES_NAME
 
     def installed_genome(self, species: str) -> pathlib.Path:
-        db_name = elt_species.Species.get_ensembl_db_prefix(species)
+        db_name = eti_species.Species.get_ensembl_db_prefix(species)
         return self.genomes_path / db_name
 
     def list_genomes(self) -> list[str]:
         """returns list of installed genomes"""
         return [
-            p.name for p in self.genomes_path.glob("*") if p.name in elt_species.Species
+            p.name for p in self.genomes_path.glob("*") if p.name in eti_species.Species
         ]
 
     def path_to_alignment(self, pattern: str, suffix: str) -> pathlib.Path | None:
@@ -209,7 +209,7 @@ class InstalledConfig:
         return align_dirs[0]
 
 
-def write_installed_cfg(config: Config) -> elt_util.PathType:
+def write_installed_cfg(config: Config) -> eti_util.PathType:
     """writes an ini file under config.installed_path"""
     parser = configparser.ConfigParser()
     parser.add_section("release")
@@ -222,7 +222,7 @@ def write_installed_cfg(config: Config) -> elt_util.PathType:
     return outpath
 
 
-def read_installed_cfg(path: elt_util.PathType) -> InstalledConfig:
+def read_installed_cfg(path: eti_util.PathType) -> InstalledConfig:
     """reads an ini file under config.installed_path"""
     path = pathlib.Path(path).expanduser()
     parser = configparser.ConfigParser()
@@ -239,7 +239,7 @@ def read_installed_cfg(path: elt_util.PathType) -> InstalledConfig:
 
 
 def _standardise_path(
-    path: elt_util.PathType,
+    path: eti_util.PathType,
     config_path: pathlib.Path,
 ) -> pathlib.Path:
     path = pathlib.Path(path).expanduser()
@@ -293,7 +293,7 @@ def read_config(
         dbs = [db.strip() for db in get_option(section, "db").split(",")]
 
         # handle synonyms
-        species = elt_species.Species.get_species_name(section, level="raise")
+        species = eti_species.Species.get_species_name(section, level="raise")
         species_dbs[species] = dbs
 
     # we also want homologies if we want alignments
@@ -303,7 +303,7 @@ def read_config(
         # add all species in the tree to species_dbs
         for tree_name in tree_names:
             tree = download_ensembl_tree(host, remote_path, release, tree_name)
-            sp = elt_species.species_from_ensembl_tree(tree)
+            sp = eti_species.species_from_ensembl_tree(tree)
             species_dbs |= sp
 
     return Config(

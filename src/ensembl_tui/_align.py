@@ -10,9 +10,9 @@ from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 
-from ensembl_tui import _genome as elt_genome
-from ensembl_tui import _storage_mixin as elt_mixin
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _genome as eti_genome
+from ensembl_tui import _storage_mixin as eti_mixin
+from ensembl_tui import _util as eti_util
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
@@ -77,11 +77,11 @@ class AlignRecord:
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 
-class GapStore(elt_mixin.Hdf5Mixin):
+class GapStore(eti_mixin.Hdf5Mixin):
     # store gap data from aligned sequences
     def __init__(
         self,
-        source: elt_util.PathType,
+        source: eti_util.PathType,
         align_name: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
@@ -129,7 +129,7 @@ class GapStore(elt_mixin.Hdf5Mixin):
             name=index,
             data=gaps,
             chunks=True,
-            **elt_util._HDF5_BLOSC2_KWARGS,
+            **eti_util._HDF5_BLOSC2_KWARGS,
         )
         self._file.flush()
 
@@ -139,7 +139,7 @@ class GapStore(elt_mixin.Hdf5Mixin):
 
 # TODO add a table and methods to support storing the species tree used
 #  for the alignment and for getting the species tree
-class AlignDb(elt_mixin.SqliteDbMixin):
+class AlignDb(eti_mixin.SqliteDbMixin):
     table_name = "align"
     _align_schema = {
         "id": "INTEGER PRIMARY KEY",  # used to uniquely identify gap_spans in bound GapStore
@@ -426,7 +426,7 @@ class construct_alignment:
     def __init__(
         self,
         align_db: AlignDb,
-        genomes: dict[str, elt_genome.Genome],
+        genomes: dict[str, eti_genome.Genome],
         mask_features: list[str] | None = None,
         sep: str = "?",
     ) -> None:
@@ -435,7 +435,7 @@ class construct_alignment:
         self._mask_features = mask_features
         self._sep = sep
 
-    def main(self, segment: elt_genome.genome_segment) -> list[Alignment]:
+    def main(self, segment: eti_genome.genome_segment) -> list[Alignment]:
         results = []
         for aln in get_alignment(
             self._align_db,

@@ -6,13 +6,13 @@ import typing
 from cogent3 import load_tree
 from rich.progress import Progress
 
-from ensembl_tui import _config as elt_config
-from ensembl_tui import _ftp_download as elt_ftp
-from ensembl_tui import _site_map as elt_site_map
-from ensembl_tui import _species as elt_species
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _config as eti_config
+from ensembl_tui import _ftp_download as eti_ftp
+from ensembl_tui import _site_map as eti_site_map
+from ensembl_tui import _species as eti_species
+from ensembl_tui import _util as eti_util
 
-DEFAULT_CFG = elt_util.get_resource_path("sample.cfg")
+DEFAULT_CFG = eti_util.get_resource_path("sample.cfg")
 
 _invalid_seq = re.compile("(dna_(sm|rm)|(toplevel|primary_assembly).fa.gz)")
 
@@ -32,7 +32,7 @@ class valid_gff3_file:  # noqa: N801
         return self._valid.search(name) is not None
 
 
-def _remove_tmpdirs(path: elt_util.PathType) -> None:
+def _remove_tmpdirs(path: eti_util.PathType) -> None:
     """delete any tmp dirs left over from unsuccessful runs"""
     tmpdirs = [p for p in path.glob("tmp*") if p.is_dir()]
     for tmpdir in tmpdirs:
@@ -40,24 +40,24 @@ def _remove_tmpdirs(path: elt_util.PathType) -> None:
 
 
 def download_species(
-    config: elt_config.Config,
+    config: eti_config.Config,
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
 ) -> None:
     """download seq and gff data"""
     remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
-    site_map = elt_site_map.get_site_map(config.host)
+    site_map = eti_site_map.get_site_map(config.host)
     if verbose:
-        elt_util.print_colour(
+        eti_util.print_colour(
             text=f"DOWNLOADING\n  ensembl release={config.release}",
             colour="green",
         )
-        elt_util.print_colour(
+        eti_util.print_colour(
             text="\n".join(f"  {d}" for d in config.species_dbs),
             colour="green",
         )
-        elt_util.print_colour(
+        eti_util.print_colour(
             text=f"\nWRITING to output path={config.staging_genomes}\n",
             colour="green",
         )
@@ -71,7 +71,7 @@ def download_species(
 
     patterns = {"fasta": valid_seq_file, "gff3": valid_gff3_file(config.release)}
     for key in config.species_dbs:
-        db_prefix = elt_species.Species.get_ensembl_db_prefix(key)
+        db_prefix = eti_species.Species.get_ensembl_db_prefix(key)
         local_root = config.staging_genomes / db_prefix
         local_root.mkdir(parents=True, exist_ok=True)
         for subdir in ("fasta", "gff3"):
@@ -123,7 +123,7 @@ class valid_compara_align:  # noqa: N801
 
 
 def download_aligns(
-    config: elt_config.Config,
+    config: eti_config.Config,
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
@@ -132,7 +132,7 @@ def download_aligns(
     if not config.align_names:
         return
 
-    site_map = elt_site_map.get_site_map(config.host)
+    site_map = eti_site_map.get_site_map(config.host)
     remote_template = (
         f"{config.remote_path}/release-{config.release}/{site_map.alignments_path}/"
         + "{}"
@@ -148,20 +148,20 @@ def download_aligns(
     valid_compara = valid_compara_align()
     for align_name in config.align_names:
         remote_path = remote_template.format(align_name)
-        remote_paths = list(elt_ftp.listdir(config.host, remote_path, valid_compara))
+        remote_paths = list(eti_ftp.listdir(config.host, remote_path, valid_compara))
         if verbose:
             print(remote_paths)
 
         if debug:
             # we need the checksum files
-            paths = [p for p in remote_paths if elt_util.is_signature(p)]
-            remote_paths = [p for p in remote_paths if not elt_util.is_signature(p)]
+            paths = [p for p in remote_paths if eti_util.is_signature(p)]
+            remote_paths = [p for p in remote_paths if not eti_util.is_signature(p)]
             remote_paths = remote_paths[:4] + paths
 
         local_dir = config.staging_aligns / align_name
         local_dir.mkdir(parents=True, exist_ok=True)
         _remove_tmpdirs(local_dir)
-        elt_ftp.download_data(
+        eti_ftp.download_data(
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
@@ -187,7 +187,7 @@ class valid_compara_homology:
 
 
 def download_homology(
-    config: elt_config.Config,
+    config: eti_config.Config,
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
@@ -196,7 +196,7 @@ def download_homology(
     if not config.homologies:
         return
 
-    site_map = elt_site_map.get_site_map(config.host)
+    site_map = eti_site_map.get_site_map(config.host)
     remote_template = (
         f"{config.remote_path}/release-{config.release}/{site_map.homologies_path}/"
         + "{}"
@@ -214,20 +214,20 @@ def download_homology(
     for db_name in config.db_names:
         remote_path = remote_template.format(db_name)
         remote_paths = list(
-            elt_ftp.listdir(config.host, remote_path, valid_compara_homology()),
+            eti_ftp.listdir(config.host, remote_path, valid_compara_homology()),
         )
         if verbose:
             print(f"{remote_path=}", f"{remote_paths=}", sep="\n")
 
         if debug:
             # we need the checksum files
-            remote_paths = [p for p in remote_paths if not elt_util.is_signature(p)]
+            remote_paths = [p for p in remote_paths if not eti_util.is_signature(p)]
             remote_paths = remote_paths[:4]
 
         local_dir = local / db_name
         local_dir.mkdir(parents=True, exist_ok=True)
         _remove_tmpdirs(local_dir)
-        elt_ftp.download_data(
+        eti_ftp.download_data(
             host=config.host,
             local_dest=local_dir,
             remote_paths=remote_paths,
@@ -244,17 +244,17 @@ def download_homology(
 
 def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname: str):
     """loads a tree from Ensembl"""
-    site_map = elt_site_map.get_site_map(host)
+    site_map = eti_site_map.get_site_map(host)
     url = f"https://{host}/{remote_path}/release-{release}/{site_map.trees_path}/{tree_fname}"
     return load_tree(url)
 
 
 def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
     """returns trees from ensembl compara"""
-    site_map = elt_site_map.get_site_map(host)
+    site_map = eti_site_map.get_site_map(host)
     path = f"{remote_path}/release-{release}/{site_map.trees_path}"
     return list(
-        elt_ftp.listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")),
+        eti_ftp.listdir(host=host, path=path, pattern=lambda x: x.endswith(".nh")),
     )
 
 
@@ -270,7 +270,7 @@ def get_species_for_alignments(
         remote_path=remote_path,
         release=release,
     )
-    aligns_trees = elt_util.trees_for_aligns(align_names, ensembl_trees)
+    aligns_trees = eti_util.trees_for_aligns(align_names, ensembl_trees)
     species = {}
     for tree_path in aligns_trees.values():
         tree_path = pathlib.Path(tree_path)
@@ -282,6 +282,6 @@ def get_species_for_alignments(
         )
         # dict structure is {common name: db prefix}, just use common name
         species |= {
-            n: ["core"] for n in elt_species.species_from_ensembl_tree(tree).keys()
+            n: ["core"] for n in eti_species.species_from_ensembl_tree(tree).keys()
         }
     return species

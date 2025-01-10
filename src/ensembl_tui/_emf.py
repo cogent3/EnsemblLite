@@ -5,8 +5,8 @@ import typing
 
 from cogent3 import open_
 
-from ensembl_tui import _name as elt_name
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _name as eti_name
+from ensembl_tui import _util as eti_util
 
 
 # TODO spaces are optional between columns representing SEQ and SCORE lines
@@ -15,7 +15,7 @@ def _get_block_seqnames(data) -> dict[str, str]:
     names = []
     for i, line in enumerate(data):
         if line.startswith("SEQ"):
-            names.append(elt_name.EmfName(*line.strip().split()[1:]))
+            names.append(eti_name.EmfName(*line.strip().split()[1:]))
         elif line.startswith("DATA"):
             break
     else:
@@ -47,10 +47,10 @@ def _iter_blocks(data: typing.Iterable[str]) -> list[tuple[int, int]]:
 
 # we need a raw parser
 def parse_emf(
-    path: elt_util.PathType,
+    path: eti_util.PathType,
     check_format: bool = True,
     extract_data: typing.Callable = _get_block_seqnames,
-) -> dict[elt_name.EmfName, str]:
+) -> dict[eti_name.EmfName, str]:
     """yield data for alignment from EMF files
 
     Parameters
@@ -62,11 +62,11 @@ def parse_emf(
 
     Returns
     -------
-    {elt_name.EmfName(): <seq string>, ...}
+    {eti_name.EmfName(): <seq string>, ...}
 
     Notes
     -----
-    The key (elt_name.EmfName) has useful attributes, including the python
+    The key (eti_name.EmfName) has useful attributes, including the python
     coordinates for the sequence, coord name, species, etc...
 
     Raises
