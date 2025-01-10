@@ -8,6 +8,7 @@ from rich.progress import Progress
 
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _ftp_download as eti_ftp
+from ensembl_tui import _mysql_core_attr as eti_db_attr
 from ensembl_tui import _name as eti_name
 from ensembl_tui import _site_map as eti_site_map
 from ensembl_tui import _species as eti_species
@@ -55,6 +56,10 @@ def get_core_db_dirnames(config: eti_config.Config) -> dict[str, str]:
     return selected_species
 
 
+def get_remote_mysql_paths(db_name: str) -> list[str]:
+    return [f"{db_name}/{name}" for name in eti_db_attr.make_mysqldump_names()]
+
+
 def download_species(
     config: eti_config.Config,
     debug: bool,
@@ -77,6 +82,8 @@ def download_species(
             text=f"\nWRITING to output path={config.staging_genomes}\n",
             colour="green",
         )
+
+    sp_db_map = get_core_db_dirnames(config)
 
     msg = "Downloading genomes"
     if progress is not None:
@@ -111,18 +118,22 @@ def download_species(
                 ]
                 remote_paths = remote_paths[:4] + paths
 
-            dest_path = config.staging_genomes / db_prefix / subdir
-            dest_path.mkdir(parents=True, exist_ok=True)
-            _remove_tmpdirs(dest_path)
-            icon = "🧬🧬" if subdir == "fasta" else "📚"
-            elt_ftp.download_data(
-                host=config.host,
-                local_dest=dest_path,
-                remote_paths=remote_paths,
-                description=f"{db_prefix[:10]}... {icon}",
-                do_checksum=True,
-                progress=progress,
-            )
+        # getting the annotations from mysql tables
+        remote_dir = sp_db_map[db_prefix]
+        remote_paths = get_remote_mysql_paths(remote_dir)
+        dest_path = config.staging_genomes / db_prefix / "mysql"
+        dest_path.mkdir(parents=True, exist_ok=True)
+        # cleanup previous download attempts
+        _remove_tmpdirs(dest_path)
+        icon = "📚"
+        eti_ftp.download_data(
+            host=config.host,
+            local_dest=dest_path,
+            remote_paths=remote_paths,
+            description=f"{db_prefix[:10]}... {icon}",
+            do_checksum=True,
+            progress=progress,
+        )
 
         if progress is not None:
             progress.update(species_download, description=msg, advance=1)

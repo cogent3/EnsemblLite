@@ -51,6 +51,10 @@ class Config:
         self.staging_path = pathlib.Path(self.staging_path)
         self.install_path = pathlib.Path(self.install_path)
 
+    @property
+    def remote_release_path(self) -> str:
+        return f"{self.remote_path}/release-{self.release}"
+
     def update_species(self, species: dict[str, list[str]]) -> None:
         if not species:
             return
