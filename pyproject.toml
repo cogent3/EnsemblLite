@@ -21,6 +21,7 @@ requires-python = ">=3.10,<3.13"
 dependencies = ["blosc2",
         "click",
         "cogent3",
+        "duckdb",
         "h5py",
         "hdf5plugin",
         "numba",
