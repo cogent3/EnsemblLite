@@ -187,10 +187,10 @@ def test_cfg_to_dict(just_compara_cfg):
 
 def test_blosc_apps():
     o = "ACGG" * 1000
-    z = eti_util.elt_compress_it(o)
+    z = eti_util.eti_compress_it(o)
     assert isinstance(z, bytes)
     assert len(z) < len(o)
-    assert eti_util.elt_decompress_it(z) == o
+    assert eti_util.eti_decompress_it(z) == o
 
 
 def test_get_sig_calc_func_invalid():

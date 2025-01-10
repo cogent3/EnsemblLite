@@ -404,8 +404,8 @@ def blosc_decompress_it(data: bytes, as_bytearray: bool = True) -> bytes:
     return bytes(blosc2.decompress(data, as_bytearray=as_bytearray))
 
 
-elt_compress_it = _str_to_bytes() + blosc_compress_it()
-elt_decompress_it = blosc_decompress_it() + _bytes_to_str()
+eti_compress_it = _str_to_bytes() + blosc_compress_it()
+eti_decompress_it = blosc_decompress_it() + _bytes_to_str()
 
 _biotypes = re.compile(r"(gene|transcript|exon|mRNA|rRNA|protein):")
 
