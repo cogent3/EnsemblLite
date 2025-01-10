@@ -23,7 +23,7 @@ def _get_installed_config_path(ctx, param, path) -> elt_util.PathType:
 
     path = path / elt_config.INSTALLED_CONFIG_NAME
     if not path.exists():
-        click.secho(f"{path!s} missing", fg="red")
+        elt_util.print_colour(text=f"{path!s} missing", colour="red")
         sys.exit(1)
     return path
 
@@ -46,7 +46,7 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
         try:
             db_name = elt_species.Species.get_ensembl_db_prefix(name)
         except ValueError:
-            click.secho(f"ERROR: unknown species {name!r}", fg="red")
+            elt_util.print_colour(text=f"ERROR: unknown species {name!r}", colour="red")
             sys.exit(1)
 
         db_names.append(db_name)
@@ -189,7 +189,7 @@ def exportrc(outpath):
             else:
                 # __pycache__ directory
                 shutil.rmtree(fn)
-    click.secho(f"Contents written to {outpath}", fg="green")
+    elt_util.print_colour(text=f"Contents written to {outpath}", colour="green")
 
 
 @main.command(**_click_command_opts)
@@ -202,17 +202,17 @@ def download(configpath, debug, verbose):
 
     if configpath.name == elt_download._cfg:  # noqa: SLF001
         # TODO is this statement correct if we're seting a root dir now?
-        click.secho(
-            "WARN: using the built in demo cfg, will write to /tmp",
-            fg="yellow",
+        elt_util.print_colour(
+            text="WARN: using the built in demo cfg, will write to /tmp",
+            colour="yellow",
         )
     config = elt_config.read_config(configpath, root_dir=pathlib.Path.cwd())
 
     if verbose:
-        print(config)
+        elt_util.print_colour(text=str(config), colour="yellow")
 
     if not any((config.species_dbs, config.align_names)):
-        click.secho("No genomes, no alignments specified", fg="red")
+        elt_util.print_colour(text="No genomes, no alignments specified", colour="red")
         sys.exit(1)
 
     if not config.species_dbs:
@@ -225,7 +225,7 @@ def download(configpath, debug, verbose):
         config.update_species(species)
 
     if verbose:
-        print(config.species_dbs)
+        elt_util.print_colour(text=str(config.species_dbs), colour="yellow")
 
     config.write()
     with (
@@ -242,7 +242,7 @@ def download(configpath, debug, verbose):
         elt_download.download_homology(config, debug, verbose, progress=progress)
         elt_download.download_aligns(config, debug, verbose, progress=progress)
 
-    click.secho(f"Downloaded to {config.staging_path}", fg="green")
+    elt_util.print_colour(text=f"Downloaded to {config.staging_path}", colour="green")
 
 
 @main.command(**_click_command_opts)
@@ -263,7 +263,7 @@ def install(download, num_procs, force_overwrite, verbose):
     configpath = download / elt_config.DOWNLOADED_CONFIG_NAME
     config = elt_config.read_config(configpath)
     if verbose:
-        print(f"{config.install_path=}")
+        elt_util.print_colour(text=f"{config.install_path=}", colour="yellow")
 
     if force_overwrite:
         shutil.rmtree(config.install_path, ignore_errors=True)
@@ -307,7 +307,10 @@ def install(download, num_procs, force_overwrite, verbose):
             progress=progress,
         )
 
-    click.secho(f"Contents installed to {str(config.install_path)!r}", fg="green")
+    elt_util.print_colour(
+        text=f"Contents installed to {str(config.install_path)!r}",
+        colour="green",
+    )
 
 
 @main.command(**_click_command_opts)
@@ -353,17 +356,23 @@ def species_summary(installed, species):
 
     config = elt_config.read_installed_cfg(installed)
     if species is None:
-        click.secho("ERROR: a species name is required", fg="red")
+        elt_util.print_colour(text="ERROR: a species name is required", colour="red")
         sys.exit(1)
 
     if len(species) > 1:
-        click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
+        elt_util.print_colour(
+            text=f"ERROR: one species at a time, not {species!r}",
+            colour="red",
+        )
         sys.exit(1)
 
     species = species[0]
     path = config.installed_genome(species=species) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
-        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
+        elt_util.print_colour(
+            text=f"{species!r} not in {str(config.install_path.parent)!r}",
+            colour="red",
+        )
         sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
@@ -402,9 +411,9 @@ def alignments(
     #  a reference species
 
     if not ref:
-        click.secho(
-            "ERROR: must specify a reference genome",
-            fg="red",
+        elt_util.print_colour(
+            text="ERROR: must specify a reference genome",
+            colour="red",
         )
         sys.exit(1)
 
@@ -415,24 +424,27 @@ def alignments(
     align_name = elt_util.strip_quotes(align_name)
     align_path = config.path_to_alignment(align_name, elt_align.ALIGN_STORE_SUFFIX)
     if align_path is None:
-        click.secho(
-            f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
-            fg="red",
+        elt_util.print_colour(
+            text=f"{align_name!r} does not match any alignments under {str(config.aligns_path)!r}",
+            colour="red",
         )
         sys.exit(1)
 
     align_db = elt_align.AlignDb(source=align_path)
     ref_species = elt_species.Species.get_ensembl_db_prefix(ref)
     if ref_species not in align_db.get_species_names():
-        click.secho(
-            f"species {ref!r} not in the alignment",
-            fg="red",
+        elt_util.print_colour(
+            text=f"species {ref!r} not in the alignment",
+            colour="red",
         )
         sys.exit(1)
 
     # get all the genomes
     if verbose:
-        print(f"working on species {align_db.get_species_names()}")
+        elt_util.print_colour(
+            text=f"working on species {align_db.get_species_names()}",
+            colour="yellow",
+        )
 
     genomes = {
         sp: elt_genome.load_genome(config=config, species=sp)
@@ -443,9 +455,9 @@ def alignments(
     if ref_genes_file:
         table = load_table(ref_genes_file)
         if "stableid" not in table.columns:
-            click.secho(
-                f"'stableid' column missing from {str(ref_genes_file)!r}",
-                fg="red",
+            elt_util.print_colour(
+                text=f"'stableid' column missing from {str(ref_genes_file)!r}",
+                colour="red",
             )
             sys.exit(1)
         stableids = table.columns["stableid"]
@@ -493,7 +505,7 @@ def alignments(
                 identifier = f"{input_source}-{i}"
                 writer(aln, identifier=identifier)
 
-    click.secho("Done!", fg="green")
+    elt_util.print_colour(text="Done!", colour="green")
 
 
 @main.command(**_click_command_opts)
@@ -530,7 +542,10 @@ def homologs(
     LOGGER.log_args()
 
     if ref is None:
-        click.secho("ERROR: a reference species name is required, use --ref", fg="red")
+        elt_util.print_colour(
+            text="ERROR: a reference species name is required, use --ref",
+            colour="red",
+        )
         sys.exit(1)
 
     if force_overwrite:
@@ -544,11 +559,18 @@ def homologs(
     elt_species.Species.update_from_file(config.genomes_path / "species.tsv")
     # we all the protein coding gene IDs from the reference species
     genome = elt_genome.load_genome(config=config, species=ref)
+
     if verbose:
-        print(f"Loaded genome for {ref!r}")
+        elt_util.print_colour(text=f"Loaded genome for {ref!r}", colour="yellow")
+
     gene_ids = list(genome.get_ids_for_biotype(biotype="gene"))
+
     if verbose:
-        print(f"Found {len(gene_ids):,} gene IDs for {ref!r}")
+        elt_util.print_colour(
+            text=f"Found {len(gene_ids):,} gene IDs for {ref!r}",
+            colour="yellow",
+        )
+
     db = elt_homology.load_homology_db(
         path=config.homologies_path / elt_homology.HOMOLOGY_STORE_NAME,
     )
@@ -575,7 +597,10 @@ def homologs(
         progress.update(searching, advance=len(gene_ids))
 
         if verbose:
-            print(f"Found {len(related)} homolog groups")
+            elt_util.print_colour(
+                text=f"Found {len(related)} homolog groups",
+                colour="yellow",
+            )
 
         get_seqs = elt_homology.collect_seqs(config=config)
         out_dstore = open_data_store(base_path=outpath, suffix="fa", mode="w")
@@ -585,12 +610,13 @@ def homologs(
             related,
             parallel=num_procs > 1,
             show_progress=False,
-            par_kw=dict(max_workers=num_procs),
+            par_kw={"max_workers": num_procs},
         ):
             progress.update(reading, advance=1)
             if not seqs:
                 if verbose:
-                    print(f"{seqs=}")
+                    elt_util.print_colour(text=f"{seqs=}", colour="yellow")
+
                 out_dstore.write_not_completed(
                     data=seqs.to_json(),
                     unique_id=seqs.source,
@@ -598,7 +624,7 @@ def homologs(
                 continue
             if not seqs.seqs:
                 if verbose:
-                    print(f"{seqs.seqs=}")
+                    elt_util.print_colour(text=f"{seqs.seqs=}", colour="yellow")
                 continue
 
             txt = seqs.to_fasta()
@@ -620,16 +646,22 @@ def dump_genes(installed, species, outdir, limit):
 
     config = elt_config.read_installed_cfg(installed)
     if species is None:
-        click.secho("ERROR: a species name is required", fg="red")
+        elt_util.print_colour(text="ERROR: a species name is required", colour="red")
         sys.exit(1)
 
     if len(species) > 1:
-        click.secho(f"ERROR: one species at a time, not {species!r}", fg="red")
+        elt_util.print_colour(
+            text=f"ERROR: one species at a time, not {species!r}",
+            colour="red",
+        )
         sys.exit(1)
 
     path = config.installed_genome(species=species[0]) / elt_genome.ANNOT_STORE_NAME
     if not path.exists():
-        click.secho(f"{species!r} not in {str(config.install_path.parent)!r}", fg="red")
+        elt_util.print_colour(
+            text=f"{species!r} not in {str(config.install_path.parent)!r}",
+            colour="red",
+        )
         sys.exit(1)
 
     annot_db = elt_genome.load_annotations_for_species(path=path)
@@ -638,7 +670,7 @@ def dump_genes(installed, species, outdir, limit):
     outdir.mkdir(parents=True, exist_ok=True)
     outpath = outdir / f"{path.parent.stem}-{config.release}-gene_metadata.tsv"
     table.write(outpath)
-    click.secho(f"Finished: wrote {str(outpath)!r}!", fg="green")
+    elt_util.print_colour(text=f"Finished: wrote {str(outpath)!r}!", colour="green")
 
 
 if __name__ == "__main__":

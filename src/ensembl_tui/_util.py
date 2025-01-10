@@ -22,6 +22,7 @@ import typing_extensions
 from cogent3.app.composable import define_app
 from cogent3.util import table as c3_table
 from cogent3.util.parallel import as_completed
+from rich import text as rich_text
 
 PathType = str | pathlib.Path | os.PathLike
 
@@ -482,3 +483,19 @@ def get_stableid_prefix(stableid: str) -> str:
         msg = f"{stableid!r} has unknown feature type {stableid[-13]!r}"
         raise ValueError(msg)
     return stableid[:-12]
+
+
+class _printer:  # noqa: N801
+    from rich.console import Console
+
+    def __init__(self) -> None:
+        self._console = self.Console()
+
+    def __call__(self, text: str, colour: str) -> None:
+        """print text in colour"""
+        msg = rich_text.Text(text)
+        msg.stylize(colour)
+        self._console.print(msg)
+
+
+print_colour = _printer()

@@ -3,7 +3,6 @@ import re
 import shutil
 import typing
 
-import click
 from cogent3 import load_tree
 from rich.progress import Progress
 
@@ -50,9 +49,18 @@ def download_species(
     remote_template = f"{config.remote_path}/release-{config.release}/" + "{}"
     site_map = elt_site_map.get_site_map(config.host)
     if verbose:
-        click.secho(f"DOWNLOADING\n  ensembl release={config.release}", fg="green")
-        click.secho("\n".join(f"  {d}" for d in config.species_dbs), fg="green")
-        click.secho(f"\nWRITING to output path={config.staging_genomes}\n", fg="green")
+        elt_util.print_colour(
+            text=f"DOWNLOADING\n  ensembl release={config.release}",
+            colour="green",
+        )
+        elt_util.print_colour(
+            text="\n".join(f"  {d}" for d in config.species_dbs),
+            colour="green",
+        )
+        elt_util.print_colour(
+            text=f"\nWRITING to output path={config.staging_genomes}\n",
+            colour="green",
+        )
 
     msg = "Downloading genomes"
     if progress is not None:
