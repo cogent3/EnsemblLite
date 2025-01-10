@@ -29,10 +29,7 @@ def _get_installed_config_path(ctx, param, path) -> eti_util.PathType:
 
 
 def _values_from_csv(ctx, param, value) -> list[str] | None:
-    if value is None:
-        return None
-
-    return [f.strip() for f in value.split(",")]
+    return None if value is None else [f.strip() for f in value.split(",")]
 
 
 def _species_names_from_csv(ctx, param, species) -> list[str] | None:
@@ -54,10 +51,10 @@ def _species_names_from_csv(ctx, param, species) -> list[str] | None:
     return db_names
 
 
-_click_command_opts = dict(
-    no_args_is_help=True,
-    context_settings={"show_default": True},
-)
+_click_command_opts = {
+    "no_args_is_help": True,
+    "context_settings": {"show_default": True},
+}
 
 # defining some of the options
 _cfgpath = click.option(

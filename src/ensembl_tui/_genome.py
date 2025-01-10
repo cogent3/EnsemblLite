@@ -711,13 +711,13 @@ class SeqsDataABC(ABC):
     _file: Any | None = None
 
     @abstractmethod
-    def __hash__(self): ...
+    def __hash__(self) -> int: ...
 
     @abstractmethod
-    def add_record(self, seq: str, seqid: str): ...
+    def add_record(self, seq: str, seqid: str) -> None: ...
 
     @abstractmethod
-    def add_records(self, *, records: typing.Iterable[list[str, str]]): ...
+    def add_records(self, *, records: typing.Iterable[list[str, str]]) -> None: ...
 
     @abstractmethod
     def get_seq_str(
@@ -741,14 +741,14 @@ class SeqsDataABC(ABC):
     def get_coord_names(self) -> tuple[str]: ...
 
     @abstractmethod
-    def close(self): ...
+    def close(self) -> None: ...
 
 
 @define_app
-class str2arr:
+class str2arr:  # noqa: N801
     """convert string to array of uint8"""
 
-    def __init__(self, moltype: str = "dna", max_length=None):
+    def __init__(self, moltype: str = "dna", max_length: int | None = None) -> None:
         moltype = get_moltype(moltype)
         self.canonical = "".join(moltype)
         self.max_length = max_length
@@ -767,10 +767,10 @@ class str2arr:
 
 
 @define_app
-class arr2str:
+class arr2str:  # noqa: N801
     """convert array of uint8 to str"""
 
-    def __init__(self, moltype: str = "dna", max_length=None):
+    def __init__(self, moltype: str = "dna", max_length: int | None = None) -> None:
         moltype = get_moltype(moltype)
         self.canonical = "".join(moltype)
         self.max_length = max_length
@@ -798,24 +798,25 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
         species: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
-    ):
+    ) -> None:
         # note that species are converted into the Ensembl db prefix
         in_memory = in_memory or "memory" in str(source)
         source = uuid.uuid4().hex if in_memory else source
         self.source = pathlib.Path(source)
 
         if not in_memory and mode == "r" and not self.source.exists():
-            raise OSError(f"{self.source!s} not found")
+            msg = f"{self.source!s} not found"
+            raise OSError(msg)
 
         species = (
             eti_species.Species.get_ensembl_db_prefix(species) if species else None
         )
         self.mode = "w-" if mode == "w" else mode
         h5_kwargs = (
-            dict(
-                driver="core",
-                backing_store=False,
-            )
+            {
+                "driver": "core",
+                "backing_store": False,
+            }
             if in_memory
             else {}
         )
@@ -835,26 +836,28 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
             species
             and (file_species := self._file.attrs.get("species", None)) != species
         ):
-            raise ValueError(f"{self.source.name!r} {file_species!r} != {species}")
+            msg = f"{self.source.name!r} {file_species!r} != {species}"
+            raise ValueError(msg)
         self.species = self._file.attrs["species"]
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return id(self)
 
     @functools.singledispatchmethod
-    def add_record(self, seq: str, seqid: str):
+    def add_record(self, seq: str, seqid: str) -> None:
         seq = self._str2arr(seq)
         self.add_record(seq, seqid)
 
     @add_record.register
-    def _(self, seq: numpy.ndarray, seqid: str):
+    def _(self, seq: numpy.ndarray, seqid: str) -> None:
         if seqid in self._file:
             stored = self._file[seqid]
             if (seq == stored).all():
                 # already seen this seq
                 return
             # but it's different, which is a problem
-            raise ValueError(f"{seqid!r} already present but with different seq")
+            msg = f"{seqid!r} already present but with different seq"
+            raise ValueError(msg)
 
         self._file.create_dataset(
             name=seqid,
@@ -863,7 +866,7 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
             **eti_util._HDF5_BLOSC2_KWARGS,
         )
 
-    def add_records(self, *, records: typing.Iterable[list[str, str]]):
+    def add_records(self, *, records: typing.Iterable[list[str, str]]) -> None:
         for seqid, seq in records:
             self.add_record(seq, seqid)
 
@@ -884,7 +887,8 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
         stop: int | None = None,
     ) -> NDArray[numpy.uint8]:
         if not self._is_open:
-            raise OSError(f"{self.source.name!r} is closed")
+            msg = f"{self.source.name!r} is closed"
+            raise OSError(msg)
 
         return self._file[seqid][start:stop]
 
@@ -894,7 +898,7 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
 
 
 @dataclasses.dataclass(slots=True)
-class genome_segment:
+class genome_segment:  # noqa: N801
     species: str
     seqid: str
     start: int
@@ -902,7 +906,7 @@ class genome_segment:
     strand: str
     unique_id: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.unique_id = (
             elt_util.sanitise_stableid(self.unique_id)
             if self.unique_id
@@ -1042,12 +1046,12 @@ class Genome:
         for result in annot_db._execute_sql(sql, val):
             yield result["name"].split(":")[-1]
 
-    def close(self):
+    def close(self) -> None:
         self._seqs.close()
         self.annotation_db.db.close()
 
 
-def load_genome(*, config: elt_config.InstalledConfig, species: str):
+def load_genome(*, config: eti_config.InstalledConfig, species: str) -> Genome:
     """returns the Genome with bound seqs and features"""
     genome_path = config.installed_genome(species) / SEQ_STORE_NAME
     seqs = SeqsDataHdf5(source=genome_path, species=species, mode="r")
