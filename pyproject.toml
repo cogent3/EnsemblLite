@@ -58,6 +58,7 @@ eti = "ensembl_tui.cli:main"
 [project.optional-dependencies]
 test = [
     "click",
+    "pandas",
     "pytest",
     "pytest-cov",
     "pytest-xdist",
@@ -112,6 +113,9 @@ markers = [
 norecursedirs = ["doc", ".nox", "working"]
 addopts = ["--strict-config"]
 testpaths = "tests"
+
+[tool.uv]
+reinstall-package = ["cogent3"]
 
 [tool.ruff]
 exclude = [
