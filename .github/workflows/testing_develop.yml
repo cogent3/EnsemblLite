@@ -54,13 +54,11 @@ jobs:
 
       - name: "Installs for ${{ matrix.python-version }}"
         run: |
-          uv venv venv
-          source venv/bin/activate
-          uv pip install nox pytest pytest-cov
+          uv venv venv -p python${{ matrix.python-version }}
+          uv tool install -p venv nox
 
       - name: "Run nox for ${{ matrix.python-version }}"
         run: |
-          source venv/bin/activate
           nox -db uv -s test-${{ matrix.python-version }} -- -m 'not internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_tui
 
       - name: Coveralls Parallel
@@ -93,13 +91,11 @@ jobs:
 
       - name: "Installs for ${{ matrix.python-version }}"
         run: |
-          uv venv venv
-          source venv/bin/activate
-          uv pip install nox pytest pytest-cov
+          uv venv venv -p python${{ matrix.python-version }}
+          uv tool install -p venv nox
 
       - name: "Run nox for ${{ matrix.python-version }}"
         run: |
-          source venv/bin/activate
           nox -db uv -s test-${{ matrix.python-version }} -- -m 'internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}-internet.lcov --cov-report term --cov-append --cov ensembl_tui
 
       - name: Coveralls Parallel
