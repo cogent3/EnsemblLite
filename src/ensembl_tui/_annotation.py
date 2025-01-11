@@ -356,9 +356,10 @@ class GeneView:
     ) -> typing.Iterator[FeatureDataBase]:
         # add supoport for querying by symbol and description
         limit = kwargs.pop("limit", None)
+        local_vars = locals()
         if kwargs := {
             k: v
-            for k, v in locals().items()
+            for k, v in local_vars.items()
             if k not in ("self", "kwargs", "columns", "limit") and v is not None
         }:
             like_conds = (
@@ -551,12 +552,13 @@ class GeneView:
         if not any((seqid, biotype)):
             return None
 
-        if constraints := {k: v for k, v in locals().items() if isinstance(v, str)}:
+        local_vars = locals()
+        if constraints := {k: v for k, v in local_vars.items() if isinstance(v, str)}:
             where_clause = f"WHERE {_matching_conditions(equals_conds=constraints)}"
         else:
             where_clause = ""
 
-        header = [c for c in ("biotype", "seqid") if locals().get(c)]
+        header = [c for c in ("biotype", "seqid") if local_vars[c]]
         sql = (
             f"SELECT {', '.join(header)}, COUNT(*) as count FROM gene_attr"
             f" {where_clause} GROUP BY {', '.join(header)};"
@@ -661,9 +663,10 @@ class RepeatView:
         **kwargs,  # noqa: ANN003
     ) -> typing.Iterator[FeatureDataType]:
         limit = kwargs.pop("limit", None)
+        local_vars = locals()
         if kwargs := {
             k: v
-            for k, v in locals().items()
+            for k, v in local_vars.items()
             if k not in ("self", "kwargs", "limit") and v is not None
         }:
             like_cols = "repeat_type", "repeat_class", "repeat_name"
@@ -711,12 +714,13 @@ class RepeatView:
         if not any((seqid, repeat_type, repeat_class)):
             return None
 
-        if constraints := {k: v for k, v in locals().items() if isinstance(v, str)}:
+        local_vars = locals()
+        if constraints := {k: v for k, v in local_vars.items() if isinstance(v, str)}:
             where_clause = f"WHERE {_matching_conditions(equals_conds=constraints)}"
         else:
             where_clause = ""
 
-        header = [c for c in ("seqid", "repeat_type", "repeat_class") if locals()[c]]
+        header = [c for c in ("seqid", "repeat_type", "repeat_class") if local_vars[c]]
         sql = (
             f"SELECT {', '.join(header)}, COUNT(*) as count FROM repeat_view"
             f" {where_clause} GROUP BY {', '.join(header)};"
