@@ -9,9 +9,12 @@ on:
       - master
 
 jobs:
-  tests:
+  ci-not-internet:
     name: "Python ${{ matrix.python-version }} (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
+
+    env:
+      UV_SYSTEM_PYTHON: 1
 
     strategy:
       matrix:
@@ -19,23 +22,45 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: "actions/checkout@v2"
+      - uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
 
-      # Setup env
-      - uses: "actions/setup-python@v3"
+      - name: Set up cache
+        id: cache-data
+        uses: actions/cache@v3
         with:
-            python-version: "${{ matrix.python-version }}"
+          path: tests/data
+          key: ${{ runner.os }}-data-v1-${{ hashFiles('tests/data/small-113.zip') }}
+          restore-keys: |
+            ${{ runner.os }}-data-v1-
+
+      - name: Check cache status
+        run: |
+          echo "Cache hit: ${{ steps.cache-data.outputs.cache-hit }} ***"
+
+      - name: Download data file
+        if: steps.cache-data.outputs.cache-hit != 'true'
+        run: |
+          curl -o tests/data/small-113.zip https://zenodo.org/records/14625203/files/small-113.zip
+
+      - name: Unzip data file
+        run: |
+          cd tests/data
+          unzip -o -q small-113.zip
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: "Installs for ${{ matrix.python-version }}"
-        run: |
-          python --version
-          pip install --upgrade pip wheel setuptools flit
-          pip install --upgrade nox
+        run: uv pip install nox pytest pytest-cov
 
       - name: "Run nox for ${{ matrix.python-version }}"
-        run: "nox -s test-${{ matrix.python-version }} -- --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_tui"
+        run: "nox -db uv -s test-${{ matrix.python-version }} -- -m 'not internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_tui"
 
       - name: Coveralls Parallel
         uses: coverallsapp/github-action@v2
@@ -45,9 +70,47 @@ jobs:
           flag-name: run-${{matrix.python-version}}-${{matrix.os}}
           file: "tests/lcov-${{matrix.os}}-${{matrix.python-version}}.lcov"
 
+  ci-internet:
+    name: "Python ${{ matrix.python-version }} (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+
+    env:
+      UV_SYSTEM_PYTHON: 1
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
+
+    steps:
+      - uses: "actions/checkout@v4"
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: "Installs for ${{ matrix.python-version }}"
+        run: uv pip install nox pytest pytest-cov
+
+      - name: "Run nox for ${{ matrix.python-version }}"
+        run: "nox -db uv -s test-${{ matrix.python-version }} -- -m 'internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}-internet.lcov --cov-report term --cov-append --cov ensembl_tui"
+
+      - name: Coveralls Parallel
+        uses: coverallsapp/github-action@v2
+        with:
+          parallel: true
+          github-token: ${{ secrets.github_token }}
+          flag-name: run-${{matrix.python-version}}-${{matrix.os}}
+          file: "tests/lcov-${{matrix.os}}-${{matrix.python-version}}-internet.lcov"
+
   finish:
     name: "Finish Coveralls"
-    needs: tests
+    needs: [ci-not-internet, ci-internet]
     runs-on: ubuntu-latest
     steps:
     - name: Coveralls Finished
