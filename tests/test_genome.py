@@ -19,8 +19,15 @@ def test_get_seq_feature_seq_correct(yeast):
     raw_seq = str(seq)
     assert raw_seq.startswith("ATGCTTTACCCAGAAAAATTTCA")  # expected from ensembl.org
     assert raw_seq.endswith("ATAAGAAATTCCATAAATAG")
+
+
+@pytest.mark.xfail(reason="Need to fix cogent3 to apply feature name to new sequence")
+def test_get_seq_feature_seq_correct_name(yeast):
+    # need to modify cogent3 so it applies the feature name
+    # to the new sequence
+    seq = yeast.get_seq(seqid="III", start=309069, stop=310155)
     got = next(iter(seq.get_features()))
-    feat_seq = got.get_slice(apply_name=True)
+    feat_seq = got.get_slice()
     assert feat_seq.name == "YCR105W"
 
 
