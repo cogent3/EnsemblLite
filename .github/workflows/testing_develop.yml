@@ -13,9 +13,6 @@ jobs:
     name: "Python ${{ matrix.python-version }} (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
 
-    env:
-      UV_SYSTEM_PYTHON: 1
-
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -56,10 +53,15 @@ jobs:
           cache-dependency-glob: "pyproject.toml"
 
       - name: "Installs for ${{ matrix.python-version }}"
-        run: uv pip install nox pytest pytest-cov
+        run: |
+          uv venv venv
+          source venv/bin/activate
+          uv pip install nox pytest pytest-cov
 
       - name: "Run nox for ${{ matrix.python-version }}"
-        run: "nox -db uv -s test-${{ matrix.python-version }} -- -m 'not internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_tui"
+        run: |
+          source venv/bin/activate
+          nox -db uv -s test-${{ matrix.python-version }} -- -m 'not internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}.lcov --cov-report term --cov-append --cov ensembl_tui
 
       - name: Coveralls Parallel
         uses: coverallsapp/github-action@v2
@@ -72,9 +74,6 @@ jobs:
   ci-internet:
     name: "Python ${{ matrix.python-version }} (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
-
-    env:
-      UV_SYSTEM_PYTHON: 1
 
     strategy:
       matrix:
@@ -93,10 +92,15 @@ jobs:
           cache-dependency-glob: "pyproject.toml"
 
       - name: "Installs for ${{ matrix.python-version }}"
-        run: uv pip install nox pytest pytest-cov
+        run: |
+          uv venv venv
+          source venv/bin/activate
+          uv pip install nox pytest pytest-cov
 
       - name: "Run nox for ${{ matrix.python-version }}"
-        run: "nox -db uv -s test-${{ matrix.python-version }} -- -m 'internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}-internet.lcov --cov-report term --cov-append --cov ensembl_tui"
+        run: |
+          source venv/bin/activate
+          nox -db uv -s test-${{ matrix.python-version }} -- -m 'internet' --cov-report lcov:lcov-${{matrix.os}}-${{matrix.python-version}}-internet.lcov --cov-report term --cov-append --cov ensembl_tui"
 
       - name: Coveralls Parallel
         uses: coverallsapp/github-action@v2
