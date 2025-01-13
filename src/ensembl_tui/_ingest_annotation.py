@@ -1,13 +1,13 @@
 import contextlib
 import pathlib
 import shutil
-import tempfile
 from collections.abc import Generator
 
 import duckdb
 import rich.progress as rich_progress
 
 from ensembl_tui import _config as eti_config
+from ensembl_tui import _util as eti_util
 
 PARQUET_FORMAT = "(FORMAT PARQUET, COMPRESSION 'zstd', ROW_GROUP_SIZE 100_000)"
 
@@ -48,7 +48,7 @@ def tempdb(
     if not source_db_path.exists():
         raise FileNotFoundError(source_db_path)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with eti_util.tempdir() as temp_dir:
         temp_db_path = pathlib.Path(temp_dir) / source_db_path.name
         shutil.copy2(source_db_path, temp_db_path)
 

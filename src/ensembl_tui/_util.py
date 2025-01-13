@@ -7,11 +7,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import typing
 import uuid
 from collections.abc import Callable, Hashable
 from hashlib import md5
-from tempfile import mkdtemp
 from typing import IO
 
 import blosc2
@@ -223,7 +223,7 @@ class atomic_write:  # noqa: N801
         parent = self._path.parent
         name = f"{uuid.uuid4()}{suffixes}"
         tmpdir: pathlib.Path = (
-            pathlib.Path(mkdtemp(dir=parent))
+            pathlib.Path(tempfile.mkdtemp(dir=parent))
             if tmpdir is None
             else pathlib.Path(tmpdir)
         )
@@ -524,3 +524,10 @@ class unique_value_indexer:  # noqa: N801
     def __iter__(self) -> typing.Iterator[tuple[int, Hashable]]:
         for value, index in self._values.items():
             yield index, value
+
+
+@contextlib.contextmanager
+def tempdir() -> pathlib.Path:
+    """context manager returns a temporary directory"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield pathlib.Path(temp_dir)
