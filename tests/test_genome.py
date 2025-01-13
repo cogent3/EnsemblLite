@@ -35,11 +35,7 @@ def test_get_gene_table_for_species(yeast_db):
     from cogent3.util.table import Table
 
     # we do not check values here, only the Type and that we have > 0 records
-    got = eti_genome.get_gene_table_for_species(
-        annot_db=yeast_db,
-        limit=None,
-        species="saccharomyces_cerevisiae",
-    )
+    got = eti_genome.get_gene_table_for_species(annot_db=yeast_db)
     assert isinstance(got, Table)
     assert len(got) > 0
 

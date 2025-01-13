@@ -379,9 +379,10 @@ class GeneView(ViewMixin):
                 table_name="gene_attr",
                 columns=GENE_ATTR_COLUMNS,
             )
-            sql += f" LIMIT {limit}" if limit else ""
         else:
-            sql = "SELECT * FROM gene_attr LIMIT 10"
+            sql = f"SELECT {','.join(GENE_ATTR_COLUMNS)} FROM gene_attr"
+
+        sql += f" LIMIT {limit}" if limit else ""
 
         for record in self.conn.sql(sql).fetchall():
             data = dict(zip(GENE_ATTR_COLUMNS, record, strict=True))
@@ -591,6 +592,29 @@ class GeneView(ViewMixin):
             sql += " LIMIT ?"
             val = (*val, limit)
         return [r[0] for r in self.conn.sql(sql, params=val).fetchall()]
+
+    @functools.cached_property
+    def gene_table(self) -> "Table":
+        """return a Table with all gene data"""
+        columns = (
+            "species",
+            "name",
+            "seqid",
+            "source",
+            "biotype",
+            "start",
+            "stop",
+            "strand",
+            "symbol",
+            "description",
+        )
+        rows = []
+        rows.extend(
+            [self.species] + [record.get(c, None) for c in columns[1:]]
+            for record in self.get_features_matching()
+        )
+        header = ["stableid" if c == "name" else c for c in columns]
+        return cogent3.make_table(header=header, data=rows)
 
 
 @dataclasses.dataclass

@@ -10,7 +10,7 @@ from typing import Any
 
 import h5py
 import numpy
-from cogent3 import get_moltype, make_seq, make_table
+from cogent3 import get_moltype, make_seq
 from cogent3.app.composable import define_app
 from cogent3.core.annotation import Feature
 from cogent3.core.annotation_db import (
@@ -579,8 +579,7 @@ def get_gene_segments(
 def get_gene_table_for_species(
     *,
     annot_db: eti_annots.Annotations,
-    limit: int | None,
-    species: str | None = None,
+    limit: int | None = None,
 ) -> Table:
     """
     returns gene data from Annotations
@@ -591,32 +590,11 @@ def get_gene_table_for_species(
         feature db
     limit
         limit number of records to
-    species
-        species name, overrides inference from annot_db.source
     """
-    species = species or annot_db.source.parent.name
-
-    columns = (
-        "species",
-        "name",
-        "seqid",
-        "source",
-        "biotype",
-        "start",
-        "stop",
-        "strand",
-        "symbol",
-        "description",
-    )
-    rows = []
-    for i, record in enumerate(
-        annot_db.get_features_matching(biotype="protein_coding", limit=limit),
-    ):
-        rows.append([species] + [record.get(c, None) for c in columns[1:]])
-        if i == limit:
-            break
-    header = ["stableid" if c == "name" else c for c in columns]
-    return make_table(header=header, data=rows)
+    table = annot_db.genes.gene_table
+    if limit:
+        table = table[:limit]
+    return table
 
 
 def get_species_summary(
