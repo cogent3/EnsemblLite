@@ -3,7 +3,7 @@ import re
 import shutil
 import typing
 
-from cogent3 import load_tree
+import cogent3
 from rich.progress import Progress
 
 from ensembl_tui import _config as eti_config
@@ -217,7 +217,7 @@ def download_aligns(
     site_map = eti_site_map.get_site_map(config.host)
     remote_template = (
         f"{config.remote_path}/release-{config.release}/{site_map.alignments_path}/"
-        + "{}"
+        "{}"
     )
 
     msg = "Downloading alignments"
@@ -258,7 +258,7 @@ def download_aligns(
     return
 
 
-class valid_compara_homology:
+class valid_compara_homology:  # noqa: N801
     """homology tsv files"""
 
     def __init__(self) -> None:
@@ -273,7 +273,7 @@ def download_homology(
     debug: bool,
     verbose: bool,
     progress: Progress | None = None,
-):
+) -> None:
     """downloads tsv homology files for each genome"""
     if not config.homologies:
         return
@@ -281,7 +281,7 @@ def download_homology(
     site_map = eti_site_map.get_site_map(config.host)
     remote_template = (
         f"{config.remote_path}/release-{config.release}/{site_map.homologies_path}/"
-        + "{}"
+        "{}"
     )
 
     local = config.staging_homologies
@@ -324,11 +324,16 @@ def download_homology(
     return
 
 
-def download_ensembl_tree(host: str, remote_path: str, release: str, tree_fname: str):
+def download_ensembl_tree(
+    host: str,
+    remote_path: str,
+    release: str,
+    tree_fname: str,
+) -> cogent3.core.tree.PhyloNode:
     """loads a tree from Ensembl"""
     site_map = eti_site_map.get_site_map(host)
     url = f"https://{host}/{remote_path}/release-{release}/{site_map.trees_path}/{tree_fname}"
-    return load_tree(url)
+    return cogent3.load_tree(url)
 
 
 def get_ensembl_trees(host: str, remote_path: str, release: str) -> list[str]:
@@ -355,15 +360,12 @@ def get_species_for_alignments(
     aligns_trees = eti_util.trees_for_aligns(align_names, ensembl_trees)
     species = {}
     for tree_path in aligns_trees.values():
-        tree_path = pathlib.Path(tree_path)
         tree = download_ensembl_tree(
             host=host,
             remote_path=remote_path,
             release=release,
-            tree_fname=tree_path.name,
+            tree_fname=pathlib.Path(tree_path).name,
         )
         # dict structure is {common name: db prefix}, just use common name
-        species |= {
-            n: ["core"] for n in eti_species.species_from_ensembl_tree(tree).keys()
-        }
+        species |= {n: ["core"] for n in eti_species.species_from_ensembl_tree(tree)}
     return species

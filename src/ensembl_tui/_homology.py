@@ -2,6 +2,7 @@ import dataclasses
 import typing
 
 import blosc2
+import typing_extensions
 from cogent3 import make_unaligned_seqs
 from cogent3.app.composable import LOADER, NotCompleted, define_app
 from cogent3.app.io import compress, decompress, pickle_it, unpickle_it
@@ -27,32 +28,32 @@ inflate = decompressor + unpickler
 
 
 @dataclasses.dataclass(slots=True)
-class species_genes:
+class species_genes:  # noqa: N801
     """contains gene IDs for species"""
 
     species: str
     gene_ids: list[str] | None = None
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.species)
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing_extensions.Self) -> bool:
         return self.species == other.species and self.gene_ids == other.gene_ids
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.gene_ids = list(self.gene_ids) if self.gene_ids else []
 
-    def __getstate__(self) -> tuple[str, list[str]]:
+    def __getstate__(self) -> tuple[str, list[str] | None]:
         return self.species, self.gene_ids
 
-    def __setstate__(self, args):
+    def __setstate__(self, args: tuple[str, list[str] | None]) -> None:
         species, gene_ids = args
         self.species = species
         self.gene_ids = gene_ids
 
 
 @dataclasses.dataclass
-class homolog_group:
+class homolog_group:  # noqa: N801
     """has species_genes instances belonging to the same ortholog group"""
 
     relationship: str
@@ -60,17 +61,17 @@ class homolog_group:
     gene_ids: dict[str, str] | None = None
     source: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.gene_ids = self.gene_ids or {}
         if self.source is None:
             self.source = next(iter(self.gene_ids), None)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # allow hashing, but bearing in mind we are updating
         # gene values
         return hash((hash(self.relationship), id(self.gene_ids)))
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing_extensions.Self) -> bool:
         return (
             self.relationship == other.relationship and self.gene_ids == other.gene_ids
         )
@@ -78,20 +79,22 @@ class homolog_group:
     def __getstate__(self) -> tuple[str, dict[str, str] | None, str | None]:
         return self.relationship, self.gene_ids, self.source
 
-    def __setstate__(self, state: tuple[str, dict[str, str] | None, str | None]):
+    def __setstate__(
+        self,
+        state: tuple[str, dict[str, str] | None, str | None],
+    ) -> None:
         relationship, gene_ids, source = state
         self.relationship = relationship
         self.gene_ids = gene_ids
         self.source = source
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.gene_ids or ())
 
-    def __or__(self, other):
+    def __or__(self, other: typing_extensions.Self) -> typing_extensions.Self:
         if other.relationship != self.relationship:
-            raise ValueError(
-                f"relationship type {self.relationship!r} != {other.relationship!r}",
-            )
+            msg = f"relationship type {self.relationship!r} != {other.relationship!r}"
+            raise ValueError(msg)
         gene_ids = {**(self.gene_ids or {}), **(other.gene_ids or {})}
         return self.__class__(relationship=self.relationship, gene_ids=gene_ids)
 
@@ -146,18 +149,16 @@ def grouped_related(
         relationship[gene_id_1] = relationship[gene_id_2] = val
         grouped[rel_type] = relationship
 
-    reduced = {}
-    for rel_type, groups in grouped.items():
-        reduced[rel_type] = tuple(set(groups.values()))
-
-    return reduced
+    return {
+        rel_type: tuple(set(groups.values())) for rel_type, groups in grouped.items()
+    }
 
 
 def _gene_id_to_group(series: tuple[homolog_group, ...]) -> dict[str, homolog_group]:
     """converts series of homolog_group instances to {geneid: groupl, ..}"""
     result = {}
     for group in series:
-        result.update({gene_id: group for gene_id in group.gene_ids})
+        result |= {gene_id: group for gene_id in group.gene_ids}
     return result
 
 
