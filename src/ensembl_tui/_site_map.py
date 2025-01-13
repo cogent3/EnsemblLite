@@ -70,14 +70,14 @@ class SiteMap:
 
     site: str
     _seqs_path: str = "fasta"
-    _annotations_path: str = "gff3"
+    _annotations_path: str = "mysql"
     _alignments_path: str | None = None
     _homologies_path: str | None = None
     _trees_path: str | None = None
 
 
 class EnsemblPrimary(SiteMapABC, SiteMap):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
     def get_seqs_path(self, ensembl_name: str) -> str:

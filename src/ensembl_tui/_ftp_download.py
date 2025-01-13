@@ -1,11 +1,12 @@
 import pathlib
+import typing
 from collections.abc import Callable
 from ftplib import FTP
 
 from rich.progress import Progress, track
 from unsync import unsync
 
-from ensembl_tui import _util as elt_util
+from ensembl_tui import _util as eti_util
 
 
 def configured_ftp(host: str = "ftp.ensembl.org") -> FTP:
@@ -14,7 +15,11 @@ def configured_ftp(host: str = "ftp.ensembl.org") -> FTP:
     return ftp
 
 
-def listdir(host: str, path: str, pattern: Callable = None):
+def listdir(
+    host: str,
+    path: str,
+    pattern: Callable | None = None,
+) -> typing.Iterator[str]:
     """returns directory listing"""
     pattern = pattern or (lambda x: True)
     ftp = configured_ftp(host=host)
@@ -27,14 +32,14 @@ def listdir(host: str, path: str, pattern: Callable = None):
 
 def _copy_to_local(
     host: str,
-    src: elt_util.PathType,
-    dest: elt_util.PathType,
-) -> elt_util.PathType:
+    src: eti_util.PathType,
+    dest: eti_util.PathType,
+) -> eti_util.PathType:
     if dest.exists():
         return dest
     ftp = configured_ftp(host=host)
     # pass in checksum and keep going until it's correct?
-    with elt_util.atomic_write(dest, mode="wb") as outfile:
+    with eti_util.atomic_write(dest, mode="wb") as outfile:
         ftp.retrbinary(f"RETR {src}", outfile.write)
 
     ftp.close()
@@ -65,9 +70,9 @@ def _get_saved_paths(description, host, local_dest, remote_paths):  # pragma: no
 def download_data(
     *,
     host: str,
-    local_dest: elt_util.PathType,
-    remote_paths: list[elt_util.PathType],
-    description,
+    local_dest: eti_util.PathType,
+    remote_paths: list[str],
+    description: str,
     do_checksum: bool,
     progress: Progress | None = None,
 ) -> bool:
@@ -83,9 +88,9 @@ def download_data(
     all_checksums = {}
     all_check_funcs = {}
     for path in saved_paths:
-        if elt_util.is_signature(path):
-            all_checksums[str(path.parent)] = elt_util.get_signature_data(path)
-            all_check_funcs[str(path.parent)] = elt_util.get_sig_calc_func(path.name)
+        if eti_util.is_signature(path):
+            all_checksums[str(path.parent)] = eti_util.get_signature_data(path)
+            all_check_funcs[str(path.parent)] = eti_util.get_sig_calc_func(path.name)
 
         if progress is not None:
             progress.update(download, description=description, advance=1)
@@ -105,7 +110,7 @@ def download_data(
             if progress is not None:
                 progress.update(checking, description=msg, advance=1)
 
-            if elt_util.dont_checksum(path):
+            if eti_util.dont_checksum(path):
                 continue
             key = str(path.parent)
             expect_sig = all_checksums[key][path.name]

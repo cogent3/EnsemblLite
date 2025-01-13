@@ -12,4 +12,4 @@ def test_correct_site(site):
 def test_standard_smp():
     sm = get_site_map("ftp.ensembl.org")
     assert sm.get_seqs_path("abcd") == "fasta/abcd/dna"
-    assert sm.get_annotations_path("abcd") == "gff3/abcd"
+    assert sm.get_annotations_path("abcd") == "mysql/abcd"
