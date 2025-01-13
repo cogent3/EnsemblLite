@@ -5,7 +5,7 @@ import pytest
 from ensembl_tui import _genome as eti_genome
 
 
-def test_get_gene_segments(yeast_db):
+def test_get_gene_segments_limit(yeast_db):
     segs = eti_genome.get_gene_segments(
         annot_db=yeast_db,
         species="saccharomyces_cerevisiae",
@@ -164,7 +164,7 @@ def test_genome_segment():
     assert segment.unique_id == "NICE"
 
 
-def test_get_gene_segments(worm_db):
+def test_get_gene_segments_value(worm_db):
     segments = eti_genome.get_gene_segments(
         annot_db=worm_db,
         species="caenorhabditis_elegans",
