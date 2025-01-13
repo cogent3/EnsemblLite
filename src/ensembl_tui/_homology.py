@@ -17,6 +17,7 @@ from cogent3.util.io import PathType, iter_splitlines
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
 from ensembl_tui import _storage_mixin as eti_mixin
+from ensembl_tui import _util as eti_util
 
 HOMOLOGY_STORE_NAME = "homologies.homology-sqlitedb"
 
@@ -215,16 +216,21 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
 
     _relationship_schema = {  # e.g. ortholog_one2one
         "homology_type": "TEXT",
+        "rowid": "INTEGER PRIMARY KEY",
     }
 
     _homology_schema = {  # e.g. an individual homolog group of homology_type
         "relationship_id": "INTEGER",
     }
 
-    _species_schema = {"species_db": "TEXT"}
+    _species_schema = {
+        "species_db": "TEXT",
+        "rowid": "INTEGER PRIMARY KEY",
+    }
 
     _stableid_schema = {
-        "stableid": "TEXT PRIMARY KEY",
+        "rowid": "INTEGER PRIMARY KEY",
+        "stableid": "TEXT",
         "species_id": "INTEGER",
     }
 
@@ -244,8 +250,9 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
 
     def __init__(self, source: PathType = ":memory:"):
         self.source = source
-        self._relationship_types = {}
-        self._species_ids = {}
+        self._relationship_indexer = eti_util.unique_value_indexer()
+        self._species_indexer = eti_util.unique_value_indexer()
+        self._stableids_indexer = eti_util.unique_value_indexer()
         self._init_tables()
         self._create_views()
 
@@ -282,33 +289,10 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
         """
         self._execute_sql(sql)
 
-    def _make_species_id(self, species: str) -> int:
-        """returns the species.id value for species"""
-        if species not in self._species_ids:
-            sql = "INSERT INTO species(species_db) VALUES (?) RETURNING rowid"
-            result = self.db.execute(sql, (species,)).fetchone()[0]
-            self._species_ids[species] = result
-        return self._species_ids[species]
-
     def _make_stableid_id(self, *, stableid: str, species: str) -> int:
-        """returns the stableid.id value for gene_id"""
-        species_id = self._make_species_id(species)
-        sql = """
-        INSERT OR IGNORE INTO stableid(stableid,species_id) VALUES (?,?) RETURNING rowid
-        """
-        r = self.db.execute(sql, (stableid, species_id)).fetchone()
-        if r is None:
-            sql = "SELECT rowid FROM stableid WHERE stableid = ? AND species_id = ?"
-            r = self.db.execute(sql, (stableid, species_id)).fetchone()
-        return r[0]
-
-    def _make_relationship_type_id(self, rel_type: str) -> int:
-        """returns the relationship.id value for relationship_type"""
-        if rel_type not in self._relationship_types:
-            sql = "INSERT INTO relationship(homology_type) VALUES (?) RETURNING rowid"
-            result = self.db.execute(sql, (rel_type,)).fetchone()[0]
-            self._relationship_types[rel_type] = result
-        return self._relationship_types[rel_type]
+        """returns the stableid.id value for (species,stableid)"""
+        species_id = self._species_indexer(species)
+        return self._stableids_indexer((species_id, stableid))
 
     def _get_homology_group_id(
         self,
@@ -326,7 +310,7 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
         FROM homology_member hm
         WHERE hm.relationship_id = ? AND hm.stableid_id IN ({id_placeholders})
         """
-        result = self.db.execute(sql, (relationship_id,) + gene_ids).fetchone()
+        result = self.db.execute(sql, (relationship_id, *gene_ids)).fetchone()
         if result:
             return result[0]
         # this group not seen before, so we just create a homology entry
@@ -352,7 +336,7 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
             the relationship type
         """
         assert relationship_type is not None
-        rel_type_id = self._make_relationship_type_id(relationship_type)
+        rel_type_id = self._relationship_indexer(relationship_type)
         # we now iterate over the homology groups
         # we get a new homology id, then add all genes for that group
         # using the IGNORE to skip duplicates
@@ -375,6 +359,19 @@ class HomologyDb(eti_mixin.SqliteDbMixin):
             values = [(int(gene_id), int(homology_id)) for gene_id in gene_ids]
             self.db.executemany(sql, values)
 
+        # add the indexes for species and relationships
+        relationships = list(self._relationship_indexer)
+        sql = "INSERT OR IGNORE INTO relationship(rowid, homology_type) VALUES (?,?)"
+        self.db.executemany(sql, relationships)
+        species = list(self._species_indexer)
+        sql = "INSERT OR IGNORE INTO species(rowid, species_db) VALUES (?,?)"
+        self.db.executemany(sql, species)
+        # now the same for stableids
+        stableids = [(index, *attr) for index, attr in self._stableids_indexer]
+        sql = (
+            "INSERT OR IGNORE INTO stableid(rowid, species_id, stableid) VALUES (?,?,?)"
+        )
+        self.db.executemany(sql, stableids)
         self.db.commit()
 
     def get_related_to(self, *, gene_id: str, relationship_type: str) -> homolog_group:
