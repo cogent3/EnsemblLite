@@ -9,7 +9,7 @@ import subprocess
 import sys
 import typing
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from hashlib import md5
 from tempfile import mkdtemp
 from typing import IO
@@ -499,3 +499,28 @@ class _printer:  # noqa: N801
 
 
 print_colour = _printer()
+
+
+class unique_value_indexer:  # noqa: N801
+    """creates indexes for unique values
+
+    Notes
+    -----
+    Instance is callable and will return the unique index for a value.
+    Indexes are determined by the order of first appearance.
+    """
+
+    __slots__ = ("_values",)
+
+    def __init__(self) -> None:
+        self._values = {}
+
+    def __call__(self, value: Hashable) -> int:
+        if not (index := self._values.get(value, 0)):
+            index = len(self._values) + 1
+            self._values[value] = index
+        return index
+
+    def __iter__(self) -> typing.Iterator[tuple[int, Hashable]]:
+        for value, index in self._values.items():
+            yield index, value

@@ -225,3 +225,39 @@ def test_sanitise_stableid(biotype):
 @pytest.mark.parametrize("text", ["'primate'", '"primate"'])
 def test_stripquotes(text):
     assert eti_util.strip_quotes(text) == "primate"
+
+
+def test_unique_values():
+    indexer = eti_util.unique_value_indexer()
+    index = indexer("a")
+    assert index == 1
+    index = indexer("b")
+    assert index == 2
+    assert indexer("a") == 1
+
+
+def test_unique_values_iter():
+    indexer = eti_util.unique_value_indexer()
+    indexer("a")
+    indexer("b")
+    got = list(indexer)
+    assert got == [(1, "a"), (2, "b")]
+
+
+def test_unique_values_tuples():
+    indexer = eti_util.unique_value_indexer()
+    i1 = indexer((1, "a"))
+    i2 = indexer((2, "a"))
+    i3 = indexer((2, "b"))
+    assert indexer((1, "a")) == i1 == 1
+    assert indexer((2, "a")) == i2 == 2
+    assert indexer((2, "b")) == i3 == 3
+
+
+def test_unique_values_tuple_iter():
+    indexer = eti_util.unique_value_indexer()
+    indexer((1, "a"))
+    indexer((2, "a"))
+    indexer((2, "b"))
+    got = list(indexer)
+    assert got == [(1, (1, "a")), (2, (2, "a")), (3, (2, "b"))]
