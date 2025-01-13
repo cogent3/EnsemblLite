@@ -209,7 +209,7 @@ def species_from_ensembl_tree(tree: TreeNode) -> dict[str, str]:
         for j in range(len(name_fields) + 1, 1, -1):
             n = "_".join(name_fields[:j])
             if n in Species:
-                selected_species[Species.get_common_name(n)] = n
+                selected_species[Species.get_species_name(n)] = n
                 break
         else:
             raise ValueError(f"cannot establish species for {'_'.join(name_fields)}")
