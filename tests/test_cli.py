@@ -83,12 +83,14 @@ def test_species_summary(installed):
 
 @pytest.mark.slow
 def test_dump_genes(installed):
+    species = "caenorhabditis_elegans"
+    outdir = installed.parent
     args = [
         f"-i{installed}",
         "--species",
-        "caenorhabditis_elegans",
+        species,
         "--outdir",
-        f"{installed.parent}",
+        str(outdir),
         "--limit",
         "10",
     ]
@@ -98,7 +100,8 @@ def test_dump_genes(installed):
         catch_exceptions=False,
     )
     assert r.exit_code == 0, r.output
-    tsv_path = next(iter(installed.parent.glob("*.tsv")))
+    tsv_path = next(iter(outdir.glob("*.tsv")))
+    assert tsv_path.name.startswith(species)
     table = cogent3.load_table(tsv_path)
     assert table.shape[0] == 10
 

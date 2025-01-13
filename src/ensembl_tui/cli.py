@@ -651,7 +651,7 @@ def dump_genes(installed, species, outdir, limit):
     path = annot_db.source
     table = eti_genome.get_gene_table_for_species(annot_db=annot_db, limit=limit)
     outdir.mkdir(parents=True, exist_ok=True)
-    outpath = outdir / f"{path.parent.stem}-{config.release}-gene_metadata.tsv"
+    outpath = outdir / f"{path.stem}-{config.release}-gene_metadata.tsv"
     table.write(outpath)
     eti_util.print_colour(text=f"Finished: wrote {str(outpath)!r}!", colour="green")
 
