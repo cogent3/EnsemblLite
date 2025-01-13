@@ -6,8 +6,8 @@ from ensembl_tui import _align as eti_align
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
 from ensembl_tui import _homology as eti_homology
+from ensembl_tui import _ingest_annotation as eti_db_ingest
 from ensembl_tui import _maf as eti_maf
-from ensembl_tui import _mysql_ingest as eti_db_ingest
 from ensembl_tui import _species as eti_species
 from ensembl_tui import _util as eti_util
 

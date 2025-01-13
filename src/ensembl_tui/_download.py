@@ -8,8 +8,8 @@ from rich.progress import Progress
 
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _ftp_download as eti_ftp
+from ensembl_tui import _ingest_annotation as eti_db_ingest
 from ensembl_tui import _mysql_core_attr as eti_db_attr
-from ensembl_tui import _mysql_ingest as eti_db_ingest
 from ensembl_tui import _name as eti_name
 from ensembl_tui import _site_map as eti_site_map
 from ensembl_tui import _species as eti_species

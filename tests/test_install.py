@@ -5,8 +5,8 @@ import numpy
 import pytest
 
 import ensembl_tui._config as eti_config
+import ensembl_tui._ingest_annotation as eti_db_ingest
 import ensembl_tui._mysql_core_attr as eti_tables
-import ensembl_tui._mysql_ingest as eti_mysql
 
 TRANSLATION_SCHEMA = (
     "transcript_id INTEGER",
@@ -104,12 +104,12 @@ def db_without_start_columns(empty_db):
 
 
 def test_get_start_column(db_with_start_columns):
-    starts = eti_mysql.get_start_column(db_with_start_columns, "demo_table")
+    starts = eti_db_ingest.get_start_column(db_with_start_columns, "demo_table")
     assert starts == {"seq_region_start", "seq_start"}
 
 
 def test_get_start_column_none(db_without_start_columns):
-    starts = eti_mysql.get_start_column(db_without_start_columns, "demo_table")
+    starts = eti_db_ingest.get_start_column(db_without_start_columns, "demo_table")
     assert starts == set()
 
 
@@ -121,7 +121,7 @@ def tsv_with_start_cols(tmp_path):
 
 
 def test_import_mysql_table(db_with_start_columns, tsv_with_start_cols):
-    eti_mysql.import_mysql_table(
+    eti_db_ingest.import_mysql_table(
         con=db_with_start_columns,
         mysql_dump_path=tsv_with_start_cols,
         table_name="demo_table",
@@ -144,7 +144,7 @@ def test_write_parquet(downloaded_cfg):
     dump_path = cfg.staging_genomes / genome / "mysql" / "gene.txt.gz"
     assert dump_path.exists()
     dest_dir = downloaded_cfg.parent / "installed" / genome
-    pqt_path = eti_mysql.write_parquet(
+    pqt_path = eti_db_ingest.write_parquet(
         db_templates=template_path,
         dump_path=dump_path,
         table_name="gene",
@@ -188,7 +188,7 @@ def invalid_downloaded_cfg(downloaded_cfg, request):
 def test_install_features_invalid(invalid_downloaded_cfg):
     cfg = eti_config.read_config(invalid_downloaded_cfg)
     with pytest.raises(FileNotFoundError):
-        eti_mysql.install_parquet_tables(config=cfg)
+        eti_db_ingest.install_parquet_tables(config=cfg)
 
 
 @pytest.mark.parametrize(
