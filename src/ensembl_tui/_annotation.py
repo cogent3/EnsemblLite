@@ -429,9 +429,8 @@ class GeneView:
     @functools.singledispatchmethod
     def get_feature_children(
         self,
-        *,
         feature: FeatureDataBase,
-    ) -> typing.Iterator[FeatureDataType]:
+    ) -> typing.Iterator[FeatureDataBase]:
         msg = f"{type(feature)=} not supported"
         raise NotImplementedError(msg)
 
@@ -816,21 +815,14 @@ class Annotations(AnnotationDbABC):
     def from_dict(self, data: dict[str, typing.Any]) -> None:
         raise NotImplementedError
 
-    def count_distinct(
-        self,
-        seqid: StrOrBool = False,
-        biotype: StrOrBool = False,
-        **kwargs,
-    ): ...
-
-    def get_cds(self, **kwargs) -> typing.Iterator[CdsData]:
+    def get_cds(self, **kwargs) -> CdsData:  # noqa: ANN003
         return self.genes.get_cds(**kwargs)
 
     def get_ids_for_biotype(self, biotype: str, limit: int | None = None) -> list[str]:
         return self.genes.get_ids_for_biotype(biotype=biotype, limit=limit)
 
     def count_distinct(self, **kwargs) -> "Table | None":
-        return self.genes.count_distinct(**kwargs)
+        return None if self.genes is None else self.genes.count_distinct(**kwargs)
 
     def num_records(self) -> int:
         """returns the total number of genes and repeat features"""

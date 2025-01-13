@@ -498,7 +498,7 @@ def load_annotations_for_species(*, path: pathlib.Path) -> eti_annots.Annotation
         return eti_annots.Annotations(source=path)
     except FileNotFoundError:
         eti_util.print_colour(
-            text=f"{species!r} not in {str(path)!r}",
+            text=f"expected files not in {str(path)!r}",
             colour="red",
         )
         sys.exit(1)
