@@ -169,3 +169,10 @@ def test_repeat_query(worm_repeats):
         worm_repeats.get_features_matching(repeat_class="Simple_repeat", limit=10),
     )
     assert len(repeats) == 10
+
+
+def test_view_species(worm_db):
+    assert worm_db.species == "caenorhabditis_elegans"
+    assert worm_db.genes.species == "caenorhabditis_elegans"
+    assert worm_db.repeats.species == "caenorhabditis_elegans"
+    assert worm_db.biotypes.species == "caenorhabditis_elegans"

@@ -239,8 +239,16 @@ def _select_records_sql(
     return f"{sql} WHERE {conditions}" if conditions else sql
 
 
+class ViewMixin:
+    _source: pathlib.Path  # override in subclass
+
+    @property
+    def species(self) -> str:
+        return self._source.name
+
+
 @dataclasses.dataclass
-class BiotypeView:
+class BiotypeView(ViewMixin):
     source: dataclasses.InitVar[pathlib.Path | str]
     db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
     _source: pathlib.Path = dataclasses.field(init=False)
@@ -299,7 +307,7 @@ class BiotypeView:
 
 
 @dataclasses.dataclass
-class GeneView:
+class GeneView(ViewMixin):
     source: dataclasses.InitVar[pathlib.Path | str]
     db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
     _source: pathlib.Path = dataclasses.field(init=False)
@@ -586,7 +594,7 @@ class GeneView:
 
 
 @dataclasses.dataclass
-class RepeatView:
+class RepeatView(ViewMixin):
     source: dataclasses.InitVar[pathlib.Path | str]
     db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
     _source: pathlib.Path = dataclasses.field(init=False)
@@ -732,7 +740,7 @@ class RepeatView:
 
 
 @dataclasses.dataclass
-class Annotations(AnnotationDbABC):
+class Annotations(AnnotationDbABC, ViewMixin):
     """virtual genome annotation database that provides access to gene and repeat features"""
 
     source: dataclasses.InitVar[pathlib.Path | str]
