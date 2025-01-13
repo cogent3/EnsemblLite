@@ -414,12 +414,12 @@ class GeneView(ViewMixin):
             "cds_spans",
             "cds_stable_id",
         )
-        sql = f"SELECT ({','.join(columns)}) FROM transcript_attr WHERE transcript_id = {transcript_id}"
+        sql = f"SELECT {','.join(columns)} FROM transcript_attr WHERE transcript_id = {transcript_id}"
         if not (record := self.conn.sql(sql).fetchone()):
             msg = f"No CDS spans found for {gene=}"
             raise ValueError(msg)
 
-        transcript = dict(zip(columns, record[0], strict=True))
+        transcript = dict(zip(columns, record, strict=True))
         if not (spans := transcript.pop("cds_spans", None)):
             msg = f"No CDS spans found for {gene=}"
             raise ValueError(msg)
@@ -455,9 +455,9 @@ class GeneView(ViewMixin):
             "transcript_stable_id",
             "gene_id",
         )
-        sql = f"SELECT ({','.join(columns)}) FROM transcript_attr WHERE transcript_id = {gene['canonical_transcript_id']}"
+        sql = f"SELECT {','.join(columns)} FROM transcript_attr WHERE transcript_id = {gene['canonical_transcript_id']}"
         for record in self.conn.sql(sql).fetchall():
-            transcript = dict(zip(columns, record[0], strict=True))
+            transcript = dict(zip(columns, record, strict=True))
             spans = transcript.pop("transcript_spans")
             spans = core_tables.blob_to_array(spans)
             stable_id = transcript.pop("transcript_stable_id")
@@ -483,12 +483,12 @@ class GeneView(ViewMixin):
             "cds_spans",
             "cds_stable_id",
         )
-        sql = f"SELECT ({','.join(columns)}) FROM transcript_attr WHERE transcript_id = {transcript['transcript_id']}"
+        sql = f"SELECT {','.join(columns)} FROM transcript_attr WHERE transcript_id = {transcript['transcript_id']}"
         if not (record := self.conn.sql(sql).fetchone()):
             msg = f"No CDS spans found for {transcript=}"
             raise ValueError(msg)
 
-        data = dict(zip(columns, record[0], strict=True))
+        data = dict(zip(columns, record, strict=True))
         if not (spans := data.pop("cds_spans", None)):
             msg = f"No CDS spans found for {transcript=}"
             raise ValueError(msg)
@@ -511,12 +511,12 @@ class GeneView(ViewMixin):
 
     @get_feature_parent.register
     def _(self, transcript: TranscriptData) -> GeneData:
-        sql = f"SELECT ({','.join(GENE_ATTR_COLUMNS)}) FROM gene_attr WHERE gene_id = {transcript['gene_id']}"
+        sql = f"SELECT {','.join(GENE_ATTR_COLUMNS)} FROM gene_attr WHERE gene_id = {transcript['gene_id']}"
         if not (record := self.conn.sql(sql).fetchone()):
             msg = f"No gene spans found for {transcript=}"
             raise ValueError(msg)
 
-        gene = dict(zip(GENE_ATTR_COLUMNS, record[0], strict=True))
+        gene = dict(zip(GENE_ATTR_COLUMNS, record, strict=True))
         spans = numpy.array([sorted([gene["start"], gene["stop"]])], dtype=numpy.int32)
         stable_id = gene.pop("stable_id")
         return GeneData(**{**gene, "spans": spans, "stable_id": stable_id})
@@ -532,12 +532,12 @@ class GeneView(ViewMixin):
             "transcript_spans",
             "transcript_stable_id",
         )
-        sql = f"SELECT ({','.join(columns)}) FROM transcript_attr WHERE transcript_id = {cds['transcript_id']}"
+        sql = f"SELECT {','.join(columns)} FROM transcript_attr WHERE transcript_id = {cds['transcript_id']}"
         if not (record := self.conn.sql(sql).fetchone()):
             msg = f"No transcript spans found for {cds=}"
             raise ValueError(msg)
 
-        transcript = dict(zip(columns, record[0], strict=True))
+        transcript = dict(zip(columns, record, strict=True))
         spans = transcript.pop("transcript_spans")
         spans = core_tables.blob_to_array(spans)
         stable_id = transcript.pop("transcript_stable_id")
