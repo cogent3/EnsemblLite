@@ -266,7 +266,7 @@ def test_load_homologies(DATA_DIR):
     assert len(got["ortholog_one2one"]) == 5
 
 
-def test_homdb_new_get_related_to(o2o_db):
+def test_homdb_get_related_to(o2o_db):
     homdb, _ = o2o_db
     got = homdb.get_related_to(
         gene_id="ENSG00000198786",
@@ -275,19 +275,13 @@ def test_homdb_new_get_related_to(o2o_db):
     assert len(got) >= 9
 
 
-def test_homdb_new_get_related_groups(o2o_db):
+def test_homdb_get_related_groups(o2o_db):
     homdb, _ = o2o_db
     got = homdb.get_related_groups(relationship_type="ortholog_one2one")
     assert len(got) == 5
 
 
-def test_homdb_new_num_records(o2o_db):
-    homdb, _ = o2o_db
-    got = homdb.num_records()
-    assert got == 5
-
-
-def test_homdb_new_num_records(o2o_db):
+def test_homdb_num_records(o2o_db):
     homdb, _ = o2o_db
     got = homdb.count_distinct(homology_type=True)
     assert got.shape == (1, 2)
