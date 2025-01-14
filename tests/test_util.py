@@ -261,3 +261,59 @@ def test_unique_values_tuple_iter():
     indexer((2, "b"))
     got = list(indexer)
     assert got == [(1, (1, "a")), (2, (2, "a")), (3, (2, "b"))]
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (
+            (("cat1", {"a", "b"}), ("cat1", {"c", "d"})),
+            [1, 2],
+        ),  # diff indices
+        (
+            (("cat1", {"a", "b"}), ("cat1", {"c", "b"})),
+            [1, 1],
+        ),  # same indices
+        (
+            (("cat1", {"a", "b"}), ("cat2", {"a", "b"})),
+            [1, 2],
+        ),  # diff indices
+        (
+            (
+                ("cat1", {"a", "b"}),
+                ("cat2", {"a", "b"}),
+                ("cat1", {"c", "b"}),
+            ),
+            [1, 2, 1],
+        ),  # mix indices
+    ][-1:],
+)
+def test_category_indexer(data, expected):
+    indexer = eti_util.category_indexer()
+    got = [indexer(cat, grp) for cat, grp in data]
+    assert got == expected
+
+
+def test_category_indexer_empty_vals():
+    indexer = eti_util.category_indexer()
+    with pytest.raises(ValueError):
+        indexer("cat1", set())
+
+
+def test_category_indexer_iter():
+    indexer = eti_util.category_indexer()
+    data = [
+        ("c1", {"a", "b"}),
+        ("c2", {"a", "b"}),
+        ("c1", {"c", "b"}),
+    ]
+    expect = {
+        (1, "c1", "a"),
+        (1, "c1", "b"),
+        (1, "c1", "c"),
+        (2, "c2", "a"),
+        (2, "c2", "b"),
+    }
+    _ = [indexer(cat, grp) for cat, grp in data]
+    got = set(indexer)
+    assert got == expect

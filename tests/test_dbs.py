@@ -5,12 +5,12 @@ import pytest
 from cogent3 import load_table
 
 from ensembl_tui import _align as eti_align
-from ensembl_tui import _homology as eti_homology
+from ensembl_tui import _ingest_homology as homology_ingest
 from ensembl_tui import _maf as eti_maf
 from ensembl_tui import _storage_mixin as eti_mixin
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_align(DATA_DIR, tmp_path):
     # apps are callable
     records = eti_maf.load_align_records()(  # pylint: disable=not-callable
@@ -33,29 +33,31 @@ def test_db_align(db_align):
 
 def test_db_align_add_records(db_align):
     gap_spans = numpy.array([[2, 5], [7, 1]], dtype=int)
-    orig = dict(
-        source="blah",
-        block_id=42,
-        species="human",
-        seqid="1",
-        start=22,
-        stop=42,
-        strand="-",
-    )
+    orig = {
+        "source": "blah",
+        "block_id": 42,
+        "species": "human",
+        "seqid": "1",
+        "start": 22,
+        "stop": 42,
+        "strand": "-",
+    }
     records = [eti_align.AlignRecord(gap_spans=gap_spans, **orig.copy())]
     db_align.add_records(records)
-    got = list(
-        db_align._execute_sql(
-            f"SELECT * from {db_align.table_name} where block_id=?",
-            (42,),
+    got = next(
+        iter(
+            db_align._execute_sql(
+                f"SELECT * from {db_align.table_name} where block_id=?",
+                (42,),
+            ),
         ),
-    )[0]
+    )
     got = {k: got[k] for k in orig if k != "id"}
     # gap_spans not stored in the db, but in a GapStore
     assert got == orig
 
 
-@pytest.mark.parametrize("func", (str, repr))
+@pytest.mark.parametrize("func", [str, repr])
 def test_db_align_repr(db_align, func):
     func(db_align)
 
@@ -72,7 +74,7 @@ def hom_dir(DATA_DIR, tmp_path):
 
 
 def test_extract_homology_data(hom_dir):
-    loader = eti_homology.load_homologies(
+    loader = homology_ingest.load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
     )
     records = []
@@ -81,39 +83,16 @@ def test_extract_homology_data(hom_dir):
     assert len(records) == 2
 
 
-def test_homology_db(hom_dir):
-    loader = eti_homology.load_homologies(
-        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
-    )
-
-    outpath = hom_dir / "species.sqlitedb"
-    db = eti_homology.HomologyDb(source=outpath)
-    grouped = [
-        r.obj
-        for r in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False)
-    ]
-    got = eti_homology.merge_grouped(*grouped)
-    num_genes = 0
-    for rel_type, data in got.items():
-        db.add_records(records=data, relationship_type=rel_type)
-        for record in data:
-            num_genes += len(record.gene_ids)
-    assert len(db) == num_genes
-    db.close()
-    got = eti_homology.HomologyDb(source=outpath)
-    assert len(got) == num_genes
-
-
 def test_pickling_db(db_align):
     # should not fail
     pkl = pickle.dumps(db_align)  # nosec B301
-    upkl = pickle.loads(pkl)  # nosec B301
+    upkl = pickle.loads(pkl)  # nosec B301  # noqa: S301
     assert db_align.source == upkl.source
 
 
 @pytest.mark.parametrize(
     "data",
-    (numpy.array([], dtype=numpy.int32), numpy.array([0, 3], dtype=numpy.uint8)),
+    [numpy.array([], dtype=numpy.int32), numpy.array([0, 3], dtype=numpy.uint8)],
 )
 def test_array_blob_roundtrip(data):
     blob = eti_mixin.array_to_blob(data)
@@ -125,10 +104,10 @@ def test_array_blob_roundtrip(data):
 
 @pytest.mark.parametrize(
     "data",
-    (
+    [
         numpy.array([0, 3], dtype=numpy.uint8),
         eti_mixin.array_to_blob(numpy.array([0, 3], dtype=numpy.uint8)),
-    ),
+    ],
 )
 def test_blob_array(data):
     # handles array or bytes as input

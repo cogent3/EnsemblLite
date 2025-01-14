@@ -526,6 +526,40 @@ class unique_value_indexer:  # noqa: N801
             yield index, value
 
 
+class category_indexer:  # noqa: N801
+    """maps multiple keys to the same index value for distinct categories"""
+
+    __slots__ = ("_index", "_values")
+
+    def __init__(self) -> None:
+        self._values = {}
+        self._index = 0
+
+    def __call__(self, category: str | int, vals: set[str] | set[int]) -> int:
+        if not vals:
+            message = f"no values provided for {category}"
+            raise ValueError(message)
+        if (entries := self._values.get(category)) and (
+            shared := entries.keys() & vals
+        ):
+            key = next(iter(shared))
+            index = entries[key]
+            new_vals = vals - entries.keys()
+        else:
+            entries = self._values.get(category, {})
+            self._index += 1
+            index = self._index
+            new_vals = vals
+        entries |= {val: index for val in new_vals}
+        self._values[category] = entries
+        return index
+
+    def __iter__(self) -> typing.Iterator[tuple[int, str | int, str | int]]:
+        for cat_name, cat in self._values.items():
+            for value, index in cat.items():
+                yield index, cat_name, value
+
+
 @contextlib.contextmanager
 def tempdir() -> pathlib.Path:
     """context manager returns a temporary directory"""
