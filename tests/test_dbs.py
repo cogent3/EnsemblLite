@@ -5,7 +5,7 @@ import pytest
 from cogent3 import load_table
 
 from ensembl_tui import _align as eti_align
-from ensembl_tui import _homology as eti_homology
+from ensembl_tui import _ingest_homology as homology_ingest
 from ensembl_tui import _maf as eti_maf
 from ensembl_tui import _storage_mixin as eti_mixin
 
@@ -74,36 +74,13 @@ def hom_dir(DATA_DIR, tmp_path):
 
 
 def test_extract_homology_data(hom_dir):
-    loader = eti_homology.load_homologies(
+    loader = homology_ingest.load_homologies(
         {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
     )
     records = []
     for result in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False):
         records.extend(result.obj)
     assert len(records) == 2
-
-
-def test_homology_db(hom_dir):
-    loader = eti_homology.load_homologies(
-        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
-    )
-
-    outpath = hom_dir / "species.sqlitedb"
-    db = eti_homology.HomologyDb(source=outpath)
-    grouped = [
-        r.obj
-        for r in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False)
-    ]
-    got = eti_homology.merge_grouped(*grouped)
-    num_genes = 0
-    for rel_type, data in got.items():
-        db.add_records(records=data, relationship_type=rel_type)
-        for record in data:
-            num_genes += len(record.gene_ids)
-    assert len(db) == num_genes
-    db.close()
-    got = eti_homology.HomologyDb(source=outpath)
-    assert len(got) == num_genes
 
 
 def test_pickling_db(db_align):

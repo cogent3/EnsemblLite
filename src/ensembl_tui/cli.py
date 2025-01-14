@@ -561,7 +561,7 @@ def homologs(
         )
 
     db = eti_homology.load_homology_db(
-        path=config.homologies_path / eti_homology.HOMOLOGY_STORE_NAME,
+        path=config.homologies_path,
     )
     related = []
     with progress.Progress(

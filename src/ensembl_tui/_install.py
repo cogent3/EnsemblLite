@@ -7,6 +7,7 @@ from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
 from ensembl_tui import _homology as eti_homology
 from ensembl_tui import _ingest_annotation as eti_db_ingest
+from ensembl_tui import _ingest_homology as homology_ingest
 from ensembl_tui import _maf as eti_maf
 from ensembl_tui import _species as eti_species
 from ensembl_tui import _util as eti_util
@@ -134,9 +135,6 @@ def local_install_homology(
 
     config.install_homologies.mkdir(parents=True, exist_ok=True)
 
-    outpath = config.install_homologies / eti_homology.HOMOLOGY_STORE_NAME
-    db = eti_homology.HomologyDb(source=outpath)
-
     dirnames = []
     for sp in config.db_names:
         path = config.staging_homologies / sp
@@ -150,7 +148,9 @@ def local_install_homology(
     if verbose:
         print(f"homologies {max_workers=}")
 
-    loader = eti_homology.load_homologies(allowed_species=set(config.db_names))
+    loader = homology_ingest.load_homologies(
+        allowed_species=set(config.db_names),
+    )
     if max_workers > 1:
         loader = loader + eti_homology.pickler + eti_homology.compressor
 
@@ -163,6 +163,7 @@ def local_install_homology(
         series=dirnames,
         max_workers=max_workers,
     )
+    db = homology_ingest.make_homology_aggregator_db()
     for result in tasks:
         if max_workers > 1:
             # reconstitute the blosc compressed data
@@ -174,11 +175,7 @@ def local_install_homology(
         if progress is not None:
             progress.update(writing, description=msg, advance=1)
 
-    no_records = len(db) == 0
-    db.make_indexes()
-    db.close()
-    if no_records:
-        outpath.unlink()
-
+    db.finish()
+    homology_ingest.write_homology_views(agg=db, outdir=config.install_homologies)
     if verbose:
         print("Finished installing homologies")

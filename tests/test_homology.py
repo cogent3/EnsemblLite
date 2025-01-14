@@ -2,6 +2,7 @@ import pytest
 from cogent3 import load_table
 
 from ensembl_tui import _homology as eti_homology
+from ensembl_tui import _ingest_homology as homol_ingest
 
 
 def _make_expected_o2o(table):
@@ -20,7 +21,23 @@ def _make_expected_o2o(table):
 @pytest.fixture
 def o2o_db(DATA_DIR, tmp_dir):
     raw = DATA_DIR / "one2one_homologies.tsv"
-
+    src_cols = (
+        "homology_type",
+        "species",
+        "gene_stable_id",
+        "homology_species",
+        "homology_gene_stable_id",
+    )
+    dest_col = (
+        "relationship",
+        "species_1",
+        "gene_id_1",
+        "species_2",
+        "gene_id_2",
+    )
+    table = load_table(raw).get_columns(src_cols)
+    table = table.with_new_header(src_cols, dest_col)
+    table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
     species = {
         "gorilla_gorilla",
         "macaca_mulatta",
@@ -32,16 +49,15 @@ def o2o_db(DATA_DIR, tmp_dir):
         "chlorocebus_sabaeus",
         "pan_paniscus",
     }
-    loader = eti_homology.load_homologies(species)
 
-    table = load_table(raw).get_columns(loader.src_cols)
-
-    table = table.with_new_header(loader.src_cols, loader.dest_col)
-    table = table.get_columns(["relationship", "gene_id_1", "gene_id_2"])
+    loader = homol_ingest.load_homologies(species)
+    agg = homol_ingest.make_homology_aggregator_db()
     hom_groups = loader(raw)  # pylint: disable=not-callable
-    homdb = eti_homology.HomologyDb(tmp_dir / eti_homology.HOMOLOGY_STORE_NAME)
     for rel_type, data in hom_groups.items():
-        homdb.add_records(records=data, relationship_type=rel_type)
+        agg.add_records(records=data, relationship_type=rel_type)
+    agg.finish()
+    homol_ingest.write_homology_views(agg=agg, outdir=tmp_dir)
+    homdb = eti_homology.HomologyDb(source=tmp_dir)
     return homdb, table
 
 
@@ -84,17 +100,19 @@ def test_hdb_get_related_groups(o2o_db):
 
 
 @pytest.fixture
-def hom_hdb(hom_records):
-    groups = eti_homology.grouped_related(hom_records)
-    hdb = eti_homology.HomologyDb(source=":memory:")
+def hom_hdb(hom_records, tmp_dir):
+    groups = homol_ingest.grouped_related(hom_records)
+    agg = homol_ingest.make_homology_aggregator_db()
     for rel_type, data in groups.items():
-        hdb.add_records(records=data, relationship_type=rel_type)
-    return hdb
+        agg.add_records(records=data, relationship_type=rel_type)
+    agg.finish()
+    homol_ingest.write_homology_views(agg=agg, outdir=tmp_dir)
+    return eti_homology.HomologyDb(source=tmp_dir)
 
 
 def test_group_related(hom_records):
     orths = [r for r in hom_records if r[0] == "ortholog_one2one"]
-    related = eti_homology.grouped_related(orths)
+    related = homol_ingest.grouped_related(orths)
     # the lambda is essential!
     got = sorted(
         related["ortholog_one2one"],
@@ -145,49 +163,6 @@ def test_homology_db(hom_hdb):
     assert got == expect
 
 
-def test_species_genes_eq():
-    a = eti_homology.species_genes(species="a", gene_ids=["1"])
-    b = eti_homology.species_genes(species="a", gene_ids=["1"])
-    assert a == b
-    c = eti_homology.species_genes(species="a", gene_ids=["2"])
-    assert a != c
-    d = eti_homology.species_genes(species="b", gene_ids=["1"])
-    assert a != d
-    e = eti_homology.species_genes(species="b", gene_ids=["2"])
-    assert a != e
-
-
-def test_species_genes_hash():
-    a = eti_homology.species_genes(species="a", gene_ids=["1"])
-    assert hash(a) == hash("a")
-
-
-@pytest.mark.parametrize("table_name", tuple(eti_homology.HomologyDb.table_names))
-def test_indexing(o2o_db, table_name):
-    db, _ = o2o_db
-    # we just get the first column for the table
-    col = eti_homology.HomologyDb._index_columns[table_name][0]
-    expect = ("index", f"{col}_index", table_name)
-    db.make_indexes()
-    sql_template = (
-        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
-        f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
-    )
-
-    result = db._execute_sql(sql_template).fetchone()
-    got = tuple(result)[:3]
-    assert got == expect
-
-
-@pytest.mark.parametrize("sp,geneids", (("abc", ()), ("abc", ["a", "b"])))
-def test_species_genes_pickle_roundtrip(sp, geneids):
-    import pickle  # nosec B403
-
-    orig = eti_homology.species_genes(species=sp, gene_ids=geneids)
-    got = pickle.loads(pickle.dumps(orig))  # nosec B301
-    assert got == orig
-
-
 def test_homolog_group_pickle_roundtrip():
     import pickle  # nosec B403
 
@@ -224,47 +199,20 @@ def test_homolog_group_union():
 
 
 def test_homolog_group_union_invalid():
-    a = eti_homology.homolog_group(relationship="one2one", gene_ids={"1", "2", "3"})
-    b = eti_homology.homolog_group(relationship="one2many", gene_ids={"3", "4"})
+    a = eti_homology.homolog_group(
+        relationship="one2one",
+        gene_ids={"1", "2", "3"},
+    )
+    b = eti_homology.homolog_group(
+        relationship="one2many",
+        gene_ids={"3", "4"},
+    )
     with pytest.raises(ValueError):
         _ = a | b
 
 
-def test_merge_grouped():
-    a1 = eti_homology.homolog_group(
-        relationship="one2one",
-        gene_ids={
-            "1": "sp1",
-            "2": "sp2",
-            "3": "sp3",
-        },
-    )
-    a2 = eti_homology.homolog_group(
-        relationship="one2many",
-        gene_ids={
-            "3": "sp3",
-            "5": "sp1",
-            "6": "sp1",
-        },
-    )
-    c = eti_homology.homolog_group(
-        relationship="one2one",
-        gene_ids={
-            "3": "sp3",
-            "2": "sp2",
-            "4": "sp4",
-        },
-    )
-    got = eti_homology.merge_grouped(
-        {"one2one": (a1,), "one2many": (a2,)},
-        {"one2one": (c,)},
-    )
-    expect = {"one2one": (a1 | c,), "one2many": (a2,)}
-    assert got == expect
-
-
 def test_homdb_add_invalid_record():
-    hom_db = eti_homology.HomologyDb()
+    agg = homol_ingest.make_homology_aggregator_db()
     records = (
         eti_homology.homolog_group(
             relationship="one2one",
@@ -285,7 +233,7 @@ def test_homdb_add_invalid_record():
     )
 
     with pytest.raises(ValueError):
-        hom_db.add_records(records=records, relationship_type="one2one")
+        agg.add_records(records=records, relationship_type="one2one")
 
 
 @pytest.mark.parametrize(
@@ -298,24 +246,6 @@ def test_homdb_add_invalid_record():
 def test_homdb_get_related_to_non(o2o_db, gene_id, rel_type):
     db, _ = o2o_db
     assert not db.get_related_to(gene_id=gene_id, relationship_type=rel_type)
-
-
-def test_homology_db_update(orth_records):
-    rel_type = "ortholog_one2one"
-    hom_db = eti_homology.HomologyDb()
-    rec_2 = orth_records.pop(1)
-    grouped = eti_homology.grouped_related(orth_records)
-    hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
-    grouped = eti_homology.grouped_related([rec_2])
-    hom_db.add_records(records=grouped[rel_type], relationship_type=rel_type)
-    got = list(hom_db.db.execute("SELECT rowid,relationship_id FROM homology"))
-    assert len(got) == 2
-    got = hom_db.get_related_groups(relationship_type=rel_type)
-    assert len(got) == 2
-    expect = {"4": "sp1", "5": "sp3"}, {"1": "sp1", "2": "sp2", "3": "sp3"}
-    assert {frozenset(m.gene_ids.items()) for m in got} == {
-        frozenset(m.items()) for m in expect
-    }
 
 
 def test_load_homologies(DATA_DIR):
@@ -331,6 +261,37 @@ def test_load_homologies(DATA_DIR):
         "pan_paniscus",
     }
 
-    loader = eti_homology.load_homologies(species)
+    loader = homol_ingest.load_homologies(species)
     got = loader(DATA_DIR / "one2one_homologies.tsv")  # pylint: disable=not-callable
     assert len(got["ortholog_one2one"]) == 5
+
+
+def test_homdb_new_get_related_to(o2o_db):
+    homdb, _ = o2o_db
+    got = homdb.get_related_to(
+        gene_id="ENSG00000198786",
+        relationship_type="ortholog_one2one",
+    )
+    assert len(got) >= 9
+
+
+def test_homdb_new_get_related_groups(o2o_db):
+    homdb, _ = o2o_db
+    got = homdb.get_related_groups(relationship_type="ortholog_one2one")
+    assert len(got) == 5
+
+
+def test_homdb_new_num_records(o2o_db):
+    homdb, _ = o2o_db
+    got = homdb.num_records()
+    assert got == 5
+
+
+def test_homdb_new_num_records(o2o_db):
+    homdb, _ = o2o_db
+    got = homdb.count_distinct(homology_type=True)
+    assert got.shape == (1, 2)
+    assert got.columns["homology_type"][0] == "ortholog_one2one"
+    assert got.columns["count"][0] == 41
+    got = homdb.count_distinct(species=True)
+    assert got.shape == (9, 2)

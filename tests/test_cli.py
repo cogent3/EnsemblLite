@@ -62,7 +62,7 @@ def installed(tmp_downloaded):
 def test_installed(installed):
     config = eti_config.read_installed_cfg(installed)
     assert config.homologies_path.exists()
-    assert sum(f.stat().st_size for f in config.homologies_path.iterdir()) > 1_000_000
+    assert sum(f.stat().st_size for f in config.homologies_path.iterdir()) > 8_000
     r = RUNNER.invoke(eti_cli.installed, [f"-i{installed}"], catch_exceptions=False)
     assert r.exit_code == 0, r.output
     assert "Installed genomes" in r.output
