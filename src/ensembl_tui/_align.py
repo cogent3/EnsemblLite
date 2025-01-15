@@ -129,7 +129,7 @@ class GapStore(eti_mixin.Hdf5Mixin):
             name=index,
             data=gaps,
             chunks=True,
-            **eti_util._HDF5_BLOSC2_KWARGS,
+            **eti_util.HDF5_BLOSC2_KWARGS,
         )
         self._file.flush()
 

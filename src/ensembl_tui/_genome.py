@@ -239,7 +239,7 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
             name=seqid,
             data=seq,
             chunks=True,
-            **eti_util._HDF5_BLOSC2_KWARGS,
+            **eti_util.HDF5_BLOSC2_KWARGS,
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]) -> None:

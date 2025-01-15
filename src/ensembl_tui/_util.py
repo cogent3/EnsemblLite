@@ -37,7 +37,7 @@ except (NotImplementedError, ImportError):
     keep_running = contextlib.nullcontext
 
 
-_HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
+HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
     cname="blosclz",
     clevel=9,
     filters=hdf5plugin.Blosc2.BITSHUFFLE,
