@@ -2,13 +2,12 @@ import shutil
 
 from rich.progress import Progress
 
-from ensembl_tui import _align as eti_align
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
 from ensembl_tui import _homology as eti_homology
+from ensembl_tui import _ingest_align as ingest_aln
 from ensembl_tui import _ingest_annotation as eti_db_ingest
 from ensembl_tui import _ingest_homology as homology_ingest
-from ensembl_tui import _maf as eti_maf
 from ensembl_tui import _species as eti_species
 from ensembl_tui import _util as eti_util
 
@@ -97,48 +96,13 @@ def local_install_alignments(
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
 
-    aln_loader = eti_maf.load_align_records(set(config.db_names))
-
     for align_name in config.align_names:
-        src_dir = config.staging_aligns / align_name
-        dest_dir = config.install_aligns
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        # write out to a db with align_name
-        output_path = dest_dir / f"{align_name}.{eti_align.ALIGN_STORE_SUFFIX}"
-        db = eti_align.AlignDb(source=output_path)
-        records = []
-        paths = list(src_dir.glob(f"{align_name}*maf*"))
-
-        if max_workers and max_workers > 1:
-            # we adjust the maximum workers to the number of paths
-            max_workers = min(len(paths) + 1, max_workers or 0)
-
-        if verbose:
-            print(f"{max_workers=}")
-
-        series = eti_util.get_iterable_tasks(
-            func=aln_loader,
-            series=paths,
+        ingest_aln.install_alignment(
+            config=config,
+            align_name=align_name,
+            progress=progress,
             max_workers=max_workers,
         )
-
-        if progress is not None:
-            msg = "Installing alignments"
-            writing = progress.add_task(total=len(paths), description=msg, advance=0)
-
-        for result in series:
-            if not result:
-                print(result)
-                raise RuntimeError
-
-            records.extend(result)
-
-            if progress is not None:
-                progress.update(writing, description=msg, advance=1)
-
-        db.add_records(records=records)
-        db.make_indexes()
-        db.close()
 
     if verbose:
         eti_util.print_colour("\nFinished installing alignments", "yellow")
