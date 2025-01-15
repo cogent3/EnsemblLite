@@ -33,10 +33,11 @@ def _get_alignment_block_indices(data: list[str]) -> list[tuple[int, int]]:
 
 
 def process_id_line(line: str) -> int:
-    match = _id_pattern.search(line)
-    if not match:
-        raise ValueError(f"{line=} is not a tree id line")
-    return int(match.group())
+    if match := _id_pattern.search(line):
+        return int(match.group())
+
+    msg = f"{line=} is not a tree id line"
+    raise ValueError(msg)
 
 
 def process_maf_line(line: str) -> tuple[eti_name.MafName, str]:

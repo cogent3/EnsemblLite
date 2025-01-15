@@ -6,18 +6,21 @@ from dataclasses import dataclass
 
 import h5py
 import numpy
+import typing_extensions
 from cogent3.app.composable import define_app
 from cogent3.core.alignment import Aligned, Alignment
 from cogent3.core.location import _DEFAULT_GAP_DTYPE, IndelMap
 
 from ensembl_tui import _genome as eti_genome
-from ensembl_tui import _storage_mixin as eti_mixin
+from ensembl_tui import _storage_mixin as eti_storage
 from ensembl_tui import _util as eti_util
 
 _no_gaps = numpy.array([], dtype=_DEFAULT_GAP_DTYPE)
 
 GAP_STORE_SUFFIX = "indels-hdf5_blosc2"
 ALIGN_STORE_SUFFIX = "align_coords-sqlitedb"
+
+VT = str | int | numpy.ndarray
 
 
 @dataclass(slots=True)
@@ -39,20 +42,20 @@ class AlignRecord:
     strand: str
     gap_spans: numpy.ndarray
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> VT:
         return getattr(self, item)
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, item: str, value: VT) -> None:
         setattr(self, item, value)
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing_extensions.Self) -> bool:
         attrs = "block_id", "species", "seqid", "start", "stop", "strand"
         for attr in attrs:
             if getattr(self, attr) != getattr(other, attr):
                 return False
         return (self.gap_spans == other.gap_spans).all()
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(
             (
                 self.block_id,
@@ -65,7 +68,7 @@ class AlignRecord:
         )
 
     @property
-    def gap_data(self):
+    def gap_data(self) -> tuple[numpy.ndarray, numpy.ndarray]:
         if len(self.gap_spans):
             gap_pos, gap_lengths = self.gap_spans.T
         else:
@@ -77,45 +80,62 @@ class AlignRecord:
 ReturnType = tuple[str, tuple]  # the sql statement and corresponding values
 
 
-class GapStore(eti_mixin.Hdf5Mixin):
-    # store gap data from aligned sequences
+class GapStore(eti_storage.Hdf5Mixin):
+    """store gap data from aligned sequences"""
+
     def __init__(
         self,
         source: eti_util.PathType,
         align_name: str | None = None,
         mode: str = "r",
         in_memory: bool = False,
-    ):
+    ) -> None:
+        """
+        Parameters
+        ----------
+        source
+            path to the file
+        align_name
+            the Ensembl alignment name, e.g. '10_primates.epo'
+        mode
+            file open mode
+        in_memory
+            an in-memory HDF5 file
+        """
         in_memory = in_memory or "memory" in str(source)
+        # h5py requires a unique file path even for in-memory stores
         source = uuid.uuid4().hex if in_memory else source
 
         self.source = pathlib.Path(source)
         self.mode = "w-" if mode == "w" else mode
         h5_kwargs = (
-            dict(
-                driver="core",
-                backing_store=False,
-            )
+            {
+                "driver": "core",
+                "backing_store": False,
+            }
             if in_memory
             else {}
         )
         try:
             self._file = h5py.File(source, mode=self.mode, **h5_kwargs)
-        except OSError:
-            print(f"{source=}")
-            raise
+        except OSError as err:
+            msg = f"h5py could not open {source=}"
+            raise OSError(msg) from err
 
         if "r" not in self.mode and "align_name" not in self._file.attrs:
-            assert align_name
+            if not align_name:
+                msg = "align_name not present in GapStore attrs"
+                raise ValueError(msg)
             self._file.attrs["align_name"] = align_name
         if (
             align_name
             and (file_species := self._file.attrs.get("align_name", None)) != align_name
         ):
-            raise ValueError(f"{self.source.name!r} {file_species!r} != {align_name}")
+            msg = f"{self.source.name!r} {file_species!r} != {align_name}"
+            raise ValueError(msg)
         self.align_name = self._file.attrs["align_name"]
 
-    def add_record(self, *, index: int, gaps: numpy.ndarray):
+    def add_record(self, *, index: int | str, gaps: numpy.ndarray) -> None:
         # dataset names must be strings
         index = str(index)
         if index in self._file:
@@ -124,7 +144,8 @@ class GapStore(eti_mixin.Hdf5Mixin):
                 # already seen this index
                 return
             # but it's different, which is a problem
-            raise ValueError(f"{index!r} already present but with different gaps")
+            msg = f"{index!r} already present but with different gaps"
+            raise ValueError(msg)
         self._file.create_dataset(
             name=index,
             data=gaps,
@@ -133,8 +154,8 @@ class GapStore(eti_mixin.Hdf5Mixin):
         )
         self._file.flush()
 
-    def get_record(self, *, index: int) -> numpy.ndarray:
-        return self._file[str(index)][:]
+    def get_record(self, *, index: int | str) -> numpy.ndarray:
+        return self._file[str(index)][:]  # type: ignore
 
 
 # TODO add a table and methods to support storing the species tree used
@@ -166,7 +187,7 @@ class AlignDb(eti_mixin.SqliteDbMixin):
         self.source = source
         if source.name == ":memory:":
             gap_path = "memory"
-            kwargs = dict(in_memory=True)
+            kwargs = {"in_memory": True}
         else:
             gap_path = source.parent / f"{source.stem}.{GAP_STORE_SUFFIX}"
             kwargs = dict(in_memory=False)
@@ -210,7 +231,7 @@ class AlignDb(eti_mixin.SqliteDbMixin):
     def _get_block_id(
         self,
         *,
-        species,
+        species: str,
         seqid: str,
         start: int | None,
         stop: int | None,
@@ -235,7 +256,7 @@ class AlignDb(eti_mixin.SqliteDbMixin):
     def get_records_matching(
         self,
         *,
-        species,
+        species: str,
         seqid: str,
         start: int | None = None,
         stop: int | None = None,

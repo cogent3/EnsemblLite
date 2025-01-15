@@ -93,7 +93,7 @@ def local_install_alignments(
     max_workers: int | None,
     verbose: bool = False,
     progress: Progress | None = None,
-):
+) -> None:
     if force_overwrite:
         shutil.rmtree(config.install_aligns, ignore_errors=True)
 
@@ -141,7 +141,7 @@ def local_install_alignments(
         db.close()
 
     if verbose:
-        print("Finished installing alignments")
+        eti_util.print_colour("\nFinished installing alignments", "yellow")
 
 
 def local_install_homology(
