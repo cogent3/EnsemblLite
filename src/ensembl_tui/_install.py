@@ -38,7 +38,28 @@ def local_install_genomes(
         eti_util.print_colour(f"\nInstalling genomes {max_workers=}", "yellow")
 
     # we do this the installation of features in serial for now
-    eti_db_ingest.install_parquet_tables(config=config, progress=progress)
+    writer = eti_db_ingest.mysql_dump_to_parquet(config=config)
+    tasks = eti_util.get_iterable_tasks(
+        func=writer,
+        series=db_names,
+        max_workers=max_workers,
+    )
+    if progress is not None:
+        msg = "Installing features 📚"
+        write_features = progress.add_task(
+            total=len(db_names),
+            description=msg,
+            advance=0,
+        )
+
+    for result in tasks:
+        if not result:
+            msg = f"{result=}"
+            raise RuntimeError(msg)
+
+        if progress is not None:
+            progress.update(write_features, description=msg, advance=1)
+
     species_table = eti_species.Species.to_table()
     species_table.write(config.install_genomes / eti_species.SPECIES_NAME)
     if verbose:
