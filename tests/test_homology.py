@@ -55,7 +55,7 @@ def o2o_db(DATA_DIR, tmp_dir):
     hom_groups = loader(raw)  # pylint: disable=not-callable
     for rel_type, data in hom_groups.items():
         agg.add_records(records=data, relationship_type=rel_type)
-    agg.finish()
+    agg.commit()
     homol_ingest.write_homology_views(agg=agg, outdir=tmp_dir)
     homdb = eti_homology.HomologyDb(source=tmp_dir)
     return homdb, table
@@ -105,7 +105,7 @@ def hom_hdb(hom_records, tmp_dir):
     agg = homol_ingest.make_homology_aggregator_db()
     for rel_type, data in groups.items():
         agg.add_records(records=data, relationship_type=rel_type)
-    agg.finish()
+    agg.commit()
     homol_ingest.write_homology_views(agg=agg, outdir=tmp_dir)
     return eti_homology.HomologyDb(source=tmp_dir)
 
@@ -289,3 +289,24 @@ def test_homdb_num_records(o2o_db):
     assert got.columns["count"][0] == 41
     got = homdb.count_distinct(species=True)
     assert got.shape == (9, 2)
+
+
+@pytest.fixture
+def hom_dir(DATA_DIR, tmp_path):
+    path = DATA_DIR / "small_protein_homologies.tsv.gz"
+    table = load_table(path)
+    outpath = tmp_path / "small_1.tsv.gz"
+    table[:1].write(outpath)
+    outpath = tmp_path / "small_2.tsv.gz"
+    table[1:2].write(outpath)
+    return tmp_path
+
+
+def test_extract_homology_data(hom_dir):
+    loader = homol_ingest.load_homologies(
+        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
+    )
+    records = []
+    for result in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False):
+        records.extend(result.obj)
+    assert len(records) == 2

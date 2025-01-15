@@ -35,18 +35,18 @@ def local_install_genomes(
         max_workers = min(len(db_names) + 1, max_workers)
 
     if verbose:
-        print(f"genomes {max_workers=}")
+        eti_util.print_colour(f"\nInstalling genomes {max_workers=}", "yellow")
 
     # we do this the installation of features in serial for now
     eti_db_ingest.install_parquet_tables(config=config, progress=progress)
     species_table = eti_species.Species.to_table()
     species_table.write(config.install_genomes / eti_species.SPECIES_NAME)
     if verbose:
-        print("Finished installing features ")
+        eti_util.print_colour("\nFinished installing features", "yellow")
 
-    msg = "Installing  🧬🧬"
     if progress is not None:
-        writing = progress.add_task(total=len(db_names), description=msg, advance=0)
+        msg = "Installing  🧬🧬"
+        write_seqs = progress.add_task(total=len(db_names), description=msg, advance=0)
     # we parallelise across databases
     writer = eti_genome.fasta_to_hdf5(config=config)
     tasks = eti_util.get_iterable_tasks(
@@ -56,14 +56,14 @@ def local_install_genomes(
     )
     for result in tasks:
         if not result:
-            print(result)
-            raise RuntimeError(f"{result=}")
+            msg = f"{result=}"
+            raise RuntimeError(msg)
 
         if progress is not None:
-            progress.update(writing, description=msg, advance=1)
+            progress.update(write_seqs, description=msg, advance=1)
 
     if verbose:
-        print("Finished installing sequences ")
+        eti_util.print_colour("\nFinished installing sequences", "yellow")
 
 
 def local_install_alignments(
@@ -129,7 +129,7 @@ def local_install_homology(
     max_workers: int | None,
     verbose: bool = False,
     progress: Progress | None = None,
-):
+) -> None:
     if force_overwrite:
         shutil.rmtree(config.install_homologies, ignore_errors=True)
 
@@ -140,13 +140,10 @@ def local_install_homology(
         path = config.staging_homologies / sp
         dirnames.extend(list(path.glob("*.tsv*")))
 
-    if max_workers:
-        max_workers = min(len(dirnames) + 1, max_workers)
-    else:
-        max_workers = 1
+    max_workers = min(len(dirnames) + 1, max_workers) if max_workers else 1
 
     if verbose:
-        print(f"homologies {max_workers=}")
+        eti_util.print_colour(f"homologies {max_workers=}", "yellow")
 
     loader = homology_ingest.load_homologies(
         allowed_species=set(config.db_names),
@@ -166,8 +163,9 @@ def local_install_homology(
     db = homology_ingest.make_homology_aggregator_db()
     for result in tasks:
         if max_workers > 1:
-            # reconstitute the blosc compressed data
-            result = eti_homology.inflate(result)
+            # blosc compression applied during parallel processing
+            # inflate now
+            result = eti_homology.inflate(result)  # noqa: PLW2901
 
         for rel_type, records in result.items():
             db.add_records(records=records, relationship_type=rel_type)
@@ -175,7 +173,7 @@ def local_install_homology(
         if progress is not None:
             progress.update(writing, description=msg, advance=1)
 
-    db.finish()
+    db.commit()
     homology_ingest.write_homology_views(agg=db, outdir=config.install_homologies)
     if verbose:
-        print("Finished installing homologies")
+        eti_util.print_colour("\nFinished installing homologies", "yellow")

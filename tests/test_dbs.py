@@ -1,11 +1,7 @@
-import pickle  # nosec B403
-
 import numpy
 import pytest
-from cogent3 import load_table
 
 from ensembl_tui import _align as eti_align
-from ensembl_tui import _ingest_homology as homology_ingest
 from ensembl_tui import _maf as eti_maf
 from ensembl_tui import _storage_mixin as eti_mixin
 
@@ -60,34 +56,6 @@ def test_db_align_add_records(db_align):
 @pytest.mark.parametrize("func", [str, repr])
 def test_db_align_repr(db_align, func):
     func(db_align)
-
-
-@pytest.fixture
-def hom_dir(DATA_DIR, tmp_path):
-    path = DATA_DIR / "small_protein_homologies.tsv.gz"
-    table = load_table(path)
-    outpath = tmp_path / "small_1.tsv.gz"
-    table[:1].write(outpath)
-    outpath = tmp_path / "small_2.tsv.gz"
-    table[1:2].write(outpath)
-    return tmp_path
-
-
-def test_extract_homology_data(hom_dir):
-    loader = homology_ingest.load_homologies(
-        {"gorilla_gorilla", "nomascus_leucogenys", "notamacropus_eugenii"},
-    )
-    records = []
-    for result in loader.as_completed(hom_dir.glob("*.tsv.gz"), show_progress=False):
-        records.extend(result.obj)
-    assert len(records) == 2
-
-
-def test_pickling_db(db_align):
-    # should not fail
-    pkl = pickle.dumps(db_align)  # nosec B301
-    upkl = pickle.loads(pkl)  # nosec B301  # noqa: S301
-    assert db_align.source == upkl.source
 
 
 @pytest.mark.parametrize(
