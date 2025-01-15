@@ -565,3 +565,7 @@ def tempdir() -> pathlib.Path:
     """context manager returns a temporary directory"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield pathlib.Path(temp_dir)
+
+
+def make_column_constant(schema: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(c.split()[0] for c in schema)
