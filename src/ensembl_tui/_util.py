@@ -37,7 +37,7 @@ except (NotImplementedError, ImportError):
     keep_running = contextlib.nullcontext
 
 
-_HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
+HDF5_BLOSC2_KWARGS = hdf5plugin.Blosc2(
     cname="blosclz",
     clevel=9,
     filters=hdf5plugin.Blosc2.BITSHUFFLE,
@@ -565,3 +565,7 @@ def tempdir() -> pathlib.Path:
     """context manager returns a temporary directory"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield pathlib.Path(temp_dir)
+
+
+def make_column_constant(schema: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(c.split()[0] for c in schema)

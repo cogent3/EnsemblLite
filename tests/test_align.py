@@ -1,10 +1,14 @@
+import pickle
+
 import duckdb
 import numpy
 import pytest
 
 from ensembl_tui import _align as eti_align
 from ensembl_tui import _annotation as eti_annots
+from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
+from ensembl_tui import _ingest_align as eti_ingest_align
 
 
 def make_gene_attr(records: list[dict]) -> eti_annots.GeneView:
@@ -121,24 +125,35 @@ def small_records():
     return make_records(1, 5, 0)
 
 
+def empty_align_agg_gap_store():
+    agg = eti_ingest_align.make_alignment_aggregator_db()
+    gs = eti_align.GapStore(
+        source=":memory:",
+        in_memory=True,
+        mode="w",
+        align_name="demo",
+    )
+    return agg, gs
+
+
 def test_aligndb_records_match_input(small_records):
     import copy
 
     orig_records = copy.deepcopy(small_records)
-
-    db = eti_align.AlignDb(source=":memory:")
-    db.add_records(records=small_records)
+    agg, gs = empty_align_agg_gap_store()
+    eti_ingest_align.add_records(records=small_records, conn=agg, gap_store=gs)
+    db = eti_align.AlignDb(db=agg, gap_store=gs, source=":memory:")
     got = next(iter(db.get_records_matching(species="human", seqid="s1")))
     assert got == set(orig_records)
 
 
 def test_aligndb_records_skip_duplicated_block_ids(small_records):
-    db = eti_align.AlignDb(source=":memory:")
-    db.add_records(records=small_records)
-    orig = list(db.get_records_matching(species="human", seqid="s1"))
-    db.add_records(records=small_records)
-    got = list(db.get_records_matching(species="human", seqid="s1"))
-    assert len(got) == len(orig)
+    agg, gs = empty_align_agg_gap_store()
+    eti_ingest_align.add_records(conn=agg, gap_store=gs, records=small_records)
+    sql = "SELECT COUNT(*) FROM align_blocks"
+    count = agg.sql(sql).fetchone()[0]
+    eti_ingest_align.add_records(conn=agg, gap_store=gs, records=small_records)
+    assert agg.sql(sql).fetchone()[0] == count
 
 
 def _find_nth_gap_index(data: str, n: int) -> int:
@@ -151,19 +166,13 @@ def _find_nth_gap_index(data: str, n: int) -> int:
     raise ValueError(f"{data=}, {n=}")
 
 
-def _get_expected_seqindex(data: str, align_index: int) -> int:
-    # compute the expected seqindex
-    refseq = data.replace("-", "")
-    got = data[align_index:].lstrip("-")
-    return refseq.find(got[0]) if got else len(refseq)
-
-
 # fixture to make synthetic GenomeSeqsDb and alignment db
 # based on a given alignment
 @pytest.fixture
 def genomedbs_aligndb(small_records):
-    align_db = eti_align.AlignDb(source=":memory:")
-    align_db.add_records(records=small_records)
+    agg, gs = empty_align_agg_gap_store()
+    eti_ingest_align.add_records(records=small_records, conn=agg, gap_store=gs)
+    align_db = eti_align.AlignDb(source=":memory:", db=agg, gap_store=gs)
     seqs = small_seqs().degap()
     species = seqs.info.species
     data = seqs.to_dict()
@@ -245,9 +254,17 @@ def make_sample(two_aligns=False):
     align_records = _update_records(s2_genome, aln, "0", 1, 12)
     if two_aligns:
         align_records += _update_records(s2_genome, aln, "1", 22, 30)
-    align_db = eti_align.AlignDb(source=":memory:")
-    align_db.add_records(records=align_records)
 
+    maker = eti_ingest_align.make_alignment_aggregator_db()
+    gap_store = eti_align.GapStore(
+        source=":memory:",
+        in_memory=True,
+        mode="w",
+        align_name="demo",
+    )
+
+    eti_ingest_align.add_records(conn=maker, gap_store=gap_store, records=align_records)
+    align_db = eti_align.AlignDb(db=maker, gap_store=gap_store, source=":memory:")
     return genomes, align_db
 
 
@@ -276,19 +293,19 @@ def _update_records(s2_genome, aln, block_id, start, end):
 
 @pytest.mark.parametrize(
     "start_end",
-    (
+    [
         (None, None),
         (None, 11),
         (3, None),
         (3, 13),
-    ),
+    ],
 )
 @pytest.mark.parametrize(
     "species_coord",
-    (
+    [
         ("human", "s1"),
         ("dog", "s3"),
-    ),
+    ],
 )
 def test_select_alignment_plus_strand(species_coord, start_end, namer):
     species, seqid = species_coord
@@ -317,12 +334,12 @@ def test_select_alignment_plus_strand(species_coord, start_end, namer):
 
 @pytest.mark.parametrize(
     "start_end",
-    (
+    [
         (None, None),
         (None, 5),
         (2, None),
         (2, 7),
-    ),
+    ],
 )
 def test_select_alignment_minus_strand(start_end, namer):
     species, seqid = "mouse", "s2"
@@ -371,12 +388,12 @@ def test_select_alignment_minus_strand(start_end, namer):
 
 @pytest.mark.parametrize(
     "coord",
-    (
+    [
         ("human", "s1", None, 11),  # finish within
         ("human", "s1", 3, None),  # start within
         ("human", "s1", 3, 9),  # within
         ("human", "s1", 3, 13),  # extends past
-    ),
+    ],
 )
 def test_get_alignment_features(coord):
     kwargs = dict(
@@ -391,12 +408,12 @@ def test_get_alignment_features(coord):
 
 @pytest.mark.parametrize(
     "coord",
-    (
+    [
         ("human", "s1", None, 11),  # finish within
         ("human", "s1", 3, None),  # start within
         ("human", "s1", 3, 9),  # within
         ("human", "s1", 3, 13),  # extends past
-    ),
+    ],
 )
 def test_get_alignment_masked_features(coord):
     kwargs = dict(
@@ -412,12 +429,12 @@ def test_get_alignment_masked_features(coord):
 
 @pytest.mark.parametrize(
     "coord",
-    (
+    [
         ("human", "s1", None, 11),  # finish within
         ("human", "s1", 3, None),  # start within
         ("human", "s1", 3, 9),  # within
         ("human", "s1", 3, 13),  # extends past
-    ),
+    ],
 )
 def test_align_db_get_records(coord):
     kwargs = dict(zip(("species", "seqid", "start", "stop"), coord, strict=False))
@@ -430,11 +447,11 @@ def test_align_db_get_records(coord):
 
 @pytest.mark.parametrize(
     "coord",
-    (
+    [
         ("human", "s1"),
         ("mouse", "s2"),
         ("dog", "s3"),
-    ),
+    ],
 )
 def test_align_db_get_records_required_only(coord):
     kwargs = dict(zip(("species", "seqid"), coord, strict=False))
@@ -446,11 +463,11 @@ def test_align_db_get_records_required_only(coord):
 
 @pytest.mark.parametrize(
     "coord",
-    (
+    [
         ("human", "s2"),
         ("mouse", "xx"),
         ("blah", "s3"),
-    ),
+    ],
 )
 def test_align_db_get_records_no_matches(coord):
     kwargs = dict(zip(("species", "seqid"), coord, strict=False))
@@ -465,7 +482,7 @@ def test_get_species():
     assert set(align_db.get_species_names()) == {"dog", "human", "mouse"}
 
 
-def test_write_alignments(tmp_path):
+def test_write_alignments():
     genomes, align_db = make_sample(two_aligns=True)
     locations = eti_genome.get_gene_segments(
         annot_db=genomes["human"].annotation_db,
@@ -527,24 +544,48 @@ def test_gapstore_add_invalid_duplicate():
 
 
 @pytest.fixture
-def small_db(small_records):
-    import copy
+def db_align(DATA_DIR, tmp_dir):
+    staging_path = tmp_dir / "staging"
+    staging_path.mkdir(parents=True, exist_ok=True)
+    align_name = "align_name"
+    install_path = tmp_dir / "install"
 
-    db = eti_align.AlignDb(source=":memory:")
-    db.add_records(records=copy.deepcopy(small_records))
-    return db
-
-
-@pytest.mark.parametrize("col", tuple(eti_align.AlignDb._index_columns["align"]))
-def test_indexing(small_db, col):
-    table_name = "align"
-    expect = ("index", f"{col}_index", table_name)
-    small_db.make_indexes()
-    sql_template = (
-        f"SELECT * FROM sqlite_master WHERE type = 'index' AND "  # nosec B608
-        f"tbl_name = {table_name!r} and name = '{col}_index'"  # nosec B608
+    cfg = eti_config.Config(
+        host="localhost",
+        remote_path="",
+        staging_path=staging_path,
+        install_path=install_path,
+        species_dbs={},
+        release="113",
+        align_names=[align_name],
+        tree_names=[],
+        homologies=True,
     )
+    align_dir = cfg.staging_aligns / align_name
+    align_dir.mkdir(parents=True, exist_ok=True)
+    maf = align_dir / f"{align_name}.maf"
+    maf.write_text((DATA_DIR / "tiny.maf").read_text())
 
-    result = small_db._execute_sql(sql_template).fetchone()
-    got = tuple(result)[:3]
-    assert got == expect
+    parquet_path = eti_ingest_align.install_alignment(cfg, align_name)
+    return eti_align.AlignDb(source=parquet_path.parent)
+
+
+def test_db_align(db_align):
+    orig = len(db_align)
+    source = db_align.source
+    db_align.close()
+    got = eti_align.AlignDb(source=source)
+    assert len(got) == orig
+
+
+@pytest.mark.parametrize("func", [str, repr])
+def test_db_align_repr(db_align, func):
+    got = func(db_align)
+    assert "AlignDb" in got
+
+
+def test_pickling_db(db_align):
+    # should not fail
+    pkl = pickle.dumps(db_align)  # nosec B301
+    upkl = pickle.loads(pkl)  # nosec B301  # noqa: S301
+    assert db_align.source == upkl.source

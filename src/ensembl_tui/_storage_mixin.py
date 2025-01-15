@@ -3,9 +3,11 @@ import dataclasses
 import functools
 import io
 import os
-import sqlite3
+import pathlib
 
+import duckdb
 import numpy
+import typing_extensions
 
 from ensembl_tui import _util as eti_util
 
@@ -61,99 +63,7 @@ def _make_table_sql(
     columns_types = ", ".join([f"{name} {ctype}" for name, ctype in columns.items()])
     if primary_key:
         columns_types = f"{columns_types}, PRIMARY KEY ({','.join(primary_key)})"
-    sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
-    return sql
-
-
-class SqliteDbMixin(eti_util.SerialisableMixin):
-    table_name = None
-    _db = None
-    source: eti_util.PathType = ":memory:"
-
-    def __getstate__(self):
-        return {**self._init_vals}
-
-    def __setstate__(self, state):
-        # this will reset connections to read only db's
-        obj = self.__class__(**state)
-        self.__dict__.update(obj.__dict__)
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        total_records = len(self)
-        args = ", ".join(
-            f"{k}={repr(v) if isinstance(v, str) else v}"
-            for k, v in self._init_vals.items()
-            if k != "data"
-        )
-        return f"{name}({args}, total_records={total_records})"
-
-    def __len__(self):
-        return self.num_records()
-
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and other.db is self.db
-
-    def _init_tables(self) -> None:
-        # is source an existing db
-        self._db = self._db or sqlite3.connect(
-            self.source,
-            detect_types=sqlite3.PARSE_DECLTYPES,
-            check_same_thread=False,
-        )
-        self._db.row_factory = sqlite3.Row
-
-        # try and reduce memory usage
-        cursor = self._db.cursor()
-        cursor.execute("PRAGMA cache_size = -2048;")
-
-        # A bit of magic.
-        # Assumes schema attributes named as `_<table name>_schema`
-        for attr in dir(self):
-            if attr.endswith("_schema"):
-                table_name = "_".join(attr.split("_")[1:-1])
-                attr = getattr(self, attr)
-                sql = _make_table_sql(table_name, attr)
-                cursor.execute(sql)
-
-    @property
-    def db(self) -> sqlite3.Connection:
-        if self._db is None:
-            self._db = sqlite3.connect(
-                self.source,
-                detect_types=sqlite3.PARSE_DECLTYPES,
-                check_same_thread=False,
-            )
-            self._db.row_factory = sqlite3.Row
-
-        return self._db
-
-    def _execute_sql(self, cmnd: str, values=None) -> sqlite3.Cursor:
-        with self.db:
-            # context manager ensures safe transactions
-            cursor = self.db.cursor()
-            cursor.execute(cmnd, values or [])
-            return cursor
-
-    def num_records(self):
-        sql = f"SELECT COUNT(*) as count FROM {self.table_name}"
-        return list(self._execute_sql(sql).fetchone())[0]
-
-    def close(self):
-        self.db.commit()
-        self.db.close()
-
-    def get_distinct(self, column: str) -> set[str]:
-        sql = f"SELECT DISTINCT {column} from {self.table_name}"
-        return {r[column] for r in self._execute_sql(sql).fetchall()}
-
-    def make_indexes(self):
-        """adds db indexes for core attributes"""
-        sql = "CREATE INDEX IF NOT EXISTS %(index)s on %(table)s(%(col)s)"
-        for table_name, columns in self._index_columns.items():
-            for col in columns:
-                index = f"{col}_index"
-                self._execute_sql(sql % dict(table=table_name, index=index, col=col))
+    return f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_types})"
 
 
 # HDF5 base class
@@ -198,3 +108,73 @@ class Hdf5Mixin(eti_util.SerialisableMixin):
                     self._file.close()
 
         self._is_open = False
+
+
+class ViewMixin:
+    _source: pathlib.Path  # override in subclass
+
+    @property
+    def species(self) -> str:
+        return self._source.name
+
+
+@dataclasses.dataclass(slots=True)
+class DuckdbParquetBase:
+    source: dataclasses.InitVar[pathlib.Path]
+    # db is for testing purposes
+    db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
+    _source: pathlib.Path = dataclasses.field(init=False)
+    _conn: duckdb.DuckDBPyConnection = dataclasses.field(init=False, default=None)  # type: ignore
+    _tables: tuple[str, ...] | tuple = ()
+
+    def __post_init__(
+        self,
+        source: pathlib.Path,
+        db: duckdb.DuckDBPyConnection | None,
+    ) -> None:
+        source = pathlib.Path(source)
+        self._source = source
+        if db:
+            self._conn = db
+            return
+
+        self._conn = None
+
+        if not source.is_dir():
+            msg = f"{self._source} is not a directory"
+            raise OSError(msg)
+
+        if hasattr(self, "_post_init"):
+            self._post_init()
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        if self._conn is None:
+            self._conn = duckdb.connect(":memory:")
+            for table in self._tables:
+                parquet_file = self._source / f"{table}.parquet"
+                if not parquet_file.exists():
+                    msg = f"{parquet_file} does not exist"
+                    raise FileNotFoundError(msg)
+
+                sql = f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{parquet_file}')"
+                self._conn.sql(sql)
+
+        return self._conn
+
+    def __len__(self) -> int:
+        return self.num_records()
+
+    def __eq__(self, other: typing_extensions.Self) -> bool:
+        return other.conn is self.conn
+
+    @property
+    def source(self) -> pathlib.Path:
+        return self._source
+
+    def close(self) -> None:
+        self.conn.close()
+
+    def num_records(self) -> int:  # pragma: no cover
+        # override in subclass
+        raise NotImplementedError

@@ -5,6 +5,7 @@ from collections.abc import Generator
 
 import duckdb
 import rich.progress as rich_progress
+from cogent3.app.composable import LOADER, define_app
 
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _util as eti_util
@@ -229,7 +230,7 @@ def _make_db(
     for table_name in table_names:
         parquet_file = config.install_genomes / db_name / f"{table_name}.parquet"
         if not parquet_file.exists():
-            msg = "run install_parquet_tables() first"
+            msg = "use mysql_dump_to_parquet() app first"
             raise FileNotFoundError(msg)
         files.append(parquet_file)
 
@@ -370,3 +371,52 @@ def install_parquet_tables(
             make_combined_tables(config=config, db_name=db_name, cleanup=True)
 
     return genome_root
+
+
+@define_app(app_type=LOADER)
+class mysql_dump_to_parquet:  # noqa: N801
+    def __init__(
+        self,
+        config: eti_config.Config,
+        verbose: bool = False,
+        make_combined: bool = True,
+    ) -> None:
+        if not config.staging_template_path.exists():
+            msg = f"no mysql dump dir for {config.staging_template_path=}"
+            raise FileNotFoundError(msg)
+
+        self._config = config
+        self._template_dir = config.staging_template_path
+        self._staging_dir = config.staging_genomes
+        self._install_dir = config.install_genomes
+        self._install_dir.mkdir(parents=True, exist_ok=True)
+        self._table_names = [fn.stem for fn in self._template_dir.glob("*.duckdb")]
+        self._verbose = verbose
+        self._make_combined = make_combined
+
+    def main(self, db_name: str) -> pathlib.Path:
+        dump_dir = self._staging_dir / db_name / "mysql"
+        if not dump_dir.exists():
+            msg = f"no mysql dump dir for {db_name}"
+            raise FileNotFoundError(msg)
+
+        dest_dir = self._install_dir / db_name
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for table_name in self._table_names:
+            dump_path = dump_dir / f"{table_name}.txt.gz"
+            if not dump_path.exists():
+                msg = f"no mysqldump file for {table_name}"
+                raise FileNotFoundError(msg)
+
+            write_parquet(
+                db_templates=self._template_dir,
+                dump_path=dump_path,
+                table_name=table_name,
+                dest_dir=dest_dir,
+            )
+
+        # and now we construct the combined attr tables
+        if self._make_combined:
+            make_combined_tables(config=self._config, db_name=db_name, cleanup=True)
+
+        return dest_dir

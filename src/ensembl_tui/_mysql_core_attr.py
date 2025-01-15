@@ -8,10 +8,7 @@ import typing
 import duckdb
 import numpy
 
-
-def _make_column_constant(schema: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(c.split()[0] for c in schema)
-
+from ensembl_tui import _util as eti_util
 
 TRANSCRIPT_ATTR_SCHEMA = (
     "gene_id INTEGER",
@@ -25,7 +22,7 @@ TRANSCRIPT_ATTR_SCHEMA = (
     "transcript_stable_id TEXT",
     "cds_stable_id TEXT",
 )
-TRANSCRIPT_ATTR_COLS = _make_column_constant(TRANSCRIPT_ATTR_SCHEMA)
+TRANSCRIPT_ATTR_COLS = eti_util.make_column_constant(TRANSCRIPT_ATTR_SCHEMA)
 GENE_ATTR_SCHEMA = (
     "gene_id INTEGER",
     "stable_id TEXT",
@@ -37,7 +34,7 @@ GENE_ATTR_SCHEMA = (
     "strand TINYINT",
     "symbol TEXT",
 )
-GENE_ATTR_COLS = _make_column_constant(GENE_ATTR_SCHEMA)
+GENE_ATTR_COLS = eti_util.make_column_constant(GENE_ATTR_SCHEMA)
 
 
 def array_to_blob(data: numpy.ndarray) -> bytes:

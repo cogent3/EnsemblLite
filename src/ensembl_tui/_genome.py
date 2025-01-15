@@ -24,7 +24,7 @@ from numpy.typing import NDArray
 import ensembl_tui._annotation as eti_annots
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _species as eti_species
-from ensembl_tui import _storage_mixin as eti_mixin
+from ensembl_tui import _storage_mixin as eti_storage
 from ensembl_tui import _util as eti_util
 from ensembl_tui._faster_fasta import quicka_parser
 
@@ -165,7 +165,7 @@ class arr2str:  # noqa: N801
 
 
 @dataclasses.dataclass
-class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
+class SeqsDataHdf5(eti_storage.Hdf5Mixin, SeqsDataABC):
     """HDF5 sequence data storage"""
 
     def __init__(
@@ -239,7 +239,7 @@ class SeqsDataHdf5(eti_mixin.Hdf5Mixin, SeqsDataABC):
             name=seqid,
             data=seq,
             chunks=True,
-            **eti_util._HDF5_BLOSC2_KWARGS,
+            **eti_util.HDF5_BLOSC2_KWARGS,
         )
 
     def add_records(self, *, records: typing.Iterable[list[str, str]]) -> None:

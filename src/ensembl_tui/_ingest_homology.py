@@ -154,7 +154,7 @@ class HomologyAggregator:
         sql = "INSERT OR IGNORE INTO member(stableid_id, homology_id) VALUES (?, ?)"
         self.conn.executemany(sql, parameters=values)
 
-    def finish(self):
+    def commit(self):
         # add the indexes for species and relationships
         relationships = list(self._relationship_indexer)
         sql = "INSERT OR IGNORE INTO relationship(relationship_id, homology_type) VALUES (?,?)"
@@ -286,4 +286,4 @@ def local_install_homology(
         for rel_type, records in grouped.items():
             agg.add_records(records=records, relationship_type=rel_type)
 
-    agg.finish()
+    agg.commit()

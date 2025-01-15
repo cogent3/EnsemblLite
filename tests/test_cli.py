@@ -67,6 +67,9 @@ def test_installed(installed):
     assert r.exit_code == 0, r.output
     assert "Installed genomes" in r.output
     assert "caenorhabditis_elegans" in r.output
+    path = config.installed_genome("caenorhabditis_elegans")
+    # should be 2 combined attr parquet files
+    assert len(list(path.glob("*attr.parquet"))) == 2
 
 
 @pytest.mark.slow

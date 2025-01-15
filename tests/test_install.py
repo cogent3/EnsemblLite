@@ -187,8 +187,10 @@ def invalid_downloaded_cfg(downloaded_cfg, request):
 
 def test_install_features_invalid(invalid_downloaded_cfg):
     cfg = eti_config.read_config(invalid_downloaded_cfg)
-    with pytest.raises(FileNotFoundError):
-        eti_db_ingest.install_parquet_tables(config=cfg)
+    with pytest.raises(FileNotFoundError):  # noqa: PT012
+        app = eti_db_ingest.mysql_dump_to_parquet(config=cfg)
+        # an exception during call in finding mysql file
+        app.main("saccharomyces_cerevisiae")
 
 
 @pytest.mark.parametrize(

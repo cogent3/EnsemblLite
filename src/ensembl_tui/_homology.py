@@ -1,9 +1,7 @@
 import dataclasses
-import pathlib
 import typing
 
 import blosc2
-import duckdb
 import typing_extensions
 from cogent3 import make_table, make_unaligned_seqs
 from cogent3.app.composable import NotCompleted, define_app
@@ -15,6 +13,7 @@ from cogent3.util.io import PathType
 
 from ensembl_tui import _config as eti_config
 from ensembl_tui import _genome as eti_genome
+from ensembl_tui import _storage_mixin as eti_storage
 
 compressor = compress(compressor=blosc2.compress2)
 decompressor = decompress(decompressor=blosc2.decompress2)
@@ -82,43 +81,8 @@ class homolog_group:  # noqa: N801
 
 # the homology db stores pairwise relationship information
 @dataclasses.dataclass(slots=True)
-class HomologyDb:
-    source: dataclasses.InitVar[pathlib.Path]
-    # db is for testing purposes
-    db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
-    _source: pathlib.Path = dataclasses.field(init=False)
-    _conn: duckdb.DuckDBPyConnection = dataclasses.field(init=False, default=None)  # type: ignore
+class HomologyDb(eti_storage.DuckdbParquetBase):
     _tables: tuple[str, str] = ("homology_groups_attr",)
-
-    def __post_init__(
-        self,
-        source: pathlib.Path,
-        db: duckdb.DuckDBPyConnection | None,
-    ) -> None:
-        source = pathlib.Path(source)
-        self._source = source
-        if db:
-            self._conn = db
-            return
-
-        if not source.is_dir():
-            msg = f"{self._source} is not a directory"
-            raise OSError(msg)
-
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        if self._conn is None:
-            self._conn = duckdb.connect(":memory:")
-            for table in self._tables:
-                parquet_file = self._source / f"{table}.parquet"
-                if not parquet_file.exists():
-                    msg = f"{parquet_file} does not exist"
-                    raise FileNotFoundError(msg)
-
-                sql = f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{parquet_file}')"
-                self._conn.sql(sql)
-
-        return self._conn
 
     def get_related_to(self, *, gene_id: str, relationship_type: str) -> homolog_group:
         """return genes with relationship type to gene_id"""

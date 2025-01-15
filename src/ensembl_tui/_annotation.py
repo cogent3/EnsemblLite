@@ -12,6 +12,7 @@ from cogent3.core.annotation_db import (
 )
 
 import ensembl_tui._mysql_core_attr as core_tables
+from ensembl_tui import _storage_mixin as eti_storage
 
 if typing.TYPE_CHECKING:
     from cogent3.util.table import Table
@@ -239,52 +240,9 @@ def _select_records_sql(
     return f"{sql} WHERE {conditions}" if conditions else sql
 
 
-class ViewMixin:
-    _source: pathlib.Path  # override in subclass
-
-    @property
-    def species(self) -> str:
-        return self._source.name
-
-
 @dataclasses.dataclass
-class BiotypeView(ViewMixin):
-    source: dataclasses.InitVar[pathlib.Path | str]
-    db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
-    _source: pathlib.Path = dataclasses.field(init=False)
-    _conn: duckdb.DuckDBPyConnection | None = dataclasses.field(
-        init=False,
-        default=None,
-    )
-    _table: str = "gene_attr"
-
-    def __post_init__(
-        self,
-        source: pathlib.Path,
-        db: duckdb.DuckDBPyConnection | None,
-    ) -> None:
-        source = pathlib.Path(source)
-        self._source = source
-        if db:
-            self._conn = db
-            return
-
-        if not source.is_dir():
-            msg = f"{self._source} is not a directory"
-            raise OSError(msg)
-
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        if self._conn is None:
-            self._conn = duckdb.connect(":memory:")
-            parquet_file = self._source / f"{self._table}.parquet"
-            if not parquet_file.exists():
-                msg = f"{parquet_file} does not exist"
-                raise FileNotFoundError(msg)
-
-            sql = f"CREATE TABLE {self._table} AS SELECT * FROM read_parquet('{parquet_file}')"
-            self._conn.sql(sql)
-        return self._conn
+class BiotypeView(eti_storage.DuckdbParquetBase, eti_storage.ViewMixin):
+    _tables: tuple[str] = ("gene_attr",)
 
     def num_records(self) -> int:
         """returns the number of distinct biotypes"""
@@ -292,12 +250,14 @@ class BiotypeView(ViewMixin):
 
     @functools.cached_property
     def distinct(self) -> tuple[str, ...]:
-        sql = f"SELECT DISTINCT biotype FROM {self._table}"
+        sql = f"SELECT DISTINCT biotype FROM {self._tables[0]}"
         return tuple(r[0] for r in self.conn.sql(sql).fetchall())
 
     @functools.cached_property
     def count_distinct(self) -> "Table":
-        sql = f"SELECT biotype, COUNT(*) AS freq FROM {self._table} GROUP BY biotype"
+        sql = (
+            f"SELECT biotype, COUNT(*) AS freq FROM {self._tables[0]} GROUP BY biotype"
+        )
         got = self.conn.sql(sql).fetchall()
         return cogent3.make_table(
             header=["biotype", "count"],
@@ -307,42 +267,8 @@ class BiotypeView(ViewMixin):
 
 
 @dataclasses.dataclass
-class GeneView(ViewMixin):
-    source: dataclasses.InitVar[pathlib.Path | str]
-    db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
-    _source: pathlib.Path = dataclasses.field(init=False)
-    _conn: duckdb.DuckDBPyConnection = dataclasses.field(init=False, default=None)  # type: ignore
+class GeneView(eti_storage.DuckdbParquetBase, eti_storage.ViewMixin):
     _tables: tuple[str, str] = ("gene_attr", "transcript_attr")
-
-    def __post_init__(
-        self,
-        source: pathlib.Path,
-        db: duckdb.DuckDBPyConnection | None,
-    ) -> None:
-        source = pathlib.Path(source)
-        self._source = source
-        if db:
-            self._conn = db
-            return
-
-        if not source.is_dir():
-            msg = f"{self._source} is not a directory"
-            raise OSError(msg)
-
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        if self._conn is None:
-            self._conn = duckdb.connect(":memory:")
-            for table in self._tables:
-                parquet_file = self._source / f"{table}.parquet"
-                if not parquet_file.exists():
-                    msg = f"{parquet_file} does not exist"
-                    raise FileNotFoundError(msg)
-
-                sql = f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{parquet_file}')"
-                self._conn.sql(sql)
-
-        return self._conn
 
     def num_records(self) -> int:
         """returns the number of distinct genes as identified by stable_id"""
@@ -618,47 +544,15 @@ class GeneView(ViewMixin):
 
 
 @dataclasses.dataclass
-class RepeatView(ViewMixin):
-    source: dataclasses.InitVar[pathlib.Path | str]
-    db: dataclasses.InitVar[duckdb.DuckDBPyConnection | None] = None
-    _source: pathlib.Path = dataclasses.field(init=False)
-    _conn: duckdb.DuckDBPyConnection | None = dataclasses.field(
-        init=False,
-        default=None,
+class RepeatView(eti_storage.DuckdbParquetBase, eti_storage.ViewMixin):
+    _tables: tuple[str, ...] = tuple(
+        core_tables.collect_table_names(*core_tables.REPEAT_ATTR),
     )
-    _tables: tuple[str, ...] = dataclasses.field(init=False)
-
-    def __post_init__(
-        self,
-        source: pathlib.Path,
-        db: duckdb.DuckDBPyConnection | None,
-    ) -> None:
-        source = pathlib.Path(source)
-        self._source = source
-        if db:
-            self._conn = db
-            return
-
-        if not source.is_dir():
-            msg = f"{self._source} is not a directory"
-            raise OSError(msg)
-
-        self._tables = tuple(
-            core_tables.collect_table_names(*core_tables.REPEAT_ATTR),
-        )
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
         if self._conn is None:
-            self._conn = duckdb.connect(":memory:")
-            for table in self._tables:
-                parquet_file = self._source / f"{table}.parquet"
-                if not parquet_file.exists():
-                    msg = f"{parquet_file} does not exist"
-                    raise FileNotFoundError(msg)
-
-                sql = f"CREATE TABLE {table} AS SELECT * FROM read_parquet('{parquet_file}')"
-                self._conn.sql(sql)
+            super().conn
             sql = """CREATE VIEW IF NOT EXISTS repeat_view AS
                     SELECT 
                         rc.repeat_type AS repeat_type,
@@ -764,7 +658,7 @@ class RepeatView(ViewMixin):
 
 
 @dataclasses.dataclass
-class Annotations(AnnotationDbABC, ViewMixin):
+class Annotations(AnnotationDbABC, eti_storage.ViewMixin):
     """virtual genome annotation database that provides access to gene and repeat features"""
 
     source: dataclasses.InitVar[pathlib.Path | str]
@@ -863,6 +757,6 @@ class Annotations(AnnotationDbABC, ViewMixin):
         return num_genes + num_repeats
 
     def close(self) -> None:
-        self.biotypes.conn.close()
-        self.genes.conn.close()
-        self.repeats.conn.close()
+        self.biotypes.close()
+        self.genes.close()
+        self.repeats.close()
